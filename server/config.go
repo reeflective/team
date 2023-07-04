@@ -135,6 +135,7 @@ func (c *Server) RemoveListenerJob(jobID string) {
 	if c.config.Jobs == nil {
 		return
 	}
+
 	defer c.SaveConfig(c.config)
 }
 

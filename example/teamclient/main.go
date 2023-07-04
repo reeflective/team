@@ -16,10 +16,10 @@ func main() {
 	client := client.New("teamserver")
 
 	// Let the teamserver client dedicated command tree make use of it.
-	rootCmd := cli.Commands(client)
+	root := cli.Commands(client)
 
 	// Only connect to the server before actually running commands.
-	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		err := client.Connect()
 		if err != nil {
 			log.Fatalf("Error connecting to teamserver: %s", err)
@@ -27,12 +27,16 @@ func main() {
 		return nil
 	}
 
+	root.PersistentPostRun = func(cmd *cobra.Command, args []string) {
+		client.Disconnect()
+	}
+
 	// Completions
-	carapace.Gen(rootCmd)
+	carapace.Gen(root)
 
 	// Run your application: anything having to do with
 	// the teamserver or one of its commands, will be done
-	err := rootCmd.Execute()
+	err := root.Execute()
 	if err != nil {
 		log.Fatal(err)
 	}
