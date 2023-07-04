@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/server"
 )
 
@@ -55,8 +56,8 @@ func Commands(server *server.Server) *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print teamserver client version",
-		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf(info+"Server %s\n", client.FullVersion())
 		},
 	}
 
@@ -64,34 +65,51 @@ func Commands(server *server.Server) *cobra.Command {
 
 	// [ Listeners and servers control commands ] ------------------------------------------
 
-	startLnCmd := &cobra.Command{
-		Use:   "start",
-		Short: "Start a teamserver gRPC listener job",
+	listenCmd := &cobra.Command{
+		Use:   "listen",
+		Short: "Start a teamserver gRPC listener job (non-blocking)",
 		Run:   startListenerCmd(server),
 	}
 
 	lnFlags := pflag.NewFlagSet("listener", pflag.ContinueOnError)
 	lnFlags.StringP("host", "L", "", "interface to bind server to")
 	lnFlags.Uint16P("port", "l", 31337, "tcp listen port")
-	lnFlags.BoolP("persistent", "p", false, "make persistent across restarts")
-	startLnCmd.Flags().AddFlagSet(lnFlags)
+	lnFlags.BoolP("persistent", "p", false, "make listener persistent across restarts")
+	listenCmd.Flags().AddFlagSet(lnFlags)
 
-	teamCmd.AddCommand(startLnCmd)
+	teamCmd.AddCommand(listenCmd)
 
-	// stop
 	// systemd
-
 	daemonCmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "Start the teamserver in daemon mode (blocking)",
-		Long:  ``,
 		Run:   daemoncmd(server),
 	}
-
 	daemonCmd.Flags().StringP("host", "l", "-", "multiplayer listener host")
 	daemonCmd.Flags().Uint16P("port", "p", uint16(0), "multiplayer listener port")
 
 	teamCmd.AddCommand(daemonCmd)
+
+	systemdCmd := &cobra.Command{
+		Use:   "systemd",
+		Short: "Print a systemd unit file for the application teamserver, with options",
+		Run:   systemdConfigCmd(server),
+	}
+
+	sFlags := pflag.NewFlagSet("systemd", pflag.ContinueOnError)
+	sFlags.StringP("binpath", "b", "", "Specify the path of the teamserver application binary")
+	sFlags.StringP("user", "u", "", "Specify the user for the systemd file to run with")
+	sFlags.StringP("save", "s", "", "Directory/file in which to save config, instead of stdout")
+	sFlags.StringP("host", "l", "", "Listen host to use in the systemd command line")
+	sFlags.Uint16P("port", "p", 0, "Listen port in the systemd command line")
+	systemdCmd.Flags().AddFlagSet(sFlags)
+
+	sComps := make(carapace.ActionMap)
+	sComps["save"] = carapace.ActionFiles()
+	sComps["binpath"] = carapace.ActionFiles()
+	carapace.Gen(systemdCmd).FlagCompletion(sComps)
+
+	teamCmd.AddCommand(systemdCmd)
 
 	// [ Users and data control commands ] -------------------------------------------------
 
@@ -106,7 +124,7 @@ func Commands(server *server.Server) *cobra.Command {
 
 	userFlags := pflag.NewFlagSet("user", pflag.ContinueOnError)
 	userFlags.StringP("host", "l", "", "listen host")
-	userFlags.Uint16P("port", "p", 31337, "listen port")
+	userFlags.Uint16P("port", "p", 0, "listen port")
 	userFlags.StringP("save", "s", "", "directory/file in which to save config")
 	userFlags.StringP("name", "n", "", "user name")
 	userCmd.Flags().AddFlagSet(userFlags)
@@ -144,7 +162,6 @@ func Commands(server *server.Server) *cobra.Command {
 	cmdImportCA := &cobra.Command{
 		Use:   "import",
 		Short: "Import a certificate Authority file containing teamserver users",
-		Long:  ``,
 		Args:  cobra.ExactArgs(1),
 		Run:   importCACmd(server),
 	}
@@ -156,7 +173,6 @@ func Commands(server *server.Server) *cobra.Command {
 	cmdExportCA := &cobra.Command{
 		Use:   "export",
 		Short: "Export a Certificate Authority file containing the teamserver users",
-		Long:  ``,
 		Args:  cobra.RangeArgs(0, 1),
 		Run:   exportCACmd(server),
 	}
@@ -211,6 +227,50 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 			fmt.Printf(warn+"Failed to start job %v\n", err)
 		}
 	}
+}
+
+func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
+	return func(cmd *cobra.Command, _ []string) {
+		config := server.DefaultSystemdConfig()
+
+		userf, _ := cmd.Flags().GetString("user")
+		if userf != "" {
+			config.User = userf
+		}
+
+		binPath, _ := cmd.Flags().GetString("binpath")
+		if binPath != "" {
+			config.Binpath = binPath
+		}
+
+		// The last argument is the systemd command:
+		// its parent is the teamserver one, to which
+		// should be attached the daemon command.
+		daemonCmd, _, err := cmd.Parent().Find([]string{"daemon"})
+		if err != nil {
+			fmt.Printf(warn+"Failed to find teamserver daemon command in tree: %s", err)
+		}
+
+		config.Args = append(callerArgs(cmd.Parent()), daemonCmd.Name())
+		if len(config.Args) > 0 && binPath != "" {
+			config.Args[0] = binPath
+		}
+
+		systemdConfig := serv.GenerateServiceFile(config)
+		fmt.Printf(systemdConfig)
+	}
+}
+
+func callerArgs(cmd *cobra.Command) []string {
+	var args []string
+
+	if cmd.HasParent() {
+		args = callerArgs(cmd.Parent())
+	}
+
+	args = append(args, cmd.Name())
+
+	return args
 }
 
 func createUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
