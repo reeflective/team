@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/server"
 )
 
@@ -44,6 +43,11 @@ const (
 	debugl = bold + purple + "[-] " + normal
 )
 
+const (
+	teamServerGroup      = "teamserver control"
+	usersManagementGroup = "user management"
+)
+
 // Commands initliazes and returns a command tree to embed in the teamserver binary.
 // It requires the server itself to use its functions.
 func Commands(server *server.Server) *cobra.Command {
@@ -52,24 +56,19 @@ func Commands(server *server.Server) *cobra.Command {
 		Short: "Manage the application server-side teamserver and users",
 	}
 
-	// [ Core commands ] -------------------------------------------------------------------
-
-	versionCmd := &cobra.Command{
-		Use:   "version",
-		Short: "Print teamserver client version",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf(info+"Server %s\n", client.FullVersion())
-		},
-	}
-
-	teamCmd.AddCommand(versionCmd)
+	// Groups
+	teamCmd.AddGroup(
+		&cobra.Group{ID: teamServerGroup, Title: teamServerGroup},
+		&cobra.Group{ID: usersManagementGroup, Title: usersManagementGroup},
+	)
 
 	// [ Listeners and servers control commands ] ------------------------------------------
 
 	listenCmd := &cobra.Command{
-		Use:   "listen",
-		Short: "Start a teamserver gRPC listener job (non-blocking)",
-		Run:   startListenerCmd(server),
+		Use:     "listen",
+		Short:   "Start a teamserver gRPC listener job (non-blocking)",
+		GroupID: teamServerGroup,
+		Run:     startListenerCmd(server),
 	}
 
 	lnFlags := pflag.NewFlagSet("listener", pflag.ContinueOnError)
@@ -82,9 +81,10 @@ func Commands(server *server.Server) *cobra.Command {
 
 	// systemd
 	daemonCmd := &cobra.Command{
-		Use:   "daemon",
-		Short: "Start the teamserver in daemon mode (blocking)",
-		Run:   daemoncmd(server),
+		Use:     "daemon",
+		Short:   "Start the teamserver in daemon mode (blocking)",
+		GroupID: teamServerGroup,
+		Run:     daemoncmd(server),
 	}
 	daemonCmd.Flags().StringP("host", "l", "-", "multiplayer listener host")
 	daemonCmd.Flags().Uint16P("port", "p", uint16(0), "multiplayer listener port")
@@ -92,9 +92,10 @@ func Commands(server *server.Server) *cobra.Command {
 	teamCmd.AddCommand(daemonCmd)
 
 	systemdCmd := &cobra.Command{
-		Use:   "systemd",
-		Short: "Print a systemd unit file for the application teamserver, with options",
-		Run:   systemdConfigCmd(server),
+		Use:     "systemd",
+		Short:   "Print a systemd unit file for the application teamserver, with options",
+		GroupID: teamServerGroup,
+		Run:     systemdConfigCmd(server),
 	}
 
 	sFlags := pflag.NewFlagSet("systemd", pflag.ContinueOnError)
@@ -116,9 +117,10 @@ func Commands(server *server.Server) *cobra.Command {
 
 	// Add user
 	userCmd := &cobra.Command{
-		Use:   "user",
-		Short: "Create a user for this teamserver and generate its client configuration file",
-		Run:   createUserCmd(server),
+		Use:     "user",
+		Short:   "Create a user for this teamserver and generate its client configuration file",
+		GroupID: usersManagementGroup,
+		Run:     createUserCmd(server),
 	}
 
 	teamCmd.AddCommand(userCmd)
@@ -140,10 +142,11 @@ func Commands(server *server.Server) *cobra.Command {
 
 	// Delete and kick user
 	rmUserCmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Remove a teamserver from the server, and revoke all its current tokens",
-		Args:  cobra.ExactArgs(1),
-		Run:   rmUserCmd(server),
+		Use:     "delete",
+		Short:   "Remove a user from the teamserver, and revoke all its current tokens",
+		GroupID: usersManagementGroup,
+		Args:    cobra.ExactArgs(1),
+		Run:     rmUserCmd(server),
 	}
 
 	teamCmd.AddCommand(rmUserCmd)
@@ -165,10 +168,11 @@ func Commands(server *server.Server) *cobra.Command {
 
 	// Import a list of users and their credentials.
 	cmdImportCA := &cobra.Command{
-		Use:   "import",
-		Short: "Import a certificate Authority file containing teamserver users",
-		Args:  cobra.ExactArgs(1),
-		Run:   importCACmd(server),
+		Use:     "import",
+		Short:   "Import a certificate Authority file containing teamserver users",
+		GroupID: usersManagementGroup,
+		Args:    cobra.ExactArgs(1),
+		Run:     importCACmd(server),
 	}
 
 	carapace.Gen(cmdImportCA).PositionalCompletion(carapace.ActionFiles())
@@ -176,10 +180,11 @@ func Commands(server *server.Server) *cobra.Command {
 
 	// Export the list of users and their credentials.
 	cmdExportCA := &cobra.Command{
-		Use:   "export",
-		Short: "Export a Certificate Authority file containing the teamserver users",
-		Args:  cobra.RangeArgs(0, 1),
-		Run:   exportCACmd(server),
+		Use:     "export",
+		Short:   "Export a Certificate Authority file containing the teamserver users",
+		GroupID: usersManagementGroup,
+		Args:    cobra.RangeArgs(0, 1),
+		Run:     exportCACmd(server),
 	}
 
 	carapace.Gen(cmdExportCA).PositionalCompletion(carapace.ActionFiles())

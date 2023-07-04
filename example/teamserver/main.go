@@ -4,7 +4,6 @@ import (
 	"log"
 
 	"github.com/rsteube/carapace"
-	"github.com/spf13/cobra"
 
 	"github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/command/client"
@@ -49,22 +48,12 @@ func main() {
 	// command tree). Also, server/client trees are still clearly delimited.
 	clientCmds := cli.Commands(client)
 	clientCmds.Use = "client"
+	for _, cmd := range clientCmds.Commands() {
+		cmd.PersistentPreRunE = cli.ConnectRun(client)
+		cmd.PersistentPostRunE = cli.DisconnectRun(client)
+	}
+
 	root.AddCommand(clientCmds)
-
-	// Only connect to the server before actually running commands.
-	// Those runners are not bound by default, since users might
-	// want to use them differently.
-	clientCmds.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		err := client.Connect()
-		if err != nil {
-			log.Fatalf("Error connecting to teamserver: %s", err)
-		}
-		return nil
-	}
-
-	clientCmds.PersistentPostRun = func(cmd *cobra.Command, args []string) {
-		client.Disconnect()
-	}
 
 	// Completions
 	carapace.Gen(root)

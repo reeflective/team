@@ -24,21 +24,23 @@ const (
 // Client is a team client wrapper.
 // It offers the core functionality of any team client.
 type Client struct {
-	name    string
-	opts    *opts
-	conn    *grpc.ClientConn
-	rpc     proto.TeamClient
-	log     *slog.Logger
-	logFile *os.File
+	name      string
+	connected bool
+	opts      *opts
+	log       *slog.Logger
+	logFile   *os.File
+	conn      *grpc.ClientConn
+	rpc       proto.TeamClient
 }
 
 // New returns an application client ready to work.
 // The application client log file is opened and served to the client builtin logger.
-// The client will panic if it can't open or create this log file as ~/.app/client.log
+// The client will panic if it can't open or create this log file as ~/.app/client.log.
 func New(application string, options ...Options) *Client {
 	c := &Client{
-		opts: &opts{},
-		name: application,
+		opts:      &opts{},
+		name:      application,
+		connected: false,
 	}
 
 	c.logFile = c.initLogging(c.AppDir())
@@ -82,12 +84,15 @@ func (c *Client) Connect() (err error) {
 	// Establish the connection and bind RPC core.
 	c.conn, err = c.connect(cfg)
 
+	if err == nil && c.conn != nil {
+		c.connected = true
+	}
+
 	return
 }
 
-// Disconnect disconnects the client from the server,
-// closing the connection and the client log file.
-// Any errors are logged to the log file, not returned.
+// Disconnect disconnects the client from the server, closing the connection
+// and the client log file.Any errors are logged to the this file, not returned.
 func (c *Client) Disconnect() {
 	if c.conn != nil {
 		if err := c.conn.Close(); err != nil {
@@ -98,11 +103,18 @@ func (c *Client) Disconnect() {
 	if c.logFile != nil {
 		c.logFile.Close()
 	}
+
+	// Decrement the counter, should be back to 0.
+	c.connected = false
 }
 
-// Conn returns the gRPC client connection it uses.
-func (c *Client) Conn() *grpc.ClientConn {
+// Connection returns the gRPC client connection it uses.
+func (c *Client) Connection() *grpc.ClientConn {
 	return c.conn
+}
+
+func (c *Client) IsConnected() bool {
+	return c.connected
 }
 
 // Users returns a list of all users registered to the application server.

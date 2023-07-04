@@ -3,8 +3,11 @@ package client
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/rsteube/carapace"
+	"github.com/rsteube/carapace/pkg/style"
 	"github.com/spf13/cobra"
 
 	"github.com/reeflective/team/client"
@@ -47,10 +50,6 @@ func Commands(cli *client.Client) *cobra.Command {
 		Use:   "version",
 		Short: "Print teamserver client version",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ConnectRun(cli); err != nil {
-				return
-			}
-
 			// Server first
 			serverVer, err := cli.ServerVersion()
 			if err != nil {
@@ -99,7 +98,13 @@ func Commands(cli *client.Client) *cobra.Command {
 		},
 	}
 
-	carapace.Gen(importCmd).PositionalCompletion(carapace.ActionFiles().Tag("server configuration"))
+	iComps := carapace.Gen(importCmd)
+	iComps.PositionalCompletion(
+		carapace.Batch(
+			carapace.ActionCallback(teamserverAppsCompleter(cli)),
+			carapace.ActionFiles().Tag("server configuration"),
+		).ToA(),
+	)
 
 	teamCmd.AddCommand(importCmd)
 
@@ -110,6 +115,10 @@ func Commands(cli *client.Client) *cobra.Command {
 // This should generally be used as one of (or part of another) command pre-runner.
 func ConnectRun(cli *client.Client) func(cmd *cobra.Command, _ []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
+		if cli.IsConnected() {
+			return nil
+		}
+
 		if err := cli.Connect(); err != nil {
 			fmt.Printf(warn+"Error connecting to teamserver: %s\n", err)
 			return err
@@ -123,7 +132,63 @@ func ConnectRun(cli *client.Client) func(cmd *cobra.Command, _ []string) error {
 // This should generally be used as one of (or part of another) command post-runner.
 func DisconnectRun(cli *client.Client) func(cmd *cobra.Command, _ []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
+		// THis is safe, client ensures to close what can be.
 		cli.Disconnect()
 		return nil
+	}
+}
+
+func teamserverAppsCompleter(cli *client.Client) carapace.CompletionCallback {
+	return func(ctx carapace.Context) carapace.Action {
+		var compErrors []carapace.Action
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			compErrors = append(compErrors, carapace.ActionMessage("failed to get user home dir: %s", err))
+		}
+
+		dirs, err := os.ReadDir(homeDir)
+		if err != nil {
+			compErrors = append(compErrors, carapace.ActionMessage("failed to list user directories: %s", err))
+		}
+
+		var results []string
+
+		for _, dir := range dirs {
+			if !strings.HasPrefix(dir.Name(), ".") {
+				continue
+			}
+			if !dir.IsDir() {
+				continue
+			}
+			if strings.TrimPrefix(dir.Name(), ".") == cli.Name() {
+				continue
+			}
+
+			configPath := filepath.Join(homeDir, dir.Name(), "configs")
+
+			if configs, err := os.Stat(configPath); err == nil {
+				if !configs.IsDir() {
+					continue
+				}
+
+				files, _ := os.ReadDir(configPath)
+				for _, file := range files {
+					if !strings.HasSuffix(file.Name(), ".cfg") {
+						continue
+					}
+
+					filePath := filepath.Join(configPath, file.Name())
+
+					cfg, err := cli.ReadConfig(filePath)
+					if err != nil || cfg == nil {
+						continue
+					}
+
+					results = append(results, filePath)
+				}
+			}
+		}
+
+		return carapace.ActionValues(results...).StyleF(style.ForPathExt).Tag("teamserver applications")
 	}
 }
