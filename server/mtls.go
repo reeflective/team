@@ -11,9 +11,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/gorm"
 
 	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/server/certs"
+	"github.com/reeflective/team/server/db"
 )
 
 const (
@@ -27,11 +29,37 @@ const (
 
 const bufSize = 2 * mb
 
+func (s *Server) Serve(opts ...Options) {
+	// Default and user options do not prevail
+	// on what is in the configuration file
+	s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
+	s.apply(opts...)
+
+	// Load any relevant server configuration: on disk,
+	// contained in options, or the default one.
+	s.config = s.GetConfig()
+
+	// Database
+	if s.opts.db == nil {
+		s.db = db.NewDatabaseClient(s.opts.dbConfig, s.log)
+	}
+
+	// Certificate infrastructure
+	certsLog := s.NamedLogger("certs", "certificates")
+	s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
+
+	// Default users
+	if s.opts.userDefault {
+	}
+}
+
 // ServeLocal is used by any teamserver binary application to emulate the client-side functionality with itself.
 // It returns a gRPC client connection to be registered to a client (team/client package),
 // the gRPC server for registering per-application services, or an error if listening failed.
 func (s *Server) ServeLocal() (*grpc.ClientConn, *grpc.Server, error) {
 	s.opts.local = true
+
+	s.Serve()
 
 	// Start the server.
 	server, ln, err := s.serveLocal()
@@ -70,7 +98,7 @@ func (s *Server) ServeAddr(host string, port uint16) (*grpc.Server, net.Listener
 
 // ServeWith starts a gRPC teamserver on the provided listener (setting up MutualTLS on it).
 func (s *Server) ServeWith(ln net.Listener) (*grpc.Server, error) {
-	bufConnLog := s.NamedLogger("transport", "local")
+	bufConnLog := s.NamedLogger("transport", "mtls")
 	bufConnLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
 
 	tlsConfig := s.getOperatorServerTLSConfig("multiplayer")

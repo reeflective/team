@@ -6,64 +6,38 @@ import (
 	"github.com/rsteube/carapace"
 
 	"github.com/reeflective/team/client"
-	cli "github.com/reeflective/team/command/client"
-	serverCmd "github.com/reeflective/team/command/server"
+	cli "github.com/reeflective/team/command/server"
 	"github.com/reeflective/team/server"
 )
 
 func main() {
-	//
-	// 1) Server
-	//
-	serv := server.New("teamserver", server.WithDefaultPort(31340))
+	// Create a teamserver and a teamclient.
+	// None of those yet have a working RPC connection, and the server
+	// is not yet connected to its database, loggers and certificates.
+	teamServer := server.New("teamserver", server.WithDefaultPort(31340))
+	teamClient := client.New("teamserver")
 
-	// We want to be able both to use ourself as a client
-	// (transparently interfacing with a remote/local server),
-	// without caring about networking in the first place.
-	//
-	// We generate a local client (and its command tree) from our
-	// server, and bind these client commands to our server tree.
-	conn, _, err := serv.ServeLocal()
-	if err != nil {
-		log.Fatalf("Failed to serve: %s", err)
-	}
-	defer serv.GracefulStop()
+	// Pass both server and clients to the commands package:
+	// we are being given two command trees: teamserver ones (server only)
+	// and teamclient ones. Both are configured with pre-runners that will
+	// connect themselves together over an in-memory gRPC connection.
+	serverCmds, clientCmds := cli.SelfConnect(teamServer, teamClient)
 
-	// Generate the tree of server-side commands, using this server.
-	root := serverCmd.Commands(serv)
+	// Add the teamclient command tree as a subtree of the server ones.
+	// In this case, the teamserver is the application itself: it is not
+	// part of a larger set of domain-specific commands, which would be
+	// the case in normal use cases for this library.
+	serverCmds.AddCommand(clientCmds)
 
-	//
-	// 2) Client
-	//
+	// Generate completions for the tree.
+	carapace.Gen(serverCmds)
 
-	// We create a teamclient counterpart, but specifying we already
-	// have a physical gRPC connection to use over any remote ones.
-	// And we serve this conn to oursef, to emulate a remote client.
-	client := client.New("teamserver", client.WithConnection(conn))
-
-	// Generate the tree of the client-side commands. and its root as
-	// a sister of the server ones.
-	// This has the advantage of containing all teamserver client/server
-	// commands under a single root (to bind wherever you want in another
-	// command tree). Also, server/client trees are still clearly delimited.
-	clientCmds := cli.Commands(client)
-	clientCmds.Use = "client"
-	for _, cmd := range clientCmds.Commands() {
-		cmd.PersistentPreRunE = cli.ConnectRun(client)
-		cmd.PersistentPostRunE = cli.DisconnectRun(client)
-	}
-
-	root.AddCommand(clientCmds)
-
-	// Completions
-	carapace.Gen(root)
-
-	// Run our binary. Here we are executing the simple teamserver command tree,
-	// but anything is possible, really:
-	// - "forgetting" about your teamserver because you have a blocking call somewhere,
+	// Run our teamserver binary.
+	// Here we are executing the simple teamserver command tree, but anything is possible:
+	// - We could "forget" about our teamserver because we have a blocking call somewhere,
 	// - Let one of the commands to be executed and exit, without listening anywhere.
 	// - Many, many different variants in which you can keep working below.
-	err = root.Execute()
+	err := serverCmds.Execute()
 	if err != nil {
 		log.Fatal(err)
 	}

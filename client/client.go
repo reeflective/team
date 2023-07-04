@@ -54,10 +54,12 @@ func New(application string, options ...Options) *Client {
 // Note that this call might be blocking and expect user input, in the case where more
 // than one server configuration is found in the application directory: the application
 // will prompt the user to choose one of them.
-func (c *Client) Connect() (err error) {
+func (c *Client) Connect(options ...Options) (err error) {
 	defer func() {
 		c.rpc = proto.NewTeamClient(c.conn)
 	}()
+
+	c.apply(options...)
 
 	// Our connection is already existing and configured.
 	if c.conn != nil {

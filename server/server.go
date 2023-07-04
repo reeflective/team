@@ -14,13 +14,13 @@ import (
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/server/certs"
-	"github.com/reeflective/team/server/db"
 )
 
 // Server is a team server.
 type Server struct {
 	name       string
 	rootDirEnv string
+	listening  bool
 	opts       *opts
 	config     *Config
 	db         *gorm.DB
@@ -42,30 +42,6 @@ func New(application string, options ...Options) *Server {
 	// Logging
 	s.log = s.rootLogger()
 	s.audit = s.newAuditLogger()
-
-	// Default and user options do not prevail
-	// on what is in the configuration file
-	s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
-	s.apply(options...)
-
-	// Load any relevant server configuration: on disk,
-	// contained in options, or the default one.
-	s.config = s.GetConfig()
-
-	// Database
-	if s.opts.db == nil {
-		s.db = db.NewDatabaseClient(s.opts.dbConfig, s.log)
-	}
-
-	// Certificate infrastructure
-	certsLog := s.NamedLogger("certs", "certificates")
-	s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
-
-	// Default users
-	if s.opts.userDefault {
-	}
-
-	// Check defaults ports applied where needed.
 
 	return s
 }
