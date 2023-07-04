@@ -16,7 +16,7 @@ var (
 // either the provided host:port arguments, or the ones found in the teamserver config.
 // It also accepts a function that will be called just after starting the server, so
 // that users can still register their per-application services before actually blocking.
-func (s *Server) ServeDaemon(host string, port uint16, postStart func(s *Server)) {
+func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Server)) {
 	daemonLog := s.NamedLogger("daemon", "main")
 
 	// cli args take president over config
@@ -37,8 +37,8 @@ func (s *Server) ServeDaemon(host string, port uint16, postStart func(s *Server)
 		os.Exit(1)
 	}
 
-	if postStart != nil {
-		postStart(s)
+	for _, startFunc := range postStart {
+		startFunc(s)
 	}
 
 	done := make(chan bool)

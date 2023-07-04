@@ -10,6 +10,10 @@ import (
 type Options func(opts *opts) *opts
 
 type opts struct {
+	local         bool
+	userDefault   bool
+	port          uint16
+	config        *Config
 	db            *gorm.DB
 	dbConfig      *db.Config
 	preServeHooks []func(s *Server) error
@@ -17,7 +21,7 @@ type opts struct {
 
 func (s *Server) apply(options ...Options) {
 	for _, optFunc := range options {
-		optFunc(s.opts)
+		s.opts = optFunc(s.opts)
 	}
 }
 
@@ -46,6 +50,25 @@ func WithDatabase(db *gorm.DB) Options {
 func WithPreServeHooks(hooks ...func(s *Server) error) Options {
 	return func(opts *opts) *opts {
 		opts.preServeHooks = append(opts.preServeHooks, hooks...)
+		return opts
+	}
+}
+
+// WithDefaultPort sets the default port on which the teamserver should start listeners.
+// This default is used in the default daemon configuration, and as command flags defaults.
+func WithDefaultPort(port uint16) Options {
+	return func(opts *opts) *opts {
+		opts.port = port
+		return opts
+	}
+}
+
+// WithOSUserDefault automatically creates a user for the teamserver, using the current OS user.
+// This will create the client application directory (~/.app) if needed, and will write the config
+// in the configs dir, using 'app_local_user_default.cfg' name, overwriting any file having this name.
+func WithOSUserDefault() Options {
+	return func(opts *opts) *opts {
+		opts.userDefault = true
 		return opts
 	}
 }

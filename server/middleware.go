@@ -62,8 +62,8 @@ func (s *Server) initMiddleware(remoteAuth bool) []grpc.ServerOption {
 
 var tokenCache = sync.Map{}
 
-// ClearTokenCache - Clear the auth token cache
-func ClearTokenCache() {
+// clearTokenCache - Clear the auth token cache
+func clearTokenCache() {
 	tokenCache = sync.Map{}
 }
 

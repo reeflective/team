@@ -3,16 +3,18 @@ package server
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 
-	"github.com/reeflective/team/internal/proto"
-	"github.com/reeflective/team/server/certs"
-	"github.com/reeflective/team/server/db"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
+
+	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/proto"
+	"github.com/reeflective/team/server/certs"
+	"github.com/reeflective/team/server/db"
 )
 
 // Server is a team server.
@@ -20,17 +22,16 @@ type Server struct {
 	name       string
 	rootDirEnv string
 	opts       *opts
-	config     *ServerConfig
+	config     *Config
 	db         *gorm.DB
 	log        *logrus.Logger
 	audit      *logrus.Logger
 	certs      *certs.Manager
-	rpc        *grpc.Server
 	*proto.UnimplementedTeamServer
 }
 
-// NewServer creates a new team server with enabled classic/audit logging.
-func NewServer(application string, options ...Options) *Server {
+// New creates a new team server with enabled classic/audit logging.
+func New(application string, options ...Options) *Server {
 	s := &Server{
 		name:                    application,
 		rootDirEnv:              fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
@@ -42,9 +43,14 @@ func NewServer(application string, options ...Options) *Server {
 	s.log = s.rootLogger()
 	s.audit = s.newAuditLogger()
 
-	// Default and user options
+	// Default and user options do not prevail
+	// on what is in the configuration file
 	s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
 	s.apply(options...)
+
+	// Load any relevant server configuration: on disk,
+	// contained in options, or the default one.
+	s.config = s.GetConfig()
 
 	// Database
 	if s.opts.db == nil {
@@ -53,14 +59,64 @@ func NewServer(application string, options ...Options) *Server {
 
 	// Certificate infrastructure
 	certsLog := s.NamedLogger("certs", "certificates")
-	s.certs = certs.NewManager(s.db, certsLog, s.AppDir())
+	s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
+
+	// Default users
+	if s.opts.userDefault {
+	}
+
+	// Check defaults ports applied where needed.
 
 	return s
 }
 
+// GracefulStop gracefully stops all components of the server,
+// letting all current pending connections to it to finish first.
+func (s *Server) GracefulStop() {
+	defer s.log.Writer().Close()
+	defer s.audit.Writer().Close()
+}
+
+// Name returns the name of the server application.
+func (s *Server) Name() string {
+	return s.name
+}
+
+func (s *Server) newServer() *Server {
+	serv := &Server{
+		name:       s.name,
+		rootDirEnv: s.rootDirEnv,
+		opts:       s.opts,
+		config:     s.config,
+		log:        s.log,
+		audit:      s.audit,
+	}
+
+	// One session per listener should be enough for now.
+	serv.db = s.db.Session(&gorm.Session{})
+
+	// Certificate infrastructure
+	// certsLog := s.NamedLogger("certs", "certificates")
+	// serv.certs = certs.NewManager(serv.db, certsLog, s.AppDir())
+
+	return serv
+}
+
 // GetVersion returns the teamserver version.
 func (s *Server) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetVersion not implemented")
+	dirty := client.GitDirty != ""
+	semVer := client.SemanticVersion()
+	compiled, _ := client.Compiled()
+	return &proto.Version{
+		Major:      int32(semVer[0]),
+		Minor:      int32(semVer[1]),
+		Patch:      int32(semVer[2]),
+		Commit:     strings.TrimSuffix(client.GitCommit, "\n"),
+		Dirty:      dirty,
+		CompiledAt: compiled.Unix(),
+		OS:         runtime.GOOS,
+		Arch:       runtime.GOARCH,
+	}, nil
 }
 
 // ClientLog accepts a stream of client logs to save on the teamserver.

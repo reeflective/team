@@ -31,6 +31,8 @@ const bufSize = 2 * mb
 // It returns a gRPC client connection to be registered to a client (team/client package),
 // the gRPC server for registering per-application services, or an error if listening failed.
 func (s *Server) ServeLocal() (*grpc.ClientConn, *grpc.Server, error) {
+	s.opts.local = true
+
 	// Start the server.
 	server, ln, err := s.serveLocal()
 
@@ -92,6 +94,7 @@ func (s *Server) serveLocal() (*grpc.Server, *bufconn.Listener, error) {
 	bufConnLog.Infof("Binding gRPC to listener ...")
 
 	ln := bufconn.Listen(bufSize)
+
 	options := []grpc.ServerOption{
 		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
@@ -106,7 +109,7 @@ func (s *Server) serveLocal() (*grpc.Server, *bufconn.Listener, error) {
 func (s *Server) setupRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.Server, error) {
 	rpcLog := s.NamedLogger("transport", "rpc")
 
-	options = append(options, s.initMiddleware(true)...)
+	options = append(options, s.initMiddleware(!s.opts.local)...)
 	grpcServer := grpc.NewServer(options...)
 
 	go func() {
@@ -124,8 +127,7 @@ func (s *Server) setupRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.S
 	}()
 
 	// Register the core teamserver service
-	s.rpc = grpcServer
-	proto.RegisterTeamServer(s.rpc, s)
+	proto.RegisterTeamServer(grpcServer, s.newServer())
 
 	// Run user-specified hooks
 	for _, postServeHook := range s.opts.preServeHooks {

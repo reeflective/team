@@ -64,6 +64,7 @@ func NewManager(db *gorm.DB, log *logrus.Entry, appDir string) *Manager {
 	certs := &Manager{
 		appDir: appDir,
 		log:    log,
+		db:     db,
 	}
 
 	// Ensure CAs are initialized.

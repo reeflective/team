@@ -17,7 +17,7 @@ func (s *Server) AppDir() string {
 	var dir string
 	if len(value) == 0 {
 		user, _ := user.Current()
-		dir = filepath.Join(user.HomeDir, fmt.Sprintf("%s-server", s.name))
+		dir = filepath.Join(user.HomeDir, fmt.Sprintf(".%s-server", s.name))
 	} else {
 		dir = value
 	}

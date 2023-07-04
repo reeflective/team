@@ -29,17 +29,17 @@ type DaemonConfig struct {
 
 // JobConfig - Restart Jobs on Load
 type JobConfig struct {
-	Multiplayer []*MultiplayerJobConfig `json:"multiplayer"`
+	Multiplayer []*ListenerConfig `json:"multiplayer"`
 }
 
-type MultiplayerJobConfig struct {
+type ListenerConfig struct {
 	Host  string `json:"host"`
 	Port  uint16 `json:"port"`
 	JobID string `json:"job_id"`
 }
 
-// ServerConfig - Server config
-type ServerConfig struct {
+// Config - Server config
+type Config struct {
 	DaemonMode   bool          `json:"daemon_mode"`
 	DaemonConfig *DaemonConfig `json:"daemon"`
 	Logs         *LogConfig    `json:"logs"`
@@ -58,11 +58,11 @@ func (s *Server) ConfigPath() string {
 }
 
 // GetConfig returns the team server configuration struct.
-func (s *Server) GetConfig() *ServerConfig {
+func (s *Server) GetConfig() *Config {
 	serverConfigLog := s.NamedLogger("config", "server")
 
 	configPath := s.ConfigPath()
-	config := getDefaultServerConfig()
+	config := s.getDefaultServerConfig()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
@@ -86,7 +86,8 @@ func (s *Server) GetConfig() *ServerConfig {
 	}
 	s.log.SetLevel(levelFrom(config.Logs.Level))
 
-	err := s.SaveConfig(config) // This updates the config with any missing fields
+	// This updates the config with any missing fields
+	err := s.SaveConfig(config)
 	if err != nil {
 		serverConfigLog.Errorf("Failed to save default config %s", err)
 	}
@@ -94,7 +95,7 @@ func (s *Server) GetConfig() *ServerConfig {
 }
 
 // Save - Save config file to disk
-func (s *Server) SaveConfig(c *ServerConfig) error {
+func (s *Server) SaveConfig(c *Config) error {
 	serverConfigLog := s.NamedLogger("config", "server")
 
 	configPath := s.ConfigPath()
@@ -110,7 +111,7 @@ func (s *Server) SaveConfig(c *ServerConfig) error {
 	if err != nil {
 		return err
 	}
-	serverConfigLog.Infof("Saving config to %s", configPath)
+	serverConfigLog.Debugf("Saving config to %s", configPath)
 	err = os.WriteFile(configPath, data, 0o600)
 	if err != nil {
 		serverConfigLog.Errorf("Failed to write config %s", err)
@@ -118,8 +119,8 @@ func (s *Server) SaveConfig(c *ServerConfig) error {
 	return nil
 }
 
-// AddMultiplayerJob adds a teamserver listener job to the config and saves it.
-func (s *Server) AddMultiplayerJob(config *MultiplayerJobConfig) error {
+// AddListenerJob adds a teamserver listener job to the config and saves it.
+func (s *Server) AddListenerJob(config *ListenerConfig) error {
 	if s.config.Jobs == nil {
 		s.config.Jobs = &JobConfig{}
 	}
@@ -129,20 +130,20 @@ func (s *Server) AddMultiplayerJob(config *MultiplayerJobConfig) error {
 	return s.SaveConfig(s.config)
 }
 
-// RemoveJob removes a server listener job from the configuration and saves it.
-func (c *Server) RemoveJob(jobID string) {
+// RemoveListenerJob removes a server listener job from the configuration and saves it.
+func (c *Server) RemoveListenerJob(jobID string) {
 	if c.config.Jobs == nil {
 		return
 	}
 	defer c.SaveConfig(c.config)
 }
 
-func getDefaultServerConfig() *ServerConfig {
-	return &ServerConfig{
+func (c *Server) getDefaultServerConfig() *Config {
+	return &Config{
 		DaemonMode: false,
 		DaemonConfig: &DaemonConfig{
 			Host: "",
-			Port: 31336,
+			Port: int(c.opts.port),
 		},
 		Logs: &LogConfig{
 			Level:              int(logrus.InfoLevel),

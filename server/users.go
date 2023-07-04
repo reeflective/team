@@ -56,6 +56,20 @@ func (s *Server) NewUserConfig(operatorName string, lhost string, lport uint16) 
 	return json.Marshal(config)
 }
 
+// DeleteUser deletes a user from the teamserver database, in fact forbidding
+// it to ever reconnect with the user's credentials (client configuration file)
+func (s *Server) DeleteUser(name string) error {
+	err := s.db.Where(&db.User{
+		Name: name,
+	}).Delete(&db.User{}).Error
+	if err != nil {
+		return err
+	}
+	clearTokenCache()
+
+	return s.certs.UserClientRemoveCertificate(name)
+}
+
 // StartPersistentJobs starts all teamserver listeners,
 // aborting and returning an error if one of those raise one.
 func (s *Server) StartPersistentJobs() error {
@@ -71,4 +85,16 @@ func (s *Server) StartPersistentJobs() error {
 	}
 
 	return nil
+}
+
+// GetUsersCA returns the bytes of a certificate authority,
+// which may contain multiple teamserver users and their master.
+func (s *Server) GetUsersCA() ([]byte, []byte, error) {
+	return s.certs.GetUserCertificateAutorityPEM()
+}
+
+// SaveUsersCA is an exported function to easily import
+// one or more users through a certificate authority.
+func (s *Server) SaveUsersCA(cert, key []byte) {
+	s.certs.SaveUserCertificateAuthority(cert, key)
 }

@@ -52,6 +52,11 @@ func (c *Manager) GetUserCertificateAutorityPEM() ([]byte, []byte, error) {
 	return c.GetCertificateAuthorityPEM(userCA)
 }
 
+// SaveUserCertificateAuthority saves a user certificate authority (may contain several users).
+func (c *Manager) SaveUserCertificateAuthority(cert, key []byte) {
+	c.SaveCertificateAuthority(userCA, cert, key)
+}
+
 // GenerateCertificateAuthority - Creates a new CA cert for a given type
 func (c *Manager) GenerateCertificateAuthority(caType string, commonName string) (*x509.Certificate, *ecdsa.PrivateKey) {
 	storageDir := c.getCertDir()

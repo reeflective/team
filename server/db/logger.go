@@ -17,6 +17,7 @@ package db
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -29,12 +30,13 @@ type gormWriter struct {
 }
 
 func (w gormWriter) Printf(format string, args ...interface{}) {
-	w.Printf(format, args...)
+	// w.Printf(format, args...)
+	fmt.Printf(format, args...)
 }
 
 func newGormWriter(gormLog *logrus.Logger) *gormWriter {
 	return &gormWriter{
-		log: gormLog,
+		// log: gormLog,
 	}
 }
 
