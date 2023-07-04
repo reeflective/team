@@ -17,11 +17,16 @@ package client
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import (
+	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/reeflective/team/internal/proto"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -86,4 +91,19 @@ func FullVersion() string {
 		ver += fmt.Sprintf(" - Compiled %s", compiled.String())
 	}
 	return ver
+}
+
+// ServerVersion returns the version information of the server to which
+// the client is connected, or nil and an error if it could not retrieve it.
+func (c *Client) ServerVersion() (ver *proto.Version, err error) {
+	if c.rpc == nil {
+		return nil, errors.New("no working client RPC is attached to this client")
+	}
+
+	res, err := c.rpc.GetVersion(context.Background(), &proto.Empty{})
+	if err != nil {
+		return nil, errors.New(status.Convert(err).Message())
+	}
+
+	return res, nil
 }

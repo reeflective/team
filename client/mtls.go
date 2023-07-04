@@ -4,9 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"log"
 	"os"
 	"time"
+
+	"github.com/reeflective/team/internal/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -19,6 +24,34 @@ const (
 
 	defaultTimeout = time.Duration(10 * time.Second)
 )
+
+// connect establishes a working gRPC client connection to the server specified in the configuration.
+func (c *Client) connect(config *Config) (*grpc.ClientConn, error) {
+	tlsConfig, err := getTLSConfig(config.CACertificate, config.Certificate, config.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	transportCreds := credentials.NewTLS(tlsConfig)
+	callCreds := credentials.PerRPCCredentials(tokenAuth{token: config.Token})
+	options := []grpc.DialOption{
+		grpc.WithTransportCredentials(transportCreds),
+		grpc.WithPerRPCCredentials(callCreds),
+		grpc.WithBlock(),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(ClientMaxReceiveMessageSize)),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	connection, err := grpc.DialContext(ctx, fmt.Sprintf("%s:%d", config.Host, config.Port), options...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Register the core RPC methods
+	c.conn = connection
+	c.rpc = proto.NewTeamClient(c.conn)
+
+	return connection, nil
+}
 
 func getTLSConfig(caCertificate string, certificate string, privateKey string) (*tls.Config, error) {
 	certPEM, err := tls.X509KeyPair([]byte(certificate), []byte(privateKey))

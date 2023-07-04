@@ -6,7 +6,8 @@ import "google.golang.org/grpc"
 type Options func(opts *opts) *opts
 
 type opts struct {
-	conn *grpc.ClientConn
+	config *Config
+	conn   *grpc.ClientConn
 }
 
 func (c *Client) apply(options ...Options) {
@@ -24,6 +25,15 @@ func (c *Client) apply(options ...Options) {
 func WithConnection(conn *grpc.ClientConn) Options {
 	return func(opts *opts) *opts {
 		opts.conn = conn
+		return opts
+	}
+}
+
+// WithConfig sets the client to use a given teamserver configuration for
+// connection, instead of using default user/application configurations.
+func WithConfig(config *Config) Options {
+	return func(opts *opts) *opts {
+		opts.config = config
 		return opts
 	}
 }

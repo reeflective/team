@@ -47,6 +47,10 @@ func Commands(cli *client.Client) *cobra.Command {
 		Use:   "version",
 		Short: "Print teamserver client version",
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := ConnectRun(cli); err != nil {
+				return
+			}
+
 			// Server first
 			serverVer, err := cli.ServerVersion()
 			if err != nil {
@@ -100,4 +104,26 @@ func Commands(cli *client.Client) *cobra.Command {
 	teamCmd.AddCommand(importCmd)
 
 	return teamCmd
+}
+
+// ConnectRun returns a cobra command connecting the client to the teamserver.
+// This should generally be used as one of (or part of another) command pre-runner.
+func ConnectRun(cli *client.Client) func(cmd *cobra.Command, _ []string) error {
+	return func(cmd *cobra.Command, _ []string) error {
+		if err := cli.Connect(); err != nil {
+			fmt.Printf(warn+"Error connecting to teamserver: %s\n", err)
+			return err
+		}
+
+		return nil
+	}
+}
+
+// DisconnectRun returns a cobra command disconnecting the client from the teamserver.
+// This should generally be used as one of (or part of another) command post-runner.
+func DisconnectRun(cli *client.Client) func(cmd *cobra.Command, _ []string) error {
+	return func(cmd *cobra.Command, _ []string) error {
+		cli.Disconnect()
+		return nil
+	}
 }
