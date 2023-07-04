@@ -10,10 +10,15 @@ import (
 )
 
 func main() {
+	// Create a new teamserver client, without any working
+	// gRPC connection at this stage. We could pass some options
+	// to it if we want to customize behavior.
 	client := client.New("teamserver")
 
+	// Let the teamserver client dedicated command tree make use of it.
 	rootCmd := cli.Commands(client)
 
+	// Only connect to the server before actually running commands.
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		err := client.Connect()
 		if err != nil {
@@ -22,8 +27,11 @@ func main() {
 		return nil
 	}
 
+	// Completions
 	carapace.Gen(rootCmd)
 
+	// Run your application: anything having to do with
+	// the teamserver or one of its commands, will be done
 	err := rootCmd.Execute()
 	if err != nil {
 		log.Fatal(err)
