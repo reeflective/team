@@ -51,3 +51,30 @@ func (s *Server) LogsDir() string {
 	}
 	return logDir
 }
+
+// ClientAppDir returns the application directory of a teamclient for this application.
+func (s *Server) ClientAppDir() string {
+	dir := strings.TrimSuffix(s.AppDir(), "-server")
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0o700)
+		if err != nil {
+			msg := fmt.Sprintf("Cannot write to %s root dir", dir)
+			panic(msg)
+		}
+	}
+	return dir
+}
+
+// ClientAppDir returns the application directory of a teamclient for this application.
+func (s *Server) ClientConfigsDir() string {
+	appDir := s.ClientAppDir()
+	dir := filepath.Join(appDir, "configs")
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0o700)
+		if err != nil {
+			msg := fmt.Sprintf("Cannot write to %s root dir", dir)
+			panic(msg)
+		}
+	}
+	return dir
+}

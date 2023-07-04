@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -127,11 +128,15 @@ func Commands(server *server.Server) *cobra.Command {
 	userFlags.Uint16P("port", "p", 0, "listen port")
 	userFlags.StringP("save", "s", "", "directory/file in which to save config")
 	userFlags.StringP("name", "n", "", "user name")
+	userFlags.BoolP("system", "U", false, "Use the current OS user, and save its configuration directly in client dir")
 	userCmd.Flags().AddFlagSet(userFlags)
 
 	userComps := make(carapace.ActionMap)
 	userComps["save"] = carapace.ActionDirectories()
 	carapace.Gen(userCmd).FlagCompletion(userComps)
+
+	// TODO:: Find other directories in home that are likely other applications,
+	// and parse them for completions descriptions, keeping their credentials but changing host/port in the copy.
 
 	// Delete and kick user
 	rmUserCmd := &cobra.Command{
@@ -279,9 +284,35 @@ func createUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) 
 		lhost, _ := cmd.Flags().GetString("host")
 		lport, _ := cmd.Flags().GetUint16("port")
 		save, _ := cmd.Flags().GetString("save")
+		system, _ := cmd.Flags().GetBool("system")
 
 		if save == "" {
 			save, _ = os.Getwd()
+		}
+
+		var filename string
+		var saveTo string
+
+		if system {
+			user, err := user.Current()
+			if err != nil {
+				fmt.Printf(warn, "Failed to get current OS user: %", err)
+				return
+			}
+			name = user.Username
+			filename = fmt.Sprintf("%s_%s_default", serv.Name(), user.Username)
+			saveTo = serv.ClientConfigsDir()
+		} else {
+			saveTo, _ = filepath.Abs(save)
+			fi, err := os.Stat(saveTo)
+			if !os.IsNotExist(err) && !fi.IsDir() {
+				fmt.Printf(warn+"File already exists %s\n", err)
+				return
+			}
+
+			if !os.IsNotExist(err) && fi.IsDir() {
+				filename = fmt.Sprintf("%s_%s", filepath.Base(name), filepath.Base(lhost))
+			}
 		}
 
 		fmt.Printf(info + "Generating new client certificate, please wait ... \n")
@@ -291,21 +322,13 @@ func createUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) 
 			return
 		}
 
-		saveTo, _ := filepath.Abs(save)
-		fi, err := os.Stat(saveTo)
-		if !os.IsNotExist(err) && !fi.IsDir() {
-			fmt.Printf(warn+"File already exists %s\n", err)
-			return
-		}
-		if !os.IsNotExist(err) && fi.IsDir() {
-			filename := fmt.Sprintf("%s_%s.cfg", filepath.Base(name), filepath.Base(lhost))
-			saveTo = filepath.Join(saveTo, filename)
-		}
+		saveTo = filepath.Join(saveTo, filename+".cfg")
 		err = ioutil.WriteFile(saveTo, configJSON, 0o600)
 		if err != nil {
-			fmt.Printf(warn+"Failed to write config to: %s (%s) \n", saveTo, err)
+			fmt.Printf(warn+"Failed to write config to %s (%s) \n", saveTo, err)
 			return
 		}
+
 		fmt.Printf(info+"Saved new client config to: %s \n", saveTo)
 	}
 }

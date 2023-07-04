@@ -78,7 +78,7 @@ func DefaultSystemdConfig() *SystemdConfig {
 
 	user, _ := user.Current()
 	if user != nil {
-		c.User = user.Name
+		c.User = user.Username
 	}
 
 	currentPath, err := os.Executable()

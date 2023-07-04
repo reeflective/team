@@ -17,13 +17,16 @@ var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanume
 // NewUserConfig generates a new user client connection configuration.
 func (s *Server) NewUserConfig(operatorName string, lhost string, lport uint16) ([]byte, error) {
 	if !namePattern.MatchString(operatorName) {
-		return nil, errors.New("invalid operator name (alphanumerics only)")
+		return nil, errors.New("invalid user name (alphanumerics only)")
 	}
 	if operatorName == "" {
-		return nil, errors.New("operator name required")
+		return nil, errors.New("user name required")
 	}
 	if lhost == "" {
-		return nil, errors.New("invalid lhost")
+		return nil, errors.New("invalid team server host (empty)")
+	}
+	if lport == blankPort {
+		lport = s.opts.port
 	}
 
 	rawToken := db.GenerateOperatorToken()
