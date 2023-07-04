@@ -11,7 +11,11 @@ type opts struct {
 
 func (c *Client) apply(options ...Options) {
 	for _, optFunc := range options {
-		optFunc(c.opts)
+		c.opts = optFunc(c.opts)
+	}
+
+	if c.opts.conn != nil {
+		c.conn = c.opts.conn
 	}
 }
 

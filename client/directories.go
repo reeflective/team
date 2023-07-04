@@ -11,7 +11,7 @@ import (
 // creating the directory if needed, or logging a fatal event if failing to create it.
 func (c *Client) AppDir() string {
 	user, _ := user.Current()
-	dir := filepath.Join(user.HomeDir, c.name)
+	dir := filepath.Join(user.HomeDir, "."+c.name)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {

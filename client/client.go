@@ -11,6 +11,7 @@ import (
 	"golang.org/x/exp/slog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 
 	"github.com/reeflective/team/internal/proto"
 )
@@ -33,16 +34,18 @@ type Client struct {
 	logFile *os.File
 }
 
-// NewClient returns an application client ready to work.
+// New returns an application client ready to work.
 // The application client log file is opened and served to the client builtin logger.
 // The client will panic if it can't open or create this log file as ~/.app/client.log
-func NewClient(application string, options ...Options) *Client {
+func New(application string, options ...Options) *Client {
 	c := &Client{
 		opts: &opts{},
 		name: application,
 	}
 
 	c.logFile = c.initLogging(c.AppDir())
+
+	c.apply(options...)
 
 	return c
 }
@@ -57,6 +60,24 @@ func (c *Client) Setup(force bool, echo bool) {
 	// if _, err := os.Stat(filepath.Join(appDir, settingsFileName)); os.IsNotExist(err) {
 	// 	SaveSettings(nil)
 	// }
+}
+
+// Connect establishes the required RPC connection and returns once the latter is established,
+// potentially returning a failure which may or may not be critical, and therefore checked.
+func (c *Client) Connect() (err error) {
+	defer func() {
+		c.rpc = proto.NewTeamClient(c.conn)
+	}()
+
+	// Our connection is already existing and configured.
+	if c.conn != nil {
+		return
+	}
+
+	// Else connect with any available configuration.
+	c.conn, err = c.ConnectDefault()
+
+	return
 }
 
 // ConnectDefault uses the default client configurations to connect to the team server.
@@ -118,7 +139,7 @@ func (c *Client) ServerVersion() (ver *proto.Version, err error) {
 
 	res, err := c.rpc.GetVersion(context.Background(), &proto.Empty{})
 	if err != nil {
-		return nil, err
+		return nil, errors.New(status.Convert(err).Message())
 	}
 
 	return res, nil
@@ -155,6 +176,11 @@ func (c *Client) Disconnect() {
 	if c.logFile != nil {
 		c.logFile.Close()
 	}
+}
+
+// Name returns the name of the client application.
+func (c *Client) Name() string {
+	return c.name
 }
 
 func (c *Client) assetVersion() string {

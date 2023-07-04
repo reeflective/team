@@ -17,6 +17,7 @@ package client
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import (
+	_ "embed"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,27 +29,33 @@ const (
 	bold   = "\033[1m"
 )
 
+//go:generate bash ./assets/teamserver_version_info
 var (
 	// Version - The semantic version in string form
+	//go:embed client_version.compiled
 	Version string
 
 	// GoVersion - Go compiler version
+	//go:embed go_version.compiled
 	GoVersion string
 
 	// GitCommit - The commit id at compile time
+	//go:embed commit_version.compiled
 	GitCommit string
 
 	// GitDirty - Was the commit dirty at compile time
+	//go:embed dirty_version.compiled
 	GitDirty string
 
 	// CompiledAt - When was this binary compiled
+	//go:embed compiled_version.compiled
 	CompiledAt string
 )
 
 // SemanticVersion - Get the structured sematic version
-func (c *Client) SemanticVersion() []int {
+func SemanticVersion() []int {
 	semVer := []int{}
-	version := Version
+	version := strings.TrimSuffix(Version, "\n")
 	if strings.HasPrefix(version, "v") {
 		version = version[1:]
 	}
@@ -60,7 +67,7 @@ func (c *Client) SemanticVersion() []int {
 }
 
 // Compiled - Get time this binary was compiled
-func (c *Client) Compiled() (time.Time, error) {
+func Compiled() (time.Time, error) {
 	compiled, err := strconv.ParseInt(CompiledAt, 10, 64)
 	if err != nil {
 		return time.Unix(0, 0), err
@@ -69,14 +76,14 @@ func (c *Client) Compiled() (time.Time, error) {
 }
 
 // FullVersion - Full version string
-func (c *Client) FullVersion() string {
-	ver := fmt.Sprintf("%s", Version)
-	compiled, err := c.Compiled()
-	if err != nil {
-		ver += fmt.Sprintf(" - Compiled %s", compiled.String())
-	}
+func FullVersion() string {
+	ver := fmt.Sprintf("%s", strings.TrimSuffix(Version, "\n"))
 	if GitCommit != "" {
 		ver += fmt.Sprintf(" - %s", GitCommit)
+	}
+	compiled, err := Compiled()
+	if err != nil {
+		ver += fmt.Sprintf(" - Compiled %s", compiled.String())
 	}
 	return ver
 }
