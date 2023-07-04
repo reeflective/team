@@ -14,6 +14,7 @@ import (
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/server/certs"
+	"github.com/reeflective/team/server/db"
 )
 
 // Server is a team server.
@@ -46,6 +47,11 @@ func New(application string, options ...Options) *Server {
 	return s
 }
 
+// Name returns the name of the server application.
+func (s *Server) Name() string {
+	return s.name
+}
+
 // GracefulStop gracefully stops all components of the server,
 // letting all current pending connections to it to finish first.
 func (s *Server) GracefulStop() {
@@ -53,29 +59,44 @@ func (s *Server) GracefulStop() {
 	defer s.audit.Writer().Close()
 }
 
-// Name returns the name of the server application.
-func (s *Server) Name() string {
-	return s.name
-}
-
 func (s *Server) newServer() *Server {
 	serv := &Server{
-		name:       s.name,
-		rootDirEnv: s.rootDirEnv,
-		opts:       s.opts,
-		config:     s.config,
-		log:        s.log,
-		audit:      s.audit,
+		name:                    s.name,
+		rootDirEnv:              s.rootDirEnv,
+		opts:                    s.opts,
+		config:                  s.config,
+		log:                     s.log,
+		audit:                   s.audit,
+		certs:                   s.certs,
+		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}
 
 	// One session per listener should be enough for now.
-	serv.db = s.db.Session(&gorm.Session{})
-
-	// Certificate infrastructure
-	// certsLog := s.NamedLogger("certs", "certificates")
-	// serv.certs = certs.NewManager(serv.db, certsLog, s.AppDir())
+	serv.db = s.db.Session(&gorm.Session{
+		FullSaveAssociations: true,
+	})
 
 	return serv
+}
+
+func (s *Server) init(opts ...Options) {
+	// Default and user options do not prevail
+	// on what is in the configuration file
+	s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
+	s.apply(opts...)
+
+	// Load any relevant server configuration: on disk,
+	// contained in options, or the default one.
+	s.config = s.GetConfig()
+
+	// Database
+	if s.opts.db == nil {
+		s.db = db.NewDatabaseClient(s.opts.dbConfig, s.log)
+	}
+
+	// Certificate infrastructure
+	certsLog := s.NamedLogger("certs", "certificates")
+	s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
 }
 
 // GetVersion returns the teamserver version.

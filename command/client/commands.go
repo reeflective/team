@@ -9,6 +9,7 @@ import (
 	"github.com/rsteube/carapace"
 	"github.com/rsteube/carapace/pkg/style"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/reeflective/team/client"
 )
@@ -96,6 +97,10 @@ func Commands(cli *client.Client) *cobra.Command {
 			return []string{}, cobra.ShellCompDirectiveDefault
 		},
 	}
+
+	iFlags := pflag.NewFlagSet("import", pflag.ContinueOnError)
+	iFlags.BoolP("default", "d", false, "Set this config as the default one, if no default config exists already.")
+	importCmd.Flags().AddFlagSet(iFlags)
 
 	iComps := carapace.Gen(importCmd)
 	iComps.PositionalCompletion(
@@ -192,10 +197,11 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 					}
 
 					results = append(results, filePath)
+					results = append(results, fmt.Sprintf("[%s] %s:%d", cfg.Host, cfg.User, cfg.Port))
 				}
 			}
 		}
 
-		return carapace.ActionValues(results...).StyleF(style.ForPathExt).Tag("teamserver applications")
+		return carapace.ActionValuesDescribed(results...).StyleF(style.ForPathExt).Tag("teamserver applications")
 	}
 }

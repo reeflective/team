@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/reeflective/team/client"
 	"github.com/sirupsen/logrus"
 )
 
@@ -153,6 +154,27 @@ func (c *Server) getDefaultServerConfig() *Config {
 		},
 		Jobs: &JobConfig{},
 	}
+}
+
+func (s *Server) clientServerMatch(config *client.Config) bool {
+	if config == nil {
+		return false
+	}
+
+	if s.config.Jobs != nil {
+		for _, job := range s.config.Jobs.Multiplayer {
+			if job.Host == config.Host && job.Port == uint16(config.Port) {
+				return true
+			}
+		}
+	}
+
+	// If matching our daemon config.
+	if s.config.DaemonConfig.Host == config.Host && s.config.DaemonConfig.Port == config.Port {
+		return true
+	}
+
+	return false
 }
 
 func getRandomID() string {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 )
 
@@ -39,6 +40,17 @@ func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Serv
 
 	for _, startFunc := range postStart {
 		startFunc(s)
+	}
+
+	// Now that the main teamserver listener is started,
+	// we can start all our persistent teamserver listeners.
+	// That way, if any of them collides with our current bind,
+	// we just serve it for him
+	hostPort := regexp.MustCompile(fmt.Sprintf("%s:%d", host, port))
+
+	err = s.StartPersistentJobs()
+	if err != nil && hostPort.MatchString(err.Error()) {
+		daemonLog.Infof("Error starting persistent listeners: %s", err)
 	}
 
 	done := make(chan bool)

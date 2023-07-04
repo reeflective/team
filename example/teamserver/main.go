@@ -21,7 +21,7 @@ func main() {
 	// we are being given two command trees: teamserver ones (server only)
 	// and teamclient ones. Both are configured with pre-runners that will
 	// connect themselves together over an in-memory gRPC connection.
-	serverCmds, clientCmds := cli.SelfConnect(teamServer, teamClient)
+	serverCmds, clientCmds := cli.ConnectLocal(teamServer, teamClient)
 
 	// Add the teamclient command tree as a subtree of the server ones.
 	// In this case, the teamserver is the application itself: it is not

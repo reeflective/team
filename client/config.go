@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
 
@@ -103,6 +104,26 @@ func (c *Client) SaveConfig(config *Config) error {
 	}
 	c.log.Error(fmt.Sprintf("Saved new client config to: %s", saveTo))
 	return nil
+}
+
+// DefaultUserConfig returns the default user configuration for this application.
+// the file is of the following form: ~/.app/configs/app_USERNAME_default.cfg.
+// If the latter is found, it returned, otherwise no config is returned.
+func (c *Client) DefaultUserConfig() (cfg *Config) {
+	user, err := user.Current()
+	if err != nil {
+		return nil
+	}
+
+	filename := fmt.Sprintf("%s_%s_default", c.Name(), user.Username)
+	saveTo := c.ConfigsDir()
+
+	configPath := filepath.Join(saveTo, filename+".cfg")
+	if _, err := os.Stat(configPath); err == nil {
+		cfg, _ = c.ReadConfig(configPath)
+	}
+
+	return cfg
 }
 
 // SelectConfig either returns the only configuration found in the

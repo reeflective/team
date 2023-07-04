@@ -11,11 +11,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/test/bufconn"
-	"gorm.io/gorm"
 
+	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/server/certs"
-	"github.com/reeflective/team/server/db"
 )
 
 const (
@@ -29,53 +28,79 @@ const (
 
 const bufSize = 2 * mb
 
-func (s *Server) Serve(opts ...Options) {
-	// Default and user options do not prevail
-	// on what is in the configuration file
-	s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
+// ServeUser starts the main teamserver listener for the default system user:
+// If the default application config file is found, and that we have determined
+// that a sister server is running accordingly, we do NOT start the server, but
+// instead connect as clients over to the teamserver, not using any database or
+// server-only code in the process.
+func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error) {
 	s.apply(opts...)
 
-	// Load any relevant server configuration: on disk,
-	// contained in options, or the default one.
-	s.config = s.GetConfig()
+	// Client options
+	var config *client.Config
 
-	// Database
-	if s.opts.db == nil {
-		s.db = db.NewDatabaseClient(s.opts.dbConfig, s.log)
-	}
-
-	// Certificate infrastructure
-	certsLog := s.NamedLogger("certs", "certificates")
-	s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
-
-	// Default users
 	if s.opts.userDefault {
+		config = cli.DefaultUserConfig()
 	}
+
+	// Initialize all backend things for this server:
+	// database, certificate authorities and related loggers.
+	s.init()
+
+	var conn *grpc.ClientConn
+	var server *grpc.Server
+	var err error
+
+	// If the default user configuration is the same as us,
+	// or one of our multiplayer jobs, start our listeners
+	// first and let the client connect afterwards.
+	if !s.clientServerMatch(config) {
+		s.opts.local = true
+		conn, server, err = s.ServeLocal()
+		if err != nil {
+			return server, err
+		}
+	}
+
+	// Attempt to connect with the user configuration.
+	// Return if we are done, since we
+	err = cli.Connect(client.WithConnection(conn))
+	if err != nil {
+		return server, err
+	}
+
+	return server, nil
 }
 
-// ServeLocal is used by any teamserver binary application to emulate the client-side functionality with itself.
-// It returns a gRPC client connection to be registered to a client (team/client package),
-// the gRPC server for registering per-application services, or an error if listening failed.
+// ServeLocal is used by any teamserver binary application to emulate the client-side
+// functionality with itself. It returns a gRPC client connection to be registered to
+// a client (team/client package), the gRPC server for registering per-application
+// services, or an error if listening failed.
 func (s *Server) ServeLocal() (*grpc.ClientConn, *grpc.Server, error) {
-	s.opts.local = true
+	bufConnLog := s.NamedLogger("transport", "local")
+	bufConnLog.Infof("Binding gRPC to listener ...")
 
-	s.Serve()
+	ln := bufconn.Listen(bufSize)
 
-	// Start the server.
-	server, ln, err := s.serveLocal()
+	options := []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
+		grpc.MaxSendMsgSize(ServerMaxMessageSize),
+	}
+
+	server, err := s.setupRPC(ln, options)
 
 	// And connect the client
 	ctxDialer := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 		return ln.Dial()
 	})
 
-	options := []grpc.DialOption{
+	dialOpts := []grpc.DialOption{
 		ctxDialer,
 		grpc.WithInsecure(), // This is an in-memory listener, no need for secure transport
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(ServerMaxMessageSize)),
 	}
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet", options...)
+	conn, err := grpc.DialContext(context.Background(), "bufnet", dialOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to dial bufnet: %s\n", err)
 	}
@@ -113,24 +138,6 @@ func (s *Server) ServeWith(ln net.Listener) (*grpc.Server, error) {
 	server, err := s.setupRPC(ln, options)
 
 	return server, err
-}
-
-// serveLocal - Bind gRPC server to an in-memory listener, which is
-// typically used for unit testing, but ... it should be fine.
-func (s *Server) serveLocal() (*grpc.Server, *bufconn.Listener, error) {
-	bufConnLog := s.NamedLogger("transport", "local")
-	bufConnLog.Infof("Binding gRPC to listener ...")
-
-	ln := bufconn.Listen(bufSize)
-
-	options := []grpc.ServerOption{
-		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
-		grpc.MaxSendMsgSize(ServerMaxMessageSize),
-	}
-
-	server, err := s.setupRPC(ln, options)
-
-	return server, ln, err
 }
 
 // setupRPC starts the gRPC server and register the core teamserver services to it.
