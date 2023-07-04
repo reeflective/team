@@ -38,12 +38,18 @@ const (
 	debugl = bold + purple + "[-] " + normal
 )
 
+const (
+	TeamServerGroup     = "teamserver control" // TeamServerGroup is the group of all server/client control commands.
+	UserManagementGroup = "user management"    // UserManagementGroup is the group to manage teamserver users.
+)
+
 // Commands initliazes and returns a command tree to embed in client applications
 // connecting to a teamserver. It requires the client itself to use its functions.
 func Commands(cli *client.Client) *cobra.Command {
 	teamCmd := &cobra.Command{
-		Use:   "teamclient",
-		Short: "Manage the client-side application of the teamserver, and users",
+		Use:     "teamclient",
+		Short:   "Client-only teamserver commands (import configs, show users, etc)",
+		GroupID: TeamServerGroup,
 	}
 
 	versionCmd := &cobra.Command{
