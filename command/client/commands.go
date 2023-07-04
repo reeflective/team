@@ -62,6 +62,11 @@ func Commands(cli *client.Client) *cobra.Command {
 			if err != nil {
 				fmt.Printf(warn+"Server (error: %s)\r\n", err)
 			}
+			if serverVer == nil {
+				fmt.Printf(warn+"No server version info)\r\n", err)
+				// return
+			}
+
 			dirty := ""
 			if serverVer.Dirty {
 				dirty = fmt.Sprintf(" - %sDirty%s", bold, normal)

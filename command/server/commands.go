@@ -184,6 +184,7 @@ func Commands(server *server.Server) *cobra.Command {
 func ConnectLocal(teamserver *server.Server, teamclient *client.Client) (servCmds, cliCmds *cobra.Command) {
 	serveAndConnect := func(cmd *cobra.Command, args []string) error {
 		// If the server is already serving us with an in-memory con, return.
+		// Also, the daemon command does not need a teamclient connection.
 		if teamclient.IsConnected() {
 			return nil
 		}

@@ -34,7 +34,9 @@ const bufSize = 2 * mb
 // instead connect as clients over to the teamserver, not using any database or
 // server-only code in the process.
 func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error) {
-	s.apply(opts...)
+	// Initialize all backend things for this server:
+	// database, certificate authorities and related loggers.
+	s.Init(opts...)
 
 	// Client options
 	var config *client.Config
@@ -42,10 +44,6 @@ func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error
 	if s.opts.userDefault {
 		config = cli.DefaultUserConfig()
 	}
-
-	// Initialize all backend things for this server:
-	// database, certificate authorities and related loggers.
-	s.init()
 
 	var conn *grpc.ClientConn
 	var server *grpc.Server
@@ -55,7 +53,6 @@ func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error
 	// or one of our multiplayer jobs, start our listeners
 	// first and let the client connect afterwards.
 	if !s.clientServerMatch(config) {
-		s.opts.local = true
 		conn, server, err = s.ServeLocal()
 		if err != nil {
 			return server, err
@@ -76,9 +73,14 @@ func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error
 // functionality with itself. It returns a gRPC client connection to be registered to
 // a client (team/client package), the gRPC server for registering per-application
 // services, or an error if listening failed.
-func (s *Server) ServeLocal() (*grpc.ClientConn, *grpc.Server, error) {
+func (s *Server) ServeLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, error) {
 	bufConnLog := s.NamedLogger("transport", "local")
 	bufConnLog.Infof("Binding gRPC to listener ...")
+
+	// Initialize all backend things for this server:
+	// database, certificate authorities and related loggers.
+	s.Init(opts...)
+	s.opts.local = true
 
 	ln := bufconn.Listen(bufSize)
 
@@ -122,9 +124,13 @@ func (s *Server) ServeAddr(host string, port uint16) (*grpc.Server, net.Listener
 }
 
 // ServeWith starts a gRPC teamserver on the provided listener (setting up MutualTLS on it).
-func (s *Server) ServeWith(ln net.Listener) (*grpc.Server, error) {
+func (s *Server) ServeWith(ln net.Listener, opts ...Options) (*grpc.Server, error) {
 	bufConnLog := s.NamedLogger("transport", "mtls")
 	bufConnLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
+
+	// Initialize all backend things for this server:
+	// database, certificate authorities and related loggers.
+	s.Init(opts...)
 
 	tlsConfig := s.getOperatorServerTLSConfig("multiplayer")
 	creds := credentials.NewTLS(tlsConfig)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -22,6 +23,7 @@ type Server struct {
 	name       string
 	rootDirEnv string
 	listening  bool
+	init       *sync.Once
 	opts       *opts
 	config     *Config
 	db         *gorm.DB
@@ -36,6 +38,7 @@ func New(application string, options ...Options) *Server {
 	s := &Server{
 		name:                    application,
 		rootDirEnv:              fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
+		init:                    &sync.Once{},
 		opts:                    &opts{},
 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}
@@ -79,24 +82,26 @@ func (s *Server) newServer() *Server {
 	return serv
 }
 
-func (s *Server) init(opts ...Options) {
-	// Default and user options do not prevail
-	// on what is in the configuration file
-	s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
-	s.apply(opts...)
+func (s *Server) Init(opts ...Options) {
+	s.init.Do(func() {
+		// Default and user options do not prevail
+		// on what is in the configuration file
+		s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
+		s.apply(opts...)
 
-	// Load any relevant server configuration: on disk,
-	// contained in options, or the default one.
-	s.config = s.GetConfig()
+		// Load any relevant server configuration: on disk,
+		// contained in options, or the default one.
+		s.config = s.GetConfig()
 
-	// Database
-	if s.opts.db == nil {
-		s.db = db.NewDatabaseClient(s.opts.dbConfig, s.log)
-	}
+		// Database
+		if s.opts.db == nil {
+			s.db = db.NewDatabaseClient(s.opts.dbConfig, s.log)
+		}
 
-	// Certificate infrastructure
-	certsLog := s.NamedLogger("certs", "certificates")
-	s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
+		// Certificate infrastructure
+		certsLog := s.NamedLogger("certs", "certificates")
+		s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
+	})
 }
 
 // GetVersion returns the teamserver version.
