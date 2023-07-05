@@ -14,7 +14,11 @@ func main() {
 	// Create a teamserver and a teamclient.
 	// None of those yet have a working RPC connection, and the server
 	// is not yet connected to its database, loggers and certificates.
-	teamServer := server.New("teamserver", server.WithDefaultPort(31340))
+	teamServer, err := server.New("teamserver", server.WithDefaultPort(31340))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	teamClient := client.New("teamserver")
 
 	// Pass both server and clients to the commands package:
@@ -37,7 +41,7 @@ func main() {
 	// - We could "forget" about our teamserver because we have a blocking call somewhere,
 	// - Let one of the commands to be executed and exit, without listening anywhere.
 	// - Many, many different variants in which you can keep working below.
-	err := serverCmds.Execute()
+	err = serverCmds.Execute()
 	if err != nil {
 		log.Fatal(err)
 	}

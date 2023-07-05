@@ -14,7 +14,7 @@ func main() {
 	// Create a teamserver and a teamclient.
 	// None of those yet have a working RPC connection, and the server
 	// is not yet connected to its database, loggers and certificates.
-	teamServer := server.New("selfserver", server.WithDefaultPort(31340))
+	teamServer, _ := server.New("selfserver", server.WithDefaultPort(31340))
 	teamClient := client.New("selfserver")
 
 	// Pass both server and clients to the commands package:

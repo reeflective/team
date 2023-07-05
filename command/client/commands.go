@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/version"
 )
 
 const (
@@ -75,7 +76,7 @@ func Commands(cli *client.Client) *cobra.Command {
 			fmt.Printf(info+"Server v%s - %s%s\n", serverSemVer, serverVer.Commit, dirty)
 
 			// Client
-			fmt.Printf(info+"Client %s\n", client.FullVersion())
+			fmt.Printf(info+"Client %s\n", version.Full())
 		},
 	}
 

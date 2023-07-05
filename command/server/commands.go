@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"strings"
 
 	"github.com/rsteube/carapace"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/command/client"
+	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/server"
 )
 
@@ -139,10 +141,12 @@ func Commands(server *server.Server) *cobra.Command {
 
 	carapace.Gen(rmUserCmd).PositionalCompletion(
 		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-			users, err := server.UserAll()
+			req, err := server.GetUsers(context.Background(), &proto.Empty{})
 			if err != nil {
 				return carapace.ActionMessage("failed to get teamserver users: %s", err)
 			}
+
+			users := req.GetUsers()
 
 			results := make([]string, len(users))
 			for _, user := range users {

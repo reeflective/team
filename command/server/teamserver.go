@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/reeflective/team/internal/systemd"
 	"github.com/reeflective/team/server"
 	"github.com/spf13/cobra"
 )
@@ -45,10 +46,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		if err == nil {
 			fmt.Printf(info+"Teamserver listener started on %s:%d\n", lhost, lport)
 			if persistent {
-				serv.AddListenerJob(&server.ListenerConfig{
-					Host: lhost,
-					Port: lport,
-				})
+				serv.AddListener(lhost, lport)
 			}
 		} else {
 			fmt.Printf(warn+"Failed to start job %v\n", err)
@@ -58,7 +56,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 
 func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, _ []string) {
-		config := server.DefaultSystemdConfig()
+		config := systemd.NewDefaultConfig()
 
 		userf, _ := cmd.Flags().GetString("user")
 		if userf != "" {
@@ -83,7 +81,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 			config.Args[0] = binPath
 		}
 
-		systemdConfig := serv.GenerateServiceFile(config)
+		systemdConfig := systemd.NewFrom(serv.Name(), config)
 		fmt.Printf(systemdConfig)
 	}
 }
