@@ -149,7 +149,7 @@ func ConnectRun(cli *client.Client, opts ...client.Options) func(cmd *cobra.Comm
 // This should generally be used as one of (or part of another) command post-runner.
 func DisconnectRun(cli *client.Client) func(cmd *cobra.Command, _ []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
-		// THis is safe, client ensures to close what can be.
+		// This is safe, client ensures to close what can be.
 		cli.Disconnect()
 		return nil
 	}
@@ -203,7 +203,7 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 					}
 
 					results = append(results, filePath)
-					results = append(results, fmt.Sprintf("[%s] %s:%d", cfg.Host, cfg.User, cfg.Port))
+					results = append(results, fmt.Sprintf("[%s] %s:%d", cfg.User, cfg.Host, cfg.Port))
 				}
 			}
 		}

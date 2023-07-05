@@ -39,9 +39,79 @@ const (
 	debugl = bold + purple + "[-] " + normal
 )
 
-// Commands initliazes and returns a command tree to embed in the teamserver binary.
-// It requires the server itself to use its functions.
-func Commands(server *server.Server) *cobra.Command {
+type (
+	cobraRunnerE func(*cobra.Command, []string) error
+	cobraRunner  func(*cobra.Command, []string)
+)
+
+func Commands(teamserver *server.Server, teamclient *client.Client) *cobra.Command {
+	serveAndConnect := func(cmd *cobra.Command, args []string) error {
+		// If the server is already serving us with an in-memory con, return.
+		// Also, the daemon command does not need a teamclient connection.
+		if teamclient.IsConnected() {
+			return nil
+		}
+
+		// And connect the client locally, only needed.
+		_, err := teamserver.Serve(teamclient)
+
+		// And connect the client locally, only needed.
+		err = teamclient.Connect()
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	// Server-only commands always need to have open log
+	// files, most of the time access to the database, etc.
+	// On top, they need a listener in memory.
+	servCmds := serverCommands(teamserver)
+
+	for _, cmd := range servCmds.Commands() {
+		cmd.PersistentPreRunE = serveAndConnect
+	}
+
+	// We bind the same runners to the client-side commands.
+	cliCmds := cli.Commands(teamclient)
+	cliCmds.Use = "client"
+
+	for _, cmd := range cliCmds.Commands() {
+		cmd.PersistentPreRunE = serveAndConnect
+	}
+
+	servCmds.AddCommand(cliCmds)
+
+	return servCmds
+}
+
+func PreRun(teamserver *server.Server, teamclient *client.Client) cobraRunnerE {
+	return func(cmd *cobra.Command, args []string) error {
+		// If the server is already serving us with an in-memory con, return.
+		// Also, the daemon command does not need a teamclient connection.
+		if teamclient.IsConnected() {
+			return nil
+		}
+
+		// And connect the client locally, only needed.
+		_, err := teamserver.Serve(teamclient)
+
+		// And connect the client locally, only needed.
+		err = teamclient.Connect()
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
+func PostRun(server *server.Server, client *client.Client) cobraRunnerE {
+	return nil
+}
+
+func serverCommands(server *server.Server) *cobra.Command {
 	teamCmd := &cobra.Command{
 		Use:   "teamserver",
 		Short: "Manage the application server-side teamserver and users",
@@ -181,119 +251,4 @@ func Commands(server *server.Server) *cobra.Command {
 	teamCmd.AddCommand(cmdExportCA)
 
 	return teamCmd
-}
-
-// ConnectLocal returns the teamserver-only and teamclient command trees, with pre-runners configured to self-serve/connect
-// to the binary in memory.
-func ConnectLocal(teamserver *server.Server, teamclient *client.Client) (servCmds, cliCmds *cobra.Command) {
-	serveAndConnect := func(cmd *cobra.Command, args []string) error {
-		// If the server is already serving us with an in-memory con, return.
-		// Also, the daemon command does not need a teamclient connection.
-		if teamclient.IsConnected() {
-			return nil
-		}
-
-		// We generate a local client (and its command tree) from our
-		// server, and bind these client commands to our server tree.
-		conn, _, err := teamserver.ServeLocal()
-		if err != nil {
-			return err
-		}
-
-		// And connect the client locally, only needed.
-		err = teamclient.Connect(client.WithConnection(conn))
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	// Server-only commands always need to have open log
-	// files, most of the time access to the database, etc.
-	// On top, they need a listener in memory.
-	servCmds = Commands(teamserver)
-
-	for _, cmd := range servCmds.Commands() {
-		cmd.PersistentPreRunE = serveAndConnect
-	}
-
-	// We bind the same runners to the client-side commands.
-	cliCmds = cli.Commands(teamclient)
-
-	for _, cmd := range cliCmds.Commands() {
-		cmd.PersistentPreRunE = serveAndConnect
-	}
-
-	return servCmds, cliCmds
-}
-
-// ConnectUser is similar to SelfConnect: it returns the teamserver and teamclient command trees, but this time
-// configured to connect to a remote server instance if one for this application is detected, even if our binary
-// is the server. This in effect tells the server: "we already have a server running, you're just a client here".
-//
-// Detailed workflow and steps:
-// 1. The binary starts, the application looks for its default user config (~/.app/configs/app_user_default.cfg).
-// 2 - If found, check if there is another application server running. If yes, connect to it remotely.
-// 3 - If no user default config for this app is found, start locally, don't attempt to look at other configs.
-func ConnectUser(teamserver *server.Server, teamclient *client.Client) (servCmds, cliCmds *cobra.Command) {
-	serveAndConnect := func(cmd *cobra.Command, args []string) error {
-		// If the server is already serving us, just return, because
-		// we might be called repeatedly from a closed-loop console,
-		// with any number of invocations in the same runtime.
-		if teamclient.IsConnected() {
-			return nil
-		}
-
-		// Run the server either as a remote client connected to either
-		// the default running sister server, or against ourselves if needed.
-		_, err := teamserver.Serve(teamclient, server.WithOSUserDefault())
-
-		return err
-	}
-
-	// Server-only commands always need to have open log
-	// files, most of the time access to the database, etc.
-	// On top, they need a listener in memory.
-	servCmds = Commands(teamserver)
-
-	for _, cmd := range servCmds.Commands() {
-		cmd.PersistentPreRunE = serveAndConnect
-	}
-
-	// We bind the same runners to the client-side commands.
-	cliCmds = cli.Commands(teamclient)
-
-	for _, cmd := range cliCmds.Commands() {
-		cmd.PersistentPreRunE = serveAndConnect
-	}
-
-	return
-}
-
-// ServeRun returns a cobra command connecting the client to the teamserver.
-// This should generally be used as one of (or part of another) command pre-runner.
-func ServeRun(hooks ...func(serv *server.Server)) func(cmd *cobra.Command, _ []string) error {
-	return func(cmd *cobra.Command, _ []string) error {
-		// if cli.IsConnected() {
-		// 	return nil
-		// }
-		//
-		// if err := cli.Connect(); err != nil {
-		// 	fmt.Printf(warn+"Error connecting to teamserver: %s\n", err)
-		// 	return err
-		// }
-
-		return nil
-	}
-}
-
-// CloseRun returns a cobra command disconnecting the client from the teamserver.
-// This should generally be used as one of (or part of another) command post-runner.
-func CloseRun(hooks ...func(serv *server.Server)) func(cmd *cobra.Command, _ []string) error {
-	return func(cmd *cobra.Command, _ []string) error {
-		// THis is safe, client ensures to close what can be.
-		// cli.Disconnect()
-		return nil
-	}
 }

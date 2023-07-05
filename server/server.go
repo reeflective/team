@@ -41,7 +41,9 @@ type Server struct {
 }
 
 func New(application string, options ...Options) (*Server, error) {
-	s := &Server{
+	var err error
+
+	server := &Server{
 		name:                    application,
 		rootDirEnv:              fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
 		userTokens:              &sync.Map{},
@@ -53,17 +55,15 @@ func New(application string, options ...Options) (*Server, error) {
 	// Ensure all teamserver-specific directories are writable.
 
 	// Logging (not writing to files until init)
-	s.log, _ = log.NewLoggerText(s.LogsDir())
-	// s.log = log.NewLoggerStream() // = > This should only be in the client: local one has access to all logs.
+	if server.log, err = log.NewLoggerRoot(server.Name(), "root", server.LogsDir()); err != nil {
+		return server, err
+	}
 
-	auditLog, err := log.NewLoggerAudit(s.AppDir())
-	if err != nil {
+	if server.audit, err = log.NewLoggerAudit(server.AppDir()); err != nil {
 		return nil, err
 	}
 
-	s.audit = auditLog
-
-	return s, nil
+	return server, nil
 }
 
 // Name returns the name of the application handled by the teamserver.
@@ -166,13 +166,4 @@ func (s *Server) initServer(opts ...Options) error {
 	})
 
 	return err
-}
-
-//
-// MOVE
-//
-
-func (s *Server) SystemdConfig() []byte {
-	return []byte{}
-	// return systemd.NewFrom(s.Name(), nil)
 }

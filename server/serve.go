@@ -26,6 +26,48 @@ const (
 
 const bufSize = 2 * mb
 
+// ServeSelf returns a local runtime client to this teamserver.
+func (s *Server) Self(opts ...Options) *client.Client {
+	// Make a new default client: no working connection yet.
+	cli := client.New(s.Name())
+
+	// Get the connection strategy for this client:
+	// Either prioritize finding a server, which and how.
+	// if !s.clientServerMatch(cli.DefaultUserConfig()) {
+	// }
+
+	// Or serve a runtime local connection.
+	return cli
+}
+
+// ServeUser starts the main teamserver listener for the default system user:
+// If the default application config file is found, and that we have determined
+// that a sister server is running accordingly, we do NOT start the server, but
+// instead connect as clients over to the teamserver, not using any database or
+// server-only code in the process.
+func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error) {
+	// Initialize all backend things for this server:
+	// database, certificate authorities and related loggers.
+	s.initServer(opts...)
+
+	// If the default user configuration is the same as us,
+	// or one of our multiplayer jobs, start our listeners
+	// first and let the client connect afterwards.
+	conn, server, err := s.ServeLocal()
+	if err != nil {
+		return server, err
+	}
+
+	// Attempt to connect with the user configuration.
+	// Return if we are done, since we
+	err = cli.Connect(client.WithConnection(conn))
+	if err != nil {
+		return server, err
+	}
+
+	return server, nil
+}
+
 // ServeAddr sets and start a gRPC teamserver listener (on MutualTLS) with registered
 // teamserver services onto it.
 // Starting listeners from application code (not from teamserver' commands) should most
@@ -41,47 +83,6 @@ func (s *Server) ServeAddr(host string, port uint16) (*grpc.Server, net.Listener
 	server, err := s.ServeWith(ln)
 
 	return server, ln, err
-}
-
-// ServeUser starts the main teamserver listener for the default system user:
-// If the default application config file is found, and that we have determined
-// that a sister server is running accordingly, we do NOT start the server, but
-// instead connect as clients over to the teamserver, not using any database or
-// server-only code in the process.
-func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error) {
-	// Initialize all backend things for this server:
-	// database, certificate authorities and related loggers.
-	s.initServer(opts...)
-
-	// Client options
-	var config *client.Config
-
-	if s.opts.userDefault {
-		config = cli.DefaultUserConfig()
-	}
-
-	var conn *grpc.ClientConn
-	var server *grpc.Server
-	var err error
-
-	// If the default user configuration is the same as us,
-	// or one of our multiplayer jobs, start our listeners
-	// first and let the client connect afterwards.
-	if !s.clientServerMatch(config) {
-		conn, server, err = s.ServeLocal()
-		if err != nil {
-			return server, err
-		}
-	}
-
-	// Attempt to connect with the user configuration.
-	// Return if we are done, since we
-	err = cli.Connect(client.WithConnection(conn))
-	if err != nil {
-		return server, err
-	}
-
-	return server, nil
 }
 
 // ServeLocal is used by any teamserver binary application to emulate the client-side
