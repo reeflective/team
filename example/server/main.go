@@ -5,7 +5,6 @@ import (
 
 	"github.com/rsteube/carapace"
 
-	"github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/command/server"
 	"github.com/reeflective/team/server"
 )
@@ -19,19 +18,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	teamClient := client.New("teamserver")
+	serverCmds := cli.Commands(teamServer, teamServer.Self())
 
 	// Pass both server and clients to the commands package:
 	// we are being given two command trees: teamserver ones (server only)
 	// and teamclient ones. Both are configured with pre-runners that will
 	// connect themselves together over an in-memory gRPC connection.
-	serverCmds, clientCmds := cli.ConnectLocal(teamServer, teamClient)
+	// serverCmds, clientCmds := cli.ConnectLocal(teamServer, teamServer.Self())
 
 	// Add the teamclient command tree as a subtree of the server ones.
 	// In this case, the teamserver is the application itself: it is not
 	// part of a larger set of domain-specific commands, which would be
 	// the case in normal use cases for this library.
-	serverCmds.AddCommand(clientCmds)
+	// serverCmds.AddCommand(clientCmds)
 
 	// Generate completions for the tree.
 	carapace.Gen(serverCmds)

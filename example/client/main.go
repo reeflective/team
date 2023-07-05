@@ -3,9 +3,10 @@ package main
 import (
 	"log"
 
+	"github.com/rsteube/carapace"
+
 	"github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/command/client"
-	"github.com/rsteube/carapace"
 )
 
 func main() {
