@@ -7,12 +7,12 @@ import (
 	"os"
 	"sync"
 
-	"golang.org/x/exp/slog"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/proto"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -28,8 +28,7 @@ type Client struct {
 	name       string
 	connected  bool
 	opts       *opts
-	log        *slog.Logger
-	logger     *logrus.Logger
+	log        *logrus.Logger
 	logFile    *os.File
 	conn       *grpc.ClientConn
 	rpc        proto.TeamClient
@@ -52,6 +51,7 @@ func New(application string, options ...Options) *Client {
 		connectedT: &sync.Once{},
 	}
 
+	c.log = log.NewLoggerStream()
 	// c.logFile = c.initLogging(c.AppDir())
 
 	c.apply(options...)

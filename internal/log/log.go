@@ -22,7 +22,7 @@ func NewLoggerStream() *logrus.Logger {
 	}
 
 	txtLogger.Out = os.Stdout
-	txtLogger.SetLevel(logrus.WarnLevel)
+	txtLogger.SetLevel(logrus.InfoLevel)
 
 	return txtLogger
 }

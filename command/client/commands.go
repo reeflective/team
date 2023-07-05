@@ -47,6 +47,9 @@ func Commands(cli *client.Client) *cobra.Command {
 	clientCmds := clientCommands(cli)
 
 	for _, cmd := range clientCmds.Commands() {
+		if isNoConnect(cmd) {
+			continue
+		}
 		cmd.PersistentPreRunE = PreRun(cli)
 	}
 
@@ -182,11 +185,11 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 			if !dir.IsDir() {
 				continue
 			}
-			if strings.TrimPrefix(dir.Name(), ".") == cli.Name() {
+			if strings.TrimPrefix(dir.Name(), ".") != cli.Name() {
 				continue
 			}
 
-			configPath := filepath.Join(homeDir, dir.Name(), "configs")
+			configPath := filepath.Join(homeDir, dir.Name(), "teamserver/client/configs")
 
 			if configs, err := os.Stat(configPath); err == nil {
 				if !configs.IsDir() {
@@ -214,4 +217,20 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 
 		return carapace.ActionValuesDescribed(results...).StyleF(style.ForPathExt).Tag("teamserver applications")
 	}
+}
+
+func isNoConnect(cmd *cobra.Command) bool {
+	noConnectCmds := []string{
+		"import",
+		"__complete",
+		"_carapace",
+	}
+
+	for _, name := range noConnectCmds {
+		if name == cmd.Name() {
+			return true
+		}
+	}
+
+	return false
 }

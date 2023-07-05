@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -36,7 +35,7 @@ func (c *Client) ConfigsDir() string {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {
-			log.Fatal(err)
+			c.log.Errorf(fmt.Sprintf("cannot write to %s configs dir: %w", dir, err))
 		}
 	}
 	return dir
@@ -102,7 +101,7 @@ func (c *Client) SaveConfig(config *Config) error {
 		c.log.Error(fmt.Sprintf("Failed to write config to: %s (%v)", saveTo, err))
 		return err
 	}
-	c.log.Error(fmt.Sprintf("Saved new client config to: %s", saveTo))
+	c.log.Infof(fmt.Sprintf("Saved new client config to: %s", saveTo))
 	return nil
 }
 

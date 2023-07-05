@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+const (
+	teamserverDir = "teamserver"
+)
+
 // AppDir returns the directory of the team server app (named ~/.<application>-server),
 // creating the directory if needed, or logging a fatal event if failing to create it.
 func (s *Server) AppDir() string {
@@ -17,7 +21,7 @@ func (s *Server) AppDir() string {
 	var dir string
 	if len(value) == 0 {
 		user, _ := user.Current()
-		dir = filepath.Join(user.HomeDir, fmt.Sprintf(".%s-server", s.name))
+		dir = filepath.Join(user.HomeDir, fmt.Sprintf(".%s", s.name), teamserverDir)
 	} else {
 		dir = value
 	}
@@ -25,8 +29,7 @@ func (s *Server) AppDir() string {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {
-			msg := fmt.Sprintf("Cannot write to %s root dir", dir)
-			panic(msg)
+			s.log.Errorf("Cannot write to %s root dir: %w", dir)
 		}
 	}
 	return dir
@@ -46,7 +49,7 @@ func (s *Server) LogsDir() string {
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		err = os.MkdirAll(logDir, 0o700)
 		if err != nil {
-			panic(err)
+			s.log.Errorf("Cannot write logs dir %s", logDir)
 		}
 	}
 	return logDir

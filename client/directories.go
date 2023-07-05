@@ -1,21 +1,25 @@
 package client
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
 )
 
-// AppDir returns the directory of the team application (named ~/.<application>),
+const (
+	teamserverClientDir = "teamserver/client"
+)
+
+// AppDir returns the directory of the team application (named ~/.<app>/teamserver/client/),
 // creating the directory if needed, or logging a fatal event if failing to create it.
 func (c *Client) AppDir() string {
 	user, _ := user.Current()
-	dir := filepath.Join(user.HomeDir, "."+c.name)
+	dir := filepath.Join(user.HomeDir, "."+c.name, teamserverClientDir)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {
-			log.Fatal(err)
+			c.log.Errorf(fmt.Sprintf("cannot write to %s root dir: %w", dir, err))
 		}
 	}
 	return dir
@@ -28,20 +32,20 @@ func (c *Client) LogsDir() string {
 	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
 		err = os.MkdirAll(logsDir, 0o700)
 		if err != nil {
-			log.Fatal(err)
+			c.log.Errorf(fmt.Sprintf("cannot write to %s root dir: %w", logsDir, err))
 		}
 	}
 	return logsDir
 }
 
 // GetConsoleLogsDir - Get the client console logs dir ~/.app/logs/console/
-func (c *Client) ConsoleLogsDir() string {
-	consoleLogsDir := filepath.Join(c.LogsDir(), "console")
-	if _, err := os.Stat(consoleLogsDir); os.IsNotExist(err) {
-		err = os.MkdirAll(consoleLogsDir, 0o700)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	return consoleLogsDir
-}
+// func (c *Client) ConsoleLogsDir() string {
+// 	consoleLogsDir := filepath.Join(c.LogsDir(), "console")
+// 	if _, err := os.Stat(consoleLogsDir); os.IsNotExist(err) {
+// 		err = os.MkdirAll(consoleLogsDir, 0o700)
+// 		if err != nil {
+// 			log.Fatal(err)
+// 		}
+// 	}
+// 	return consoleLogsDir
+// }
