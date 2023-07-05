@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+outfile="_version.compiled"
+
+git describe --abbrev=0 > "client${outfile}"
+go version > "go${outfile}"
+git rev-parse HEAD > "commit${outfile}"
+git diff --quiet|| echo 'Dirty' > "dirty${outfile}"
+date +%s > "compiled${outfile}"
