@@ -6,8 +6,9 @@ import "google.golang.org/grpc"
 type Options func(opts *opts) *opts
 
 type opts struct {
-	config *Config
-	conn   *grpc.ClientConn
+	config  *Config
+	conn    *grpc.ClientConn
+	console bool
 }
 
 func (c *Client) apply(options ...Options) {
@@ -34,6 +35,18 @@ func WithConnection(conn *grpc.ClientConn) Options {
 func WithConfig(config *Config) Options {
 	return func(opts *opts) *opts {
 		opts.config = config
+		return opts
+	}
+}
+
+// WithNoDisconnect is meant to be used when the teamclient commands are used
+// in your application and that you happen to ALSO have a readline/console style
+// application which might reuse commands.
+// If this is the case, this option will ensure that any cobra client command
+// runners produced by this library will not disconnect after each execution.
+func WithNoDisconnect() Options {
+	return func(opts *opts) *opts {
+		opts.console = true
 		return opts
 	}
 }

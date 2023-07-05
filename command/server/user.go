@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/reeflective/team/server"
 	"github.com/spf13/cobra"
+
+	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/server"
 )
 
-func createUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
+func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, _ []string) {
 		name, _ := cmd.Flags().GetString("name")
 		lhost, _ := cmd.Flags().GetString("host")
@@ -36,7 +38,7 @@ func createUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) 
 			}
 			name = user.Username
 			filename = fmt.Sprintf("%s_%s_default", serv.Name(), user.Username)
-			saveTo = serv.ClientConfigsDir()
+			saveTo = cli.ConfigsDir()
 		} else {
 			saveTo, _ = filepath.Abs(save)
 			fi, err := os.Stat(saveTo)

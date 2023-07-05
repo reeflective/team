@@ -111,6 +111,10 @@ func (c *Client) Connect(options ...Options) (err error) {
 // Disconnect disconnects the client from the server, closing the connection
 // and the client log file.Any errors are logged to the this file, not returned.
 func (c *Client) Disconnect() {
+	if c.opts.console {
+		return
+	}
+
 	if c.conn != nil {
 		if err := c.conn.Close(); err != nil {
 			c.log.Error(fmt.Sprintf("error closing connection: %v", err))

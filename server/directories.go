@@ -9,15 +9,6 @@ import (
 	"strings"
 )
 
-// When creating a new server, don't write anything to anywhere yet,
-// but ensure that at least all directories to which we are supposed
-// to write do indeed exist, and make them anyway.
-// If any error happens it will returned right away and the creator
-// of the teamserver will know right away that it can't work correctly.
-func (s *Server) checkWritableDirs() error {
-	return nil
-}
-
 // AppDir returns the directory of the team server app (named ~/.<application>-server),
 // creating the directory if needed, or logging a fatal event if failing to create it.
 func (s *Server) AppDir() string {
@@ -61,29 +52,11 @@ func (s *Server) LogsDir() string {
 	return logDir
 }
 
-// ClientAppDir returns the application directory of a teamclient for this application.
-func (s *Server) ClientAppDir() string {
-	dir := strings.TrimSuffix(s.AppDir(), "-server")
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0o700)
-		if err != nil {
-			msg := fmt.Sprintf("Cannot write to %s root dir", dir)
-			panic(msg)
-		}
-	}
-	return dir
-}
-
-// ClientAppDir returns the application directory of a teamclient for this application.
-func (s *Server) ClientConfigsDir() string {
-	appDir := s.ClientAppDir()
-	dir := filepath.Join(appDir, "configs")
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0o700)
-		if err != nil {
-			msg := fmt.Sprintf("Cannot write to %s root dir", dir)
-			panic(msg)
-		}
-	}
-	return dir
+// When creating a new server, don't write anything to anywhere yet,
+// but ensure that at least all directories to which we are supposed
+// to write do indeed exist, and make them anyway.
+// If any error happens it will returned right away and the creator
+// of the teamserver will know right away that it can't work correctly.
+func (s *Server) checkWritableDirs() error {
+	return nil
 }

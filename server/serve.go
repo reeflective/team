@@ -53,7 +53,7 @@ func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error
 	// If the default user configuration is the same as us,
 	// or one of our multiplayer jobs, start our listeners
 	// first and let the client connect afterwards.
-	conn, server, err := s.ServeLocal()
+	conn, server, err := s.serveLocal()
 	if err != nil {
 		return server, err
 	}
@@ -73,23 +73,53 @@ func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error
 // Starting listeners from application code (not from teamserver' commands) should most
 // of the time be done with this function, as it will return you the gRPC server to which
 // you can attach any application-specific APIs.
-func (s *Server) ServeAddr(host string, port uint16) (*grpc.Server, net.Listener, error) {
+func (s *Server) ServeAddr(host string, port uint16, opts ...Options) (*grpc.Server, net.Listener, error) {
 	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		s.log.Error(err)
 		return nil, nil, err
 	}
 
-	server, err := s.ServeWith(ln)
+	server, err := s.serveListener(ln, opts...)
 
 	return server, ln, err
 }
 
-// ServeLocal is used by any teamserver binary application to emulate the client-side
+// Close gracefully stops all components of the server,
+// letting pending connections to it to finish first.
+func (s *Server) Close() {
+	defer s.log.Writer().Close()
+	defer s.audit.Writer().Close()
+}
+
+// serveListener starts a gRPC teamserver on the provided listener (setting up MutualTLS on it).
+func (s *Server) serveListener(ln net.Listener, opts ...Options) (*grpc.Server, error) {
+	bufConnLog := log.NamedLogger(s.log, "transport", "mtls")
+	bufConnLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
+
+	// Initialize all backend things for this server:
+	// database, certificate authorities and related loggers.
+	s.initServer(opts...)
+
+	tlsConfig := s.getUserTLSConfig("multiplayer")
+	creds := credentials.NewTLS(tlsConfig)
+
+	options := []grpc.ServerOption{
+		grpc.Creds(creds),
+		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
+		grpc.MaxSendMsgSize(ServerMaxMessageSize),
+	}
+
+	server, err := s.initRPC(ln, options)
+
+	return server, err
+}
+
+// serveLocal is used by any teamserver binary application to emulate the client-side
 // functionality with itself. It returns a gRPC client connection to be registered to
 // a client (team/client package), the gRPC server for registering per-application
 // services, or an error if listening failed.
-func (s *Server) ServeLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, error) {
+func (s *Server) serveLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, error) {
 	bufConnLog := log.NamedLogger(s.log, "transport", "local")
 	bufConnLog.Infof("Binding gRPC to listener ...")
 
@@ -124,29 +154,6 @@ func (s *Server) ServeLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, er
 	}
 
 	return conn, server, err
-}
-
-// ServeWith starts a gRPC teamserver on the provided listener (setting up MutualTLS on it).
-func (s *Server) ServeWith(ln net.Listener, opts ...Options) (*grpc.Server, error) {
-	bufConnLog := log.NamedLogger(s.log, "transport", "mtls")
-	bufConnLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
-
-	// Initialize all backend things for this server:
-	// database, certificate authorities and related loggers.
-	s.initServer(opts...)
-
-	tlsConfig := s.getUserTLSConfig("multiplayer")
-	creds := credentials.NewTLS(tlsConfig)
-
-	options := []grpc.ServerOption{
-		grpc.Creds(creds),
-		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
-		grpc.MaxSendMsgSize(ServerMaxMessageSize),
-	}
-
-	server, err := s.initRPC(ln, options)
-
-	return server, err
 }
 
 // initRPC starts the gRPC server and register the core teamserver services to it.

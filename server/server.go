@@ -40,6 +40,15 @@ type Server struct {
 	*proto.UnimplementedTeamServer
 }
 
+// New creates a new teamserver for the provided application name.
+// This server can handle any number of remote clients for a given application
+// named "teamserver", including its own local runtime (fully in-memory) client.
+//
+// All errors returned from this call are critical, in that the server could not
+// run properly in its most basic state. If an error is raised, no server is returned.
+//
+// This call to create the server only creates the application default directory.
+// No files, logs, connections or any interaction with the os/filesystem are made.
 func New(application string, options ...Options) (*Server, error) {
 	var err error
 
@@ -56,7 +65,7 @@ func New(application string, options ...Options) (*Server, error) {
 
 	// Logging (not writing to files until init)
 	if server.log, err = log.NewLoggerRoot(server.Name(), "root", server.LogsDir()); err != nil {
-		return server, err
+		return nil, err
 	}
 
 	if server.audit, err = log.NewLoggerAudit(server.AppDir()); err != nil {
@@ -64,21 +73,6 @@ func New(application string, options ...Options) (*Server, error) {
 	}
 
 	return server, nil
-}
-
-// Name returns the name of the application handled by the teamserver.
-// Since you can embed multiple teamservers (one for each application)
-// into a single binary, this is different from the program binary name
-// running this teamserver.
-func (s *Server) Name() string {
-	return s.name
-}
-
-// Close gracefully stops all components of the server,
-// letting pending connections to it to finish first.
-func (s *Server) Close() {
-	defer s.log.Writer().Close()
-	defer s.audit.Writer().Close()
 }
 
 // GetVersion returns the teamserver version.
@@ -116,6 +110,14 @@ func (s *Server) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
 	}
 
 	return userspb, err
+}
+
+// Name returns the name of the application handled by the teamserver.
+// Since you can embed multiple teamservers (one for each application)
+// into a single binary, this is different from the program binary name
+// running this teamserver.
+func (s *Server) Name() string {
+	return s.name
 }
 
 func (s *Server) newServer() *Server {
