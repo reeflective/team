@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -30,29 +31,40 @@ import (
 // ErrRecordNotFound - Record not found error
 var ErrRecordNotFound = gorm.ErrRecordNotFound
 
-// NewDatabaseClient - Initialize the db client
-func NewDatabaseClient(dbConfig *Config, log *logrus.Logger) *gorm.DB {
+// NewClient initializes a database client connection to a backend specified in config.
+func NewClient(dbConfig *Config, logger *logrus.Logger) (*gorm.DB, error) {
 	var dbClient *gorm.DB
 
 	dsn, err := dbConfig.DSN()
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("Failed to marshal database DSN: %w", err)
 	}
 
-	dbLog := getGormLogger(log, dbConfig.LogLevel)
+	dbLogger := log.NamedLogger(logger, "database", "database")
+
+	dbLog := getGormLogger(logger, dbConfig.LogLevel)
 
 	switch dbConfig.Dialect {
 	case Sqlite:
-		dbClient = sqliteClient(dsn, dbLog)
-		log.Infof("Connecting to SQLite database %s", dsn)
+		dbLogger.Infof("Connecting to SQLite database %s", dsn)
+		dbClient, err = sqliteClient(dsn, dbLog)
+		if err != nil {
+			return nil, fmt.Errorf("Database connection failed: %w", err)
+		}
 	case Postgres:
-		dbClient = postgresClient(dsn, dbLog)
-		log.Infof("Connecting to PostgreSQL database %s", dsn)
+		dbLogger.Infof("Connecting to PostgreSQL database %s", dsn)
+		dbClient, err = postgresClient(dsn, dbLog)
+		if err != nil {
+			return nil, fmt.Errorf("Database connection failed: %w", err)
+		}
 	case MySQL:
-		dbClient = mySQLClient(dsn, dbLog)
-		log.Infof("Connecting to MySQL database %s", dsn)
+		dbLogger.Infof("Connecting to MySQL database %s", dsn)
+		dbClient, err = mySQLClient(dsn, dbLog)
+		if err != nil {
+			return nil, fmt.Errorf("Database connection failed: %w", err)
+		}
 	default:
-		panic(fmt.Sprintf("Unknown DB Dialect: '%s'", dbConfig.Dialect))
+		return nil, fmt.Errorf("Unknown/unsupported DB Dialect: '%s'", dbConfig.Dialect)
 	}
 
 	err = dbClient.AutoMigrate(
@@ -61,13 +73,13 @@ func NewDatabaseClient(dbConfig *Config, log *logrus.Logger) *gorm.DB {
 		&KeyValue{},
 	)
 	if err != nil {
-		log.Error(err)
+		dbLogger.Error(err)
 	}
 
 	// Get generic database object sql.DB to use its functions
 	sqlDB, err := dbClient.DB()
 	if err != nil {
-		log.Error(err)
+		dbLogger.Error(err)
 	}
 
 	// SetMaxIdleConns sets the maximum number of connections in the idle connection pool.
@@ -81,27 +93,19 @@ func NewDatabaseClient(dbConfig *Config, log *logrus.Logger) *gorm.DB {
 
 	return dbClient.Session(&gorm.Session{
 		FullSaveAssociations: true,
-	})
+	}), nil
 }
 
-func postgresClient(dsn string, log logger.Interface) *gorm.DB {
-	dbClient, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+func postgresClient(dsn string, log logger.Interface) (*gorm.DB, error) {
+	return gorm.Open(postgres.Open(dsn), &gorm.Config{
 		PrepareStmt: true,
 		Logger:      log,
 	})
-	if err != nil {
-		panic(err)
-	}
-	return dbClient
 }
 
-func mySQLClient(dsn string, log logger.Interface) *gorm.DB {
-	dbClient, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+func mySQLClient(dsn string, log logger.Interface) (*gorm.DB, error) {
+	return gorm.Open(mysql.Open(dsn), &gorm.Config{
 		PrepareStmt: true,
 		Logger:      log,
 	})
-	if err != nil {
-		panic(err)
-	}
-	return dbClient
 }

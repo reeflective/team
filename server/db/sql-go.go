@@ -24,13 +24,9 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func sqliteClient(dsn string, log logger.Interface) *gorm.DB {
-	dbClient, err := gorm.Open(gosqlite.Open(dsn), &gorm.Config{
+func sqliteClient(dsn string, log logger.Interface) (*gorm.DB, error) {
+	return gorm.Open(gosqlite.Open(dsn), &gorm.Config{
 		PrepareStmt: true,
 		Logger:      log,
 	})
-	if err != nil {
-		panic(err)
-	}
-	return dbClient
 }

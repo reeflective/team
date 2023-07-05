@@ -12,108 +12,85 @@ import (
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 
-	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/certs"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/proto"
-	"github.com/reeflective/team/server/certs"
+	"github.com/reeflective/team/internal/version"
 	"github.com/reeflective/team/server/db"
 )
 
 // Server is a team server.
 type Server struct {
+	// Core
 	name       string
 	rootDirEnv string
 	listening  bool
-	init       *sync.Once
-	opts       *opts
-	config     *Config
-	db         *gorm.DB
 	log        *logrus.Logger
 	audit      *logrus.Logger
-	certs      *certs.Manager
+	userTokens *sync.Map
+
+	// Configurations
+	opts   *opts
+	config *Config
+	db     *gorm.DB
+	certs  *certs.Manager
+
+	// Services
+	init *sync.Once
 	*proto.UnimplementedTeamServer
 }
 
-// New creates a new team server with enabled classic/audit logging.
-func New(application string, options ...Options) *Server {
+func New(application string, options ...Options) (*Server, error) {
 	s := &Server{
 		name:                    application,
 		rootDirEnv:              fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
-		init:                    &sync.Once{},
+		userTokens:              &sync.Map{},
 		opts:                    &opts{},
+		init:                    &sync.Once{},
 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}
 
-	// Logging
-	s.log = s.rootLogger()
-	s.audit = s.newAuditLogger()
+	// Ensure all teamserver-specific directories are writable.
 
-	return s
+	// Logging (not writing to files until init)
+	s.log, _ = log.NewLoggerText(s.LogsDir())
+	// s.log = log.NewLoggerStream() // = > This should only be in the client: local one has access to all logs.
+
+	auditLog, err := log.NewLoggerAudit(s.AppDir())
+	if err != nil {
+		return nil, err
+	}
+
+	s.audit = auditLog
+
+	return s, nil
 }
 
-// Name returns the name of the server application.
+// Name returns the name of the application handled by the teamserver.
+// Since you can embed multiple teamservers (one for each application)
+// into a single binary, this is different from the program binary name
+// running this teamserver.
 func (s *Server) Name() string {
 	return s.name
 }
 
-// GracefulStop gracefully stops all components of the server,
-// letting all current pending connections to it to finish first.
-func (s *Server) GracefulStop() {
+// Close gracefully stops all components of the server,
+// letting pending connections to it to finish first.
+func (s *Server) Close() {
 	defer s.log.Writer().Close()
 	defer s.audit.Writer().Close()
 }
 
-func (s *Server) newServer() *Server {
-	serv := &Server{
-		name:                    s.name,
-		rootDirEnv:              s.rootDirEnv,
-		opts:                    s.opts,
-		config:                  s.config,
-		log:                     s.log,
-		audit:                   s.audit,
-		certs:                   s.certs,
-		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
-	}
-
-	// One session per listener should be enough for now.
-	serv.db = s.db.Session(&gorm.Session{
-		FullSaveAssociations: true,
-	})
-
-	return serv
-}
-
-func (s *Server) Init(opts ...Options) {
-	s.init.Do(func() {
-		// Default and user options do not prevail
-		// on what is in the configuration file
-		s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
-		s.apply(opts...)
-
-		// Load any relevant server configuration: on disk,
-		// contained in options, or the default one.
-		s.config = s.GetConfig()
-
-		// Database
-		if s.opts.db == nil {
-			s.db = db.NewDatabaseClient(s.opts.dbConfig, s.log)
-		}
-
-		// Certificate infrastructure
-		certsLog := s.NamedLogger("certs", "certificates")
-		s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
-	})
-}
-
 // GetVersion returns the teamserver version.
 func (s *Server) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
-	dirty := client.GitDirty != ""
-	semVer := client.SemanticVersion()
-	compiled, _ := client.Compiled()
+	dirty := version.GitDirty != ""
+	semVer := version.Semantic()
+	compiled, _ := version.Compiled()
 	return &proto.Version{
 		Major:      int32(semVer[0]),
 		Minor:      int32(semVer[1]),
 		Patch:      int32(semVer[2]),
-		Commit:     strings.TrimSuffix(client.GitCommit, "\n"),
+		Commit:     strings.TrimSuffix(version.GitCommit, "\n"),
 		Dirty:      dirty,
 		CompiledAt: compiled.Unix(),
 		OS:         runtime.GOOS,
@@ -128,5 +105,74 @@ func (s *Server) ClientLog(proto.Team_ClientLogServer) error {
 
 // GetUsers returns the list of teamserver users and their status.
 func (s *Server) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
+	operators := []*db.User{}
+	err := s.db.Distinct("Name").Find(&operators).Error
+
+	var userspb *proto.Users
+	for _, user := range operators {
+		userspb.Users = append(userspb.Users, &proto.User{
+			Name: user.Name,
+		})
+	}
+
+	return userspb, err
+}
+
+func (s *Server) newServer() *Server {
+	serv := &Server{
+		name:                    s.name,
+		rootDirEnv:              s.rootDirEnv,
+		log:                     s.log,
+		audit:                   s.audit,
+		opts:                    s.opts,
+		config:                  s.config,
+		certs:                   s.certs,
+		init:                    &sync.Once{},
+		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
+	}
+
+	// One session per listener should be enough for now.
+	serv.db = s.db.Session(&gorm.Session{
+		FullSaveAssociations: true,
+	})
+
+	return serv
+}
+
+func (s *Server) initServer(opts ...Options) error {
+	var err error
+
+	s.init.Do(func() {
+		// Default and user options do not prevail
+		// on what is in the configuration file
+		s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
+		s.apply(opts...)
+
+		// Load any relevant server configuration: on disk,
+		// contained in options, or the default one.
+		s.config = s.GetConfig()
+
+		// Database
+		if s.opts.db == nil {
+			s.db, err = db.NewClient(s.opts.dbConfig, s.log)
+			if err != nil {
+				return
+			}
+		}
+
+		// Certificate infrastructure
+		certsLog := log.NamedLogger(s.log, "certs", "certificates")
+		s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
+	})
+
+	return err
+}
+
+//
+// MOVE
+//
+
+func (s *Server) SystemdConfig() []byte {
+	return []byte{}
+	// return systemd.NewFrom(s.Name(), nil)
 }

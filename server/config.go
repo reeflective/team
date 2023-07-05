@@ -9,50 +9,37 @@ import (
 	"time"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 )
 
 const serverConfigFileName = "server.json"
 
-// LogConfig - Server logging config
-type LogConfig struct {
-	Level              int  `json:"level"`
-	GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
-	GRPCStreamPayloads bool `json:"grpc_stream_payloads"`
-	TLSKeyLogger       bool `json:"tls_key_logger"`
-}
-
-// DaemonConfig - Configure daemon mode
-type DaemonConfig struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-}
-
-// JobConfig - Restart Jobs on Load
-type JobConfig struct {
-	Multiplayer []*ListenerConfig `json:"multiplayer"`
-}
-
-type ListenerConfig struct {
-	Host  string `json:"host"`
-	Port  uint16 `json:"port"`
-	JobID string `json:"job_id"`
-}
-
-// Config - Server config
 type Config struct {
-	DaemonMode   bool          `json:"daemon_mode"`
-	DaemonConfig *DaemonConfig `json:"daemon"`
-	Logs         *LogConfig    `json:"logs"`
-	Jobs         *JobConfig    `json:"jobs,omitempty"`
-	GoProxy      string        `json:"go_proxy"`
+	DaemonMode struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"daemon_mode"`
+
+	Log struct {
+		Level              int  `json:"level"`
+		GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
+		GRPCStreamPayloads bool `json:"grpc_stream_payloads"`
+		TLSKeyLogger       bool `json:"tls_key_logger"`
+	} `json:"log"`
+
+	Listeners []struct {
+		Host string `json:"host"`
+		Port uint16 `json:"port"`
+		ID   string `json:"id"`
+	} `json:"listeners"`
 }
 
 // GetServerConfigPath - File path to the server config.json file.
 func (s *Server) ConfigPath() string {
 	appDir := s.AppDir()
 
-	serverConfigLog := s.NamedLogger("config", "server")
+	serverConfigLog := log.NamedLogger(s.log, "config", "server")
 	serverConfigPath := filepath.Join(appDir, "configs", serverConfigFileName)
 	serverConfigLog.Debugf("Loading config from %s", serverConfigPath)
 	return serverConfigPath
@@ -60,7 +47,7 @@ func (s *Server) ConfigPath() string {
 
 // GetConfig returns the team server configuration struct.
 func (s *Server) GetConfig() *Config {
-	serverConfigLog := s.NamedLogger("config", "server")
+	serverConfigLog := log.NamedLogger(s.log, "config", "server")
 
 	configPath := s.ConfigPath()
 	config := s.getDefaultServerConfig()
@@ -79,13 +66,13 @@ func (s *Server) GetConfig() *Config {
 		serverConfigLog.Warnf("Config file does not exist, using defaults")
 	}
 
-	if config.Logs.Level < 0 {
-		config.Logs.Level = 0
+	if config.Log.Level < 0 {
+		config.Log.Level = 0
 	}
-	if 6 < config.Logs.Level {
-		config.Logs.Level = 6
+	if 6 < config.Log.Level {
+		config.Log.Level = 6
 	}
-	s.log.SetLevel(levelFrom(config.Logs.Level))
+	s.log.SetLevel(log.LevelFrom(config.Log.Level))
 
 	// This updates the config with any missing fields
 	err := s.SaveConfig(config)
@@ -97,7 +84,7 @@ func (s *Server) GetConfig() *Config {
 
 // Save - Save config file to disk
 func (s *Server) SaveConfig(c *Config) error {
-	serverConfigLog := s.NamedLogger("config", "server")
+	serverConfigLog := log.NamedLogger(s.log, "config", "server")
 
 	configPath := s.ConfigPath()
 	configDir := filepath.Dir(configPath)
@@ -121,38 +108,66 @@ func (s *Server) SaveConfig(c *Config) error {
 }
 
 // AddListenerJob adds a teamserver listener job to the config and saves it.
-func (s *Server) AddListenerJob(config *ListenerConfig) error {
-	if s.config.Jobs == nil {
-		s.config.Jobs = &JobConfig{}
+func (s *Server) AddListener(host string, port uint16) error {
+	listener := struct {
+		Host string `json:"host"`
+		Port uint16 `json:"port"`
+		ID   string `json:"id"`
+	}{
+		Host: host,
+		Port: port,
+		ID:   getRandomID(),
 	}
-	config.JobID = getRandomID()
-	s.config.Jobs.Multiplayer = append(s.config.Jobs.Multiplayer, config)
+
+	s.config.Listeners = append(s.config.Listeners, listener)
 
 	return s.SaveConfig(s.config)
 }
 
 // RemoveListenerJob removes a server listener job from the configuration and saves it.
-func (c *Server) RemoveListenerJob(jobID string) {
-	if c.config.Jobs == nil {
+func (c *Server) RemoveListener(id string) {
+	if c.config.Listeners == nil {
 		return
 	}
 
 	defer c.SaveConfig(c.config)
+
+	var listeners []struct {
+		Host string `json:"host"`
+		Port uint16 `json:"port"`
+		ID   string `json:"id"`
+	}
+
+	for _, listener := range c.config.Listeners {
+		if listener.ID != id {
+			listeners = append(listeners, listener)
+		}
+	}
+
+	c.config.Listeners = listeners
 }
 
 func (c *Server) getDefaultServerConfig() *Config {
 	return &Config{
-		DaemonMode: false,
-		DaemonConfig: &DaemonConfig{
-			Host: "",
+		DaemonMode: struct {
+			Host string `json:"host"`
+			Port int    `json:"port"`
+		}{
 			Port: int(c.opts.port),
 		},
-		Logs: &LogConfig{
-			Level:              int(logrus.InfoLevel),
-			GRPCUnaryPayloads:  false,
-			GRPCStreamPayloads: false,
+		Log: struct {
+			Level              int  `json:"level"`
+			GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
+			GRPCStreamPayloads bool `json:"grpc_stream_payloads"`
+			TLSKeyLogger       bool `json:"tls_key_logger"`
+		}{
+			Level: int(logrus.InfoLevel),
 		},
-		Jobs: &JobConfig{},
+		Listeners: []struct {
+			Host string `json:"host"`
+			Port uint16 `json:"port"`
+			ID   string `json:"id"`
+		}{},
 	}
 }
 
@@ -161,8 +176,8 @@ func (s *Server) clientServerMatch(config *client.Config) bool {
 		return false
 	}
 
-	if s.config.Jobs != nil {
-		for _, job := range s.config.Jobs.Multiplayer {
+	if s.config.Listeners != nil {
+		for _, job := range s.config.Listeners {
 			if job.Host == config.Host && job.Port == uint16(config.Port) {
 				return true
 			}
@@ -170,7 +185,7 @@ func (s *Server) clientServerMatch(config *client.Config) bool {
 	}
 
 	// If matching our daemon config.
-	if s.config.DaemonConfig.Host == config.Host && s.config.DaemonConfig.Port == config.Port {
+	if s.config.DaemonMode.Host == config.Host && s.config.DaemonMode.Port == config.Port {
 		return true
 	}
 

@@ -5,12 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"sync"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_tags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -18,12 +18,14 @@ import (
 )
 
 // initMiddleware - Initialize middleware logger
-func (s *Server) initMiddleware(remoteAuth bool) []grpc.ServerOption {
-	logrusEntry := s.NamedLogger("transport", "grpc")
+func (s *Server) initMiddleware() []grpc.ServerOption {
+	logrusEntry := log.NamedLogger(s.log, "transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
 		grpc_logrus.WithLevels(codeToLevel),
 	}
 	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
+
+	remoteAuth := !s.opts.local
 
 	if remoteAuth {
 		return []grpc.ServerOption{
@@ -60,13 +62,6 @@ func (s *Server) initMiddleware(remoteAuth bool) []grpc.ServerOption {
 	}
 }
 
-var tokenCache = sync.Map{}
-
-// clearTokenCache - Clear the auth token cache
-func clearTokenCache() {
-	tokenCache = sync.Map{}
-}
-
 func serverAuthFunc(ctx context.Context) (context.Context, error) {
 	newCtx := context.WithValue(ctx, "transport", "local")
 	newCtx = context.WithValue(newCtx, "operator", "server")
@@ -74,7 +69,7 @@ func serverAuthFunc(ctx context.Context) (context.Context, error) {
 }
 
 func (s *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
-	mtlsLog := s.NamedLogger("transport", "mtls")
+	mtlsLog := log.NamedLogger(s.log, "transport", "auth")
 	mtlsLog.Debugf("Auth interceptor checking operator token ...")
 	rawToken, err := grpc_auth.AuthFromMD(ctx, "Bearer")
 	if err != nil {
@@ -86,53 +81,53 @@ func (s *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 	digest := sha256.Sum256([]byte(rawToken))
 	token := hex.EncodeToString(digest[:])
 	newCtx := context.WithValue(ctx, "transport", "mtls")
-	if name, ok := tokenCache.Load(token); ok {
+	if name, ok := s.userTokens.Load(token); ok {
 		mtlsLog.Debugf("Token in cache!")
 		newCtx = context.WithValue(newCtx, "operator", name.(string))
 		return newCtx, nil
 	}
 
-	operator, err := s.UserByToken(token)
+	operator, err := s.userByToken(token)
 	if err != nil || operator == nil {
 		mtlsLog.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 	mtlsLog.Debugf("Valid user token for %s", operator.Name)
-	tokenCache.Store(token, operator.Name)
+	s.userTokens.Store(token, operator.Name)
 
 	newCtx = context.WithValue(newCtx, "operator", operator.Name)
 	return newCtx, nil
 }
 
 func (s *Server) deciderUnary(_ context.Context, _ string, _ interface{}) bool {
-	return s.config.Logs.GRPCUnaryPayloads
+	return s.config.Log.GRPCUnaryPayloads
 }
 
 func (s *Server) deciderStream(_ context.Context, _ string, _ interface{}) bool {
-	return s.config.Logs.GRPCStreamPayloads
+	return s.config.Log.GRPCStreamPayloads
 }
 
 // Maps a grpc response code to a logging level
 func codeToLevel(code codes.Code) logrus.Level {
 	switch code {
 	case codes.OK:
-		return logrus.InfoLevel
+		return logrus.DebugLevel
 	case codes.Canceled:
-		return logrus.InfoLevel
+		return logrus.DebugLevel
 	case codes.Unknown:
 		return logrus.ErrorLevel
 	case codes.InvalidArgument:
-		return logrus.InfoLevel
+		return logrus.WarnLevel
 	case codes.DeadlineExceeded:
 		return logrus.WarnLevel
 	case codes.NotFound:
-		return logrus.InfoLevel
+		return logrus.DebugLevel
 	case codes.AlreadyExists:
-		return logrus.InfoLevel
+		return logrus.DebugLevel
 	case codes.PermissionDenied:
 		return logrus.WarnLevel
 	case codes.Unauthenticated:
-		return logrus.InfoLevel
+		return logrus.WarnLevel
 	case codes.ResourceExhausted:
 		return logrus.WarnLevel
 	case codes.FailedPrecondition:
@@ -157,12 +152,10 @@ func codeToLevel(code codes.Code) logrus.Level {
 type auditUnaryLogMsg struct {
 	Request string `json:"request"`
 	Method  string `json:"method"`
-	Session string `json:"session,omitempty"`
-	Beacon  string `json:"beacon,omitempty"`
 }
 
 func (s *Server) auditLogUnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	log := s.NamedLogger("transport", "middleware")
+	log := log.NamedLogger(s.log, "transport", "middleware")
 
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (_ interface{}, err error) {
 		rawRequest, err := json.Marshal(req)

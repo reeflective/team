@@ -6,6 +6,8 @@ import (
 	"os/signal"
 	"regexp"
 	"syscall"
+
+	"github.com/reeflective/team/internal/log"
 )
 
 var (
@@ -18,16 +20,18 @@ var (
 // It also accepts a function that will be called just after starting the server, so
 // that users can still register their per-application services before actually blocking.
 func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Server)) {
-	daemonLog := s.NamedLogger("daemon", "main")
+	daemonLog := log.NamedLogger(s.log, "daemon", "main")
+
+	// TODO: Use the logger stdout instead of printf ?
 
 	// cli args take president over config
 	if host == blankHost {
 		daemonLog.Info("No cli lhost, using config file or default value")
-		host = s.config.DaemonConfig.Host
+		host = s.config.DaemonMode.Host
 	}
 	if port == blankPort {
 		daemonLog.Info("No cli lport, using config file or default value")
-		port = uint16(s.config.DaemonConfig.Port)
+		port = uint16(s.config.DaemonMode.Port)
 	}
 
 	daemonLog.Infof("Starting Sliver daemon %s:%d ...", host, port)

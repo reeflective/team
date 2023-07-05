@@ -9,6 +9,15 @@ import (
 	"strings"
 )
 
+// When creating a new server, don't write anything to anywhere yet,
+// but ensure that at least all directories to which we are supposed
+// to write do indeed exist, and make them anyway.
+// If any error happens it will returned right away and the creator
+// of the teamserver will know right away that it can't work correctly.
+func (s *Server) checkWritableDirs() error {
+	return nil
+}
+
 // AppDir returns the directory of the team server app (named ~/.<application>-server),
 // creating the directory if needed, or logging a fatal event if failing to create it.
 func (s *Server) AppDir() string {

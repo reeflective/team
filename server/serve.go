@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"runtime/debug"
@@ -13,8 +11,8 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/proto"
-	"github.com/reeflective/team/server/certs"
 )
 
 const (
@@ -28,6 +26,23 @@ const (
 
 const bufSize = 2 * mb
 
+// ServeAddr sets and start a gRPC teamserver listener (on MutualTLS) with registered
+// teamserver services onto it.
+// Starting listeners from application code (not from teamserver' commands) should most
+// of the time be done with this function, as it will return you the gRPC server to which
+// you can attach any application-specific APIs.
+func (s *Server) ServeAddr(host string, port uint16) (*grpc.Server, net.Listener, error) {
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		s.log.Error(err)
+		return nil, nil, err
+	}
+
+	server, err := s.ServeWith(ln)
+
+	return server, ln, err
+}
+
 // ServeUser starts the main teamserver listener for the default system user:
 // If the default application config file is found, and that we have determined
 // that a sister server is running accordingly, we do NOT start the server, but
@@ -36,7 +51,7 @@ const bufSize = 2 * mb
 func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error) {
 	// Initialize all backend things for this server:
 	// database, certificate authorities and related loggers.
-	s.Init(opts...)
+	s.initServer(opts...)
 
 	// Client options
 	var config *client.Config
@@ -74,12 +89,12 @@ func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error
 // a client (team/client package), the gRPC server for registering per-application
 // services, or an error if listening failed.
 func (s *Server) ServeLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, error) {
-	bufConnLog := s.NamedLogger("transport", "local")
+	bufConnLog := log.NamedLogger(s.log, "transport", "local")
 	bufConnLog.Infof("Binding gRPC to listener ...")
 
 	// Initialize all backend things for this server:
 	// database, certificate authorities and related loggers.
-	s.Init(opts...)
+	s.initServer(opts...)
 	s.opts.local = true
 
 	ln := bufconn.Listen(bufSize)
@@ -89,7 +104,7 @@ func (s *Server) ServeLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, er
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
 	}
 
-	server, err := s.setupRPC(ln, options)
+	server, err := s.initRPC(ln, options)
 
 	// And connect the client
 	ctxDialer := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
@@ -110,29 +125,16 @@ func (s *Server) ServeLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, er
 	return conn, server, err
 }
 
-// ServeAddr sets and start a gRPC teamserver listener (MutualTLS), with registered core teamserver RPC services.
-func (s *Server) ServeAddr(host string, port uint16) (*grpc.Server, net.Listener, error) {
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
-	if err != nil {
-		s.log.Error(err)
-		return nil, nil, err
-	}
-
-	server, err := s.ServeWith(ln)
-
-	return server, ln, err
-}
-
 // ServeWith starts a gRPC teamserver on the provided listener (setting up MutualTLS on it).
 func (s *Server) ServeWith(ln net.Listener, opts ...Options) (*grpc.Server, error) {
-	bufConnLog := s.NamedLogger("transport", "mtls")
+	bufConnLog := log.NamedLogger(s.log, "transport", "mtls")
 	bufConnLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
 
 	// Initialize all backend things for this server:
 	// database, certificate authorities and related loggers.
-	s.Init(opts...)
+	s.initServer(opts...)
 
-	tlsConfig := s.getOperatorServerTLSConfig("multiplayer")
+	tlsConfig := s.getUserTLSConfig("multiplayer")
 	creds := credentials.NewTLS(tlsConfig)
 
 	options := []grpc.ServerOption{
@@ -141,16 +143,16 @@ func (s *Server) ServeWith(ln net.Listener, opts ...Options) (*grpc.Server, erro
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
 	}
 
-	server, err := s.setupRPC(ln, options)
+	server, err := s.initRPC(ln, options)
 
 	return server, err
 }
 
-// setupRPC starts the gRPC server and register the core teamserver services to it.
-func (s *Server) setupRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.Server, error) {
-	rpcLog := s.NamedLogger("transport", "rpc")
+// initRPC starts the gRPC server and register the core teamserver services to it.
+func (s *Server) initRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.Server, error) {
+	rpcLog := log.NamedLogger(s.log, "transport", "rpc")
 
-	options = append(options, s.initMiddleware(!s.opts.local)...)
+	options = append(options, s.initMiddleware()...)
 	grpcServer := grpc.NewServer(options...)
 
 	go func() {
@@ -161,7 +163,7 @@ func (s *Server) setupRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.S
 			}
 		}()
 		if err := grpcServer.Serve(ln); err != nil {
-			rpcLog.Warnf("gRPC server exited with error: %v", err)
+			rpcLog.Errorf("gRPC server exited with error: %v", err)
 		} else {
 			panicked = false
 		}
@@ -178,45 +180,4 @@ func (s *Server) setupRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.S
 	}
 
 	return grpcServer, nil
-}
-
-// getOperatorServerTLSConfig - Generate the TLS configuration, we do now allow the end user
-// to specify any TLS paramters, we choose sensible defaults instead
-func (s *Server) getOperatorServerTLSConfig(host string) *tls.Config {
-	caCertPtr, _, err := s.certs.GetUserCertificateAutority()
-	if err != nil {
-		s.log.Fatal("Failed to get users certificate authority")
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AddCert(caCertPtr)
-
-	_, _, err = s.certs.UserServerGetCertificate(host)
-	if err == certs.ErrCertDoesNotExist {
-		s.certs.UserServerGenerateCertificate(host)
-	}
-
-	certPEM, keyPEM, err := s.certs.UserServerGetCertificate(host)
-	if err != nil {
-		s.log.Errorf("Failed to generate or fetch certificate %s", err)
-		return nil
-	}
-
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		s.log.Fatalf("Error loading server certificate: %v", err)
-	}
-
-	tlsConfig := &tls.Config{
-		RootCAs:      caCertPool,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    caCertPool,
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS13,
-	}
-
-	// if s.certs.TLSKeyLogger != nil {
-	// 	tlsConfig.KeyLogWriter = s.certs.TLSKeyLogger
-	// }
-
-	return tlsConfig
 }

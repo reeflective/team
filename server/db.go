@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/server/db"
 )
 
@@ -16,27 +17,19 @@ const (
 )
 
 // GetDatabaseConfigPath - File path to config.json
-func (s *Server) DatabaseConfigPath() string {
+func (s *Server) dbConfigPath() string {
 	appDir := s.AppDir()
-	databaseConfigLog := s.NamedLogger("config", "database")
+	databaseConfigLog := log.NamedLogger(s.log, "config", "database")
 	databaseConfigPath := filepath.Join(appDir, "configs", databaseConfigFileName)
 	databaseConfigLog.Debugf("Loading config from %s", databaseConfigPath)
 	return databaseConfigPath
 }
 
-func encodeParams(rawParams map[string]string) string {
-	params := url.Values{}
-	for key, value := range rawParams {
-		params.Add(key, value)
-	}
-	return params.Encode()
-}
-
 // Save - Save config file to disk
 func (s *Server) SaveDatabaseConfig(c *db.Config) error {
-	databaseConfigLog := s.NamedLogger("config", "database")
+	databaseConfigLog := log.NamedLogger(s.log, "config", "database")
 
-	configPath := s.DatabaseConfigPath()
+	configPath := s.dbConfigPath()
 	configDir := path.Dir(configPath)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		databaseConfigLog.Debugf("Creating config dir %s", configDir)
@@ -59,9 +52,9 @@ func (s *Server) SaveDatabaseConfig(c *db.Config) error {
 
 // GetDatabaseConfig - Get config value
 func (s *Server) GetDatabaseConfig() *db.Config {
-	databaseConfigLog := s.NamedLogger("config", "database")
+	databaseConfigLog := log.NamedLogger(s.log, "config", "database")
 
-	configPath := s.DatabaseConfigPath()
+	configPath := s.dbConfigPath()
 	config := s.getDefaultDatabaseConfig()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		data, err := os.ReadFile(configPath)
@@ -103,26 +96,7 @@ func (s *Server) getDefaultDatabaseConfig() *db.Config {
 	}
 }
 
-// UserByToken - Select a teamserver user by token value
-func (s *Server) UserByToken(value string) (*db.User, error) {
-	if len(value) < 1 {
-		return nil, db.ErrRecordNotFound
-	}
-	operator := &db.User{}
-	err := s.db.Where(&db.User{
-		Token: value,
-	}).First(operator).Error
-	return operator, err
-}
-
-// UserAll - Select all teamserver users from the database
-func (s *Server) UserAll() ([]*db.User, error) {
-	operators := []*db.User{}
-	err := s.db.Distinct("Name").Find(&operators).Error
-	return operators, err
-}
-
-// GetKeyValue - Get a value from a key
+// GetKeyValue - Get a value from a key in the database.
 func (s *Server) GetKeyValue(key string) (string, error) {
 	keyValue := &db.KeyValue{}
 	err := s.db.Where(&db.KeyValue{
@@ -131,7 +105,7 @@ func (s *Server) GetKeyValue(key string) (string, error) {
 	return keyValue.Value, err
 }
 
-// SetKeyValue - Set the value for a key/value pair
+// SetKeyValue - Set the value for a key/value pair in the database.
 func (s *Server) SetKeyValue(key string, value string) error {
 	err := s.db.Where(&db.KeyValue{
 		Key: key,
@@ -152,9 +126,17 @@ func (s *Server) SetKeyValue(key string, value string) error {
 	return err
 }
 
-// DeleteKeyValue - Delete a key/value pair
+// DeleteKeyValue - Delete a key/value pair in the database.
 func (s *Server) DeleteKeyValue(key string, value string) error {
 	return s.db.Delete(&db.KeyValue{
 		Key: key,
 	}).Error
+}
+
+func encodeParams(rawParams map[string]string) string {
+	params := url.Values{}
+	for key, value := range rawParams {
+		params.Add(key, value)
+	}
+	return params.Encode()
 }

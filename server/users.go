@@ -1,14 +1,19 @@
 package server
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
+	"sync"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/server/db"
 )
 
@@ -29,7 +34,7 @@ func (s *Server) NewUserConfig(operatorName string, lhost string, lport uint16) 
 		lport = s.opts.port
 	}
 
-	rawToken := db.GenerateOperatorToken()
+	rawToken := s.newUserToken()
 	digest := sha256.Sum256([]byte(rawToken))
 	dbOperator := &db.User{
 		Name:  operatorName,
@@ -45,7 +50,7 @@ func (s *Server) NewUserConfig(operatorName string, lhost string, lport uint16) 
 		return nil, fmt.Errorf("failed to generate certificate %s", err)
 	}
 
-	caCertPEM, _, _ := s.certs.GetUserCertificateAutorityPEM()
+	caCertPEM, _, _ := s.certs.GetUsersCAPEM()
 	config := client.Config{
 		User:          operatorName,
 		Token:         rawToken,
@@ -68,7 +73,8 @@ func (s *Server) DeleteUser(name string) error {
 	if err != nil {
 		return err
 	}
-	clearTokenCache()
+
+	s.userTokens = &sync.Map{}
 
 	return s.certs.UserClientRemoveCertificate(name)
 }
@@ -76,11 +82,11 @@ func (s *Server) DeleteUser(name string) error {
 // StartPersistentJobs starts all teamserver listeners,
 // aborting and returning an error if one of those raise one.
 func (s *Server) StartPersistentJobs() error {
-	if s.config.Jobs == nil {
+	if s.config.Listeners == nil {
 		return nil
 	}
 
-	for _, j := range s.config.Jobs.Multiplayer {
+	for _, j := range s.config.Listeners {
 		_, _, err := s.ServeAddr(j.Host, j.Port)
 		if err != nil {
 			return err
@@ -90,14 +96,77 @@ func (s *Server) StartPersistentJobs() error {
 	return nil
 }
 
-// GetUsersCA returns the bytes of a certificate authority,
+// GetUsersCA returns the bytes of a PEM-encoded certificate authority,
 // which may contain multiple teamserver users and their master.
 func (s *Server) GetUsersCA() ([]byte, []byte, error) {
-	return s.certs.GetUserCertificateAutorityPEM()
+	return s.certs.GetUsersCAPEM()
 }
 
-// SaveUsersCA is an exported function to easily import
-// one or more users through a certificate authority.
+// SaveUsersCA accepts the public and private parts of a Certificate
+// Authority containing one or more users to add to the teamserver.
 func (s *Server) SaveUsersCA(cert, key []byte) {
-	s.certs.SaveUserCertificateAuthority(cert, key)
+	s.certs.SaveUsersCA(cert, key)
+}
+
+// newUserToken - Generate a new user authentication token.
+func (s *Server) newUserToken() string {
+	buf := make([]byte, 32)
+	n, err := rand.Read(buf)
+	if err != nil || n != len(buf) {
+		panic(errors.New("failed to read from secure rand"))
+	}
+	return hex.EncodeToString(buf)
+}
+
+// userByToken - Select a teamserver user by token value
+func (s *Server) userByToken(value string) (*db.User, error) {
+	if len(value) < 1 {
+		return nil, db.ErrRecordNotFound
+	}
+	operator := &db.User{}
+	err := s.db.Where(&db.User{
+		Token: value,
+	}).First(operator).Error
+	return operator, err
+}
+
+// getUserTLSConfig - Generate the TLS configuration, we do now allow the end user
+// to specify any TLS parameters, we choose sensible defaults instead.
+func (s *Server) getUserTLSConfig(host string) *tls.Config {
+	caCertPtr, _, err := s.certs.GetUsersCA()
+	if err != nil {
+		s.log.Fatal("Failed to get users certificate authority")
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AddCert(caCertPtr)
+
+	_, _, err = s.certs.UserServerGetCertificate(host)
+	if err == certs.ErrCertDoesNotExist {
+		s.certs.UserServerGenerateCertificate(host)
+	}
+
+	certPEM, keyPEM, err := s.certs.UserServerGetCertificate(host)
+	if err != nil {
+		s.log.Errorf("Failed to generate or fetch certificate %s", err)
+		return nil
+	}
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		s.log.Fatalf("Error loading server certificate: %v", err)
+	}
+
+	tlsConfig := &tls.Config{
+		RootCAs:      caCertPool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caCertPool,
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13,
+	}
+
+	// if s.certs.TLSKeyLogger != nil {
+	// 	tlsConfig.KeyLogWriter = s.certs.TLSKeyLogger
+	// }
+
+	return tlsConfig
 }
