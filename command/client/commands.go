@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/version"
 )
 
@@ -40,18 +41,48 @@ const (
 	debugl = bold + purple + "[-] " + normal
 )
 
-const (
-	TeamServerGroup     = "teamserver control" // TeamServerGroup is the group of all server/client control commands.
-	UserManagementGroup = "user management"    // UserManagementGroup is the group to manage teamserver users.
-)
-
 // Commands initliazes and returns a command tree to embed in client applications
-// connecting to a teamserver. It requires the client itself to use its functions.
+// connecting to a teamserver. It requires only the client to use its functions.
 func Commands(cli *client.Client) *cobra.Command {
+	clientCmds := clientCommands(cli)
+
+	for _, cmd := range clientCmds.Commands() {
+		cmd.PersistentPreRunE = PreRun(cli)
+	}
+
+	return clientCmds
+}
+
+// PreRun returns a cobra command runner which connects the client to its teamserver.
+// If the client is connected, nothing happens and its current connection reused, which
+// makes this runner able to be ran in closed-loop consoles.
+func PreRun(teamclient *client.Client) command.CobraRunnerE {
+	return func(cmd *cobra.Command, args []string) error {
+		// If the server is already serving us with an in-memory con, return.
+		// Also, the daemon command does not need a teamclient connection.
+		if teamclient.IsConnected() {
+			return nil
+		}
+
+		// And connect the client locally, only needed.
+		return teamclient.Connect()
+	}
+}
+
+// PostRun is a cobra command runner that disconnects the client from its server.
+// It does so unconditionally, so this is not suited for being included in consoles.
+func PostRun(client *client.Client) command.CobraRunnerE {
+	return func(cmd *cobra.Command, _ []string) error {
+		client.Disconnect()
+		return nil
+	}
+}
+
+func clientCommands(cli *client.Client) *cobra.Command {
 	teamCmd := &cobra.Command{
 		Use:     "teamclient",
 		Short:   "Client-only teamserver commands (import configs, show users, etc)",
-		GroupID: TeamServerGroup,
+		GroupID: command.TeamServerGroup,
 	}
 
 	versionCmd := &cobra.Command{
@@ -126,33 +157,6 @@ func Commands(cli *client.Client) *cobra.Command {
 	teamCmd.AddCommand(usersCmd)
 
 	return teamCmd
-}
-
-// ConnectRun returns a cobra command connecting the client to the teamserver.
-// This should generally be used as one of (or part of another) command pre-runner.
-func ConnectRun(cli *client.Client, opts ...client.Options) func(cmd *cobra.Command, _ []string) error {
-	return func(cmd *cobra.Command, _ []string) error {
-		if cli.IsConnected() {
-			return nil
-		}
-
-		if err := cli.Connect(opts...); err != nil {
-			fmt.Printf(warn+"Error connecting to teamserver: %s\n", err)
-			return err
-		}
-
-		return nil
-	}
-}
-
-// DisconnectRun returns a cobra command disconnecting the client from the teamserver.
-// This should generally be used as one of (or part of another) command post-runner.
-func DisconnectRun(cli *client.Client) func(cmd *cobra.Command, _ []string) error {
-	return func(cmd *cobra.Command, _ []string) error {
-		// This is safe, client ensures to close what can be.
-		cli.Disconnect()
-		return nil
-	}
 }
 
 // teamserversCompleter completes file paths to other teamserver application configs

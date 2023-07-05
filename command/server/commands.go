@@ -10,6 +10,7 @@ import (
 
 	"github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/command/client"
+	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/server"
 )
@@ -39,11 +40,9 @@ const (
 	debugl = bold + purple + "[-] " + normal
 )
 
-type (
-	cobraRunnerE func(*cobra.Command, []string) error
-	cobraRunner  func(*cobra.Command, []string)
-)
-
+// Commands returns a "teamserver" command root and its tree for teamserver (server-side) management.
+// It requires a teamclient so as to bind its "teamclient" tree as a subcommand of the server root.
+// This is so that all CLI applications which can be a teamserver can also be a client of their own.
 func Commands(teamserver *server.Server, teamclient *client.Client) *cobra.Command {
 	serveAndConnect := func(cmd *cobra.Command, args []string) error {
 		// If the server is already serving us with an in-memory con, return.
@@ -86,7 +85,10 @@ func Commands(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 	return servCmds
 }
 
-func PreRun(teamserver *server.Server, teamclient *client.Client) cobraRunnerE {
+// PreRun returns a cobra command runner which connects the local teamclient to itself.
+// If the client is connected, nothing happens and its current connection reused, which
+// makes this runner able to be ran in closed-loop consoles.
+func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
 		// If the server is already serving us with an in-memory con, return.
 		// Also, the daemon command does not need a teamclient connection.
@@ -107,7 +109,8 @@ func PreRun(teamserver *server.Server, teamclient *client.Client) cobraRunnerE {
 	}
 }
 
-func PostRun(server *server.Server, client *client.Client) cobraRunnerE {
+// PostRun returns a cobra command runner which currently does nothing.
+func PostRun(server *server.Server, client *client.Client) command.CobraRunnerE {
 	return nil
 }
 

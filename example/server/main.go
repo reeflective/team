@@ -10,27 +10,20 @@ import (
 )
 
 func main() {
-	// Create a teamserver and a teamclient.
-	// None of those yet have a working RPC connection, and the server
-	// is not yet connected to its database, loggers and certificates.
+	// Create a teamserver.
+	// This server can handle any number of remote clients for a given application
+	// named "teamserver", including its own local runtime (fully in-memory) client.
+	//
+	// This call to create the server only creates the application default directory.
+	// No files, logs, connections or any interaction with the os/filesystem are made.
 	teamServer, err := server.New("teamserver", server.WithDefaultPort(31340))
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Generate a tree of server-side commands: this tree also has client-only
+	// commands as a subcommand "client" of the "teamserver" command root here.
 	serverCmds := cli.Commands(teamServer, teamServer.Self())
-
-	// Pass both server and clients to the commands package:
-	// we are being given two command trees: teamserver ones (server only)
-	// and teamclient ones. Both are configured with pre-runners that will
-	// connect themselves together over an in-memory gRPC connection.
-	// serverCmds, clientCmds := cli.ConnectLocal(teamServer, teamServer.Self())
-
-	// Add the teamclient command tree as a subtree of the server ones.
-	// In this case, the teamserver is the application itself: it is not
-	// part of a larger set of domain-specific commands, which would be
-	// the case in normal use cases for this library.
-	// serverCmds.AddCommand(clientCmds)
 
 	// Generate completions for the tree.
 	carapace.Gen(serverCmds)

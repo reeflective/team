@@ -24,10 +24,6 @@ func main() {
 	// Here, for example, all commands of our application have a single-exec mode,
 	// and we need to ensure both connection before, and graceful disconnect after.
 	// Another example, in a closed console, would not involve disonnect post-runs.
-	for _, cmd := range root.Commands() {
-		cmd.PersistentPreRunE = cli.ConnectRun(client)
-		cmd.PersistentPostRunE = cli.DisconnectRun(client)
-	}
 
 	// Completions
 	carapace.Gen(root)
