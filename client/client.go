@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
+	"sync"
 
 	"golang.org/x/exp/slog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
 
 	"github.com/reeflective/team/internal/proto"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -24,13 +25,20 @@ const (
 // Client is a team client wrapper.
 // It offers the core functionality of any team client.
 type Client struct {
-	name      string
-	connected bool
-	opts      *opts
-	log       *slog.Logger
-	logFile   *os.File
-	conn      *grpc.ClientConn
-	rpc       proto.TeamClient
+	name       string
+	connected  bool
+	opts       *opts
+	log        *slog.Logger
+	logger     *logrus.Logger
+	logFile    *os.File
+	conn       *grpc.ClientConn
+	rpc        proto.TeamClient
+	connectedT *sync.Once
+}
+
+// Name returns the name of the client application.
+func (c *Client) Name() string {
+	return c.name
 }
 
 // New returns an application client ready to work.
@@ -38,12 +46,13 @@ type Client struct {
 // The client will panic if it can't open or create this log file as ~/.app/client.log.
 func New(application string, options ...Options) *Client {
 	c := &Client{
-		opts:      &opts{},
-		name:      application,
-		connected: false,
+		opts:       &opts{},
+		name:       application,
+		connected:  false,
+		connectedT: &sync.Once{},
 	}
 
-	c.logFile = c.initLogging(c.AppDir())
+	// c.logFile = c.initLogging(c.AppDir())
 
 	c.apply(options...)
 
@@ -55,13 +64,19 @@ func New(application string, options ...Options) *Client {
 // than one server configuration is found in the application directory: the application
 // will prompt the user to choose one of them.
 func (c *Client) Connect(options ...Options) (err error) {
-	defer func() {
+	// There is no way to return an error from client RPC registration.
+	// Everything will be found in the logs, but in the meantime, let's
+	// consider us connected, until we explicitely Disconnect().
+	defer c.connectedT.Do(func() {
 		c.rpc = proto.NewTeamClient(c.conn)
-	}()
+	})
 
 	c.apply(options...)
 
-	// Our connection is already existing and configured.
+	// A non-nil connection means we already have a precise target:
+	// currently we don't use the experimental grpc.Connect() method,
+	// which should mean reuse, so once we were disconnected from any
+	// previous stream -over memory or TLS, regardless- we dropped it.
 	if c.conn != nil {
 		return
 	}
@@ -108,6 +123,8 @@ func (c *Client) Disconnect() {
 
 	// Decrement the counter, should be back to 0.
 	c.connected = false
+	c.conn = nil
+	c.connectedT = &sync.Once{}
 }
 
 // Connection returns the gRPC client connection it uses.
@@ -115,6 +132,10 @@ func (c *Client) Connection() *grpc.ClientConn {
 	return c.conn
 }
 
+// IsConnected returns true if a working teamclient to server connection
+// is bound to to this precise client. Given that each client register may
+// register as many other RPC client services to its connection, this client
+// can't however reconnect to/with a different connection/stream.
 func (c *Client) IsConnected() bool {
 	return c.connected
 }
@@ -137,23 +158,17 @@ func (c *Client) Users() (users []proto.User) {
 	return
 }
 
-// Name returns the name of the client application.
-func (c *Client) Name() string {
-	return c.name
-}
-
-func (c *Client) assetVersion() string {
-	appDir := c.AppDir()
-	data, err := os.ReadFile(filepath.Join(appDir, versionFileName))
-	if err != nil {
-		return ""
+// ServerVersion returns the version information of the server to which
+// the client is connected, or nil and an error if it could not retrieve it.
+func (c *Client) ServerVersion() (ver *proto.Version, err error) {
+	if c.rpc == nil {
+		return nil, errors.New("no working client RPC is attached to this client")
 	}
-	return strings.TrimSpace(string(data))
-}
 
-func (c *Client) saveAssetVersion(appDir string) {
-	versionFilePath := filepath.Join(appDir, versionFileName)
-	fVer, _ := os.Create(versionFilePath)
-	defer fVer.Close()
-	fVer.Write([]byte(GitCommit))
+	res, err := c.rpc.GetVersion(context.Background(), &proto.Empty{})
+	if err != nil {
+		return nil, errors.New(status.Convert(err).Message())
+	}
+
+	return res, nil
 }
