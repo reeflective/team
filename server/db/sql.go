@@ -70,7 +70,6 @@ func NewClient(dbConfig *Config, logger *logrus.Logger) (*gorm.DB, error) {
 	err = dbClient.AutoMigrate(
 		&Certificate{},
 		&User{},
-		&KeyValue{},
 	)
 	if err != nil {
 		dbLogger.Error(err)

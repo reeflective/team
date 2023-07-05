@@ -189,3 +189,20 @@ func (s *Server) initRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.Se
 
 	return grpcServer, nil
 }
+
+// startPersistentJobs starts all teamserver listeners,
+// aborting and returning an error if one of those raise one.
+func (s *Server) startPersistentJobs() error {
+	if s.config.Listeners == nil {
+		return nil
+	}
+
+	for _, j := range s.config.Listeners {
+		_, _, err := s.ServeAddr(j.Host, j.Port)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

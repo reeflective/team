@@ -96,43 +96,6 @@ func (s *Server) getDefaultDatabaseConfig() *db.Config {
 	}
 }
 
-// GetKeyValue - Get a value from a key in the database.
-func (s *Server) GetKeyValue(key string) (string, error) {
-	keyValue := &db.KeyValue{}
-	err := s.db.Where(&db.KeyValue{
-		Key: key,
-	}).First(keyValue).Error
-	return keyValue.Value, err
-}
-
-// SetKeyValue - Set the value for a key/value pair in the database.
-func (s *Server) SetKeyValue(key string, value string) error {
-	err := s.db.Where(&db.KeyValue{
-		Key: key,
-	}).First(&db.KeyValue{}).Error
-	if err == db.ErrRecordNotFound {
-		err = s.db.Create(&db.KeyValue{
-			Key:   key,
-			Value: value,
-		}).Error
-	} else {
-		err = s.db.Where(&db.KeyValue{
-			Key: key,
-		}).Updates(db.KeyValue{
-			Key:   key,
-			Value: value,
-		}).Error
-	}
-	return err
-}
-
-// DeleteKeyValue - Delete a key/value pair in the database.
-func (s *Server) DeleteKeyValue(key string, value string) error {
-	return s.db.Delete(&db.KeyValue{
-		Key: key,
-	}).Error
-}
-
 func encodeParams(rawParams map[string]string) string {
 	params := url.Values{}
 	for key, value := range rawParams {

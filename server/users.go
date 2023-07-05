@@ -20,11 +20,11 @@ import (
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
 
 // NewUserConfig generates a new user client connection configuration.
-func (s *Server) NewUserConfig(operatorName string, lhost string, lport uint16) ([]byte, error) {
-	if !namePattern.MatchString(operatorName) {
+func (s *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]byte, error) {
+	if !namePattern.MatchString(userName) {
 		return nil, errors.New("invalid user name (alphanumerics only)")
 	}
-	if operatorName == "" {
+	if userName == "" {
 		return nil, errors.New("user name required")
 	}
 	if lhost == "" {
@@ -36,23 +36,23 @@ func (s *Server) NewUserConfig(operatorName string, lhost string, lport uint16) 
 
 	rawToken := s.newUserToken()
 	digest := sha256.Sum256([]byte(rawToken))
-	dbOperator := &db.User{
-		Name:  operatorName,
+	dbuser := &db.User{
+		Name:  userName,
 		Token: hex.EncodeToString(digest[:]),
 	}
-	err := s.db.Save(dbOperator).Error
+	err := s.db.Save(dbuser).Error
 	if err != nil {
 		return nil, err
 	}
 
-	publicKey, privateKey, err := s.certs.UserClientGenerateCertificate(operatorName)
+	publicKey, privateKey, err := s.certs.UserClientGenerateCertificate(userName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate certificate %s", err)
 	}
 
 	caCertPEM, _, _ := s.certs.GetUsersCAPEM()
 	config := client.Config{
-		User:          operatorName,
+		User:          userName,
 		Token:         rawToken,
 		Host:          lhost,
 		Port:          int(lport),
@@ -77,23 +77,6 @@ func (s *Server) DeleteUser(name string) error {
 	s.userTokens = &sync.Map{}
 
 	return s.certs.UserClientRemoveCertificate(name)
-}
-
-// StartPersistentJobs starts all teamserver listeners,
-// aborting and returning an error if one of those raise one.
-func (s *Server) StartPersistentJobs() error {
-	if s.config.Listeners == nil {
-		return nil
-	}
-
-	for _, j := range s.config.Listeners {
-		_, _, err := s.ServeAddr(j.Host, j.Port)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // GetUsersCA returns the bytes of a PEM-encoded certificate authority,
@@ -123,11 +106,11 @@ func (s *Server) userByToken(value string) (*db.User, error) {
 	if len(value) < 1 {
 		return nil, db.ErrRecordNotFound
 	}
-	operator := &db.User{}
+	user := &db.User{}
 	err := s.db.Where(&db.User{
 		Token: value,
-	}).First(operator).Error
-	return operator, err
+	}).First(user).Error
+	return user, err
 }
 
 // getUserTLSConfig - Generate the TLS configuration, we do now allow the end user

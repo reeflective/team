@@ -33,20 +33,20 @@ const (
 )
 
 // UserClientGenerateCertificate - Generate a certificate signed with a given CA
-func (c *Manager) UserClientGenerateCertificate(operator string) ([]byte, []byte, error) {
-	cert, key := c.GenerateECCCertificate(userCA, operator, false, true)
-	err := c.saveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", clientNamespace, operator), cert, key)
+func (c *Manager) UserClientGenerateCertificate(user string) ([]byte, []byte, error) {
+	cert, key := c.GenerateECCCertificate(userCA, user, false, true)
+	err := c.saveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", clientNamespace, user), cert, key)
 	return cert, key, err
 }
 
 // UserClientGetCertificate - Helper function to fetch a client cert
-func (c *Manager) UserClientGetCertificate(operator string) ([]byte, []byte, error) {
-	return c.GetECCCertificate(userCA, fmt.Sprintf("%s.%s", clientNamespace, operator))
+func (c *Manager) UserClientGetCertificate(user string) ([]byte, []byte, error) {
+	return c.GetECCCertificate(userCA, fmt.Sprintf("%s.%s", clientNamespace, user))
 }
 
 // UserClientRemoveCertificate - Helper function to remove a client cert
-func (c *Manager) UserClientRemoveCertificate(operator string) error {
-	return c.RemoveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", clientNamespace, operator))
+func (c *Manager) UserClientRemoveCertificate(user string) error {
+	return c.RemoveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", clientNamespace, user))
 }
 
 // UserServerGetCertificate - Helper function to fetch a server cert
@@ -63,18 +63,18 @@ func (c *Manager) UserServerGenerateCertificate(hostname string) ([]byte, []byte
 
 // UserClientListCertificates - Get all client certificates
 func (c *Manager) UserClientListCertificates() []*x509.Certificate {
-	operatorCerts := []*db.Certificate{}
-	result := c.db.Where(&db.Certificate{CAType: userCA}).Find(&operatorCerts)
+	userCerts := []*db.Certificate{}
+	result := c.db.Where(&db.Certificate{CAType: userCA}).Find(&userCerts)
 	if result.Error != nil {
 		c.log.Error(result.Error)
 		return []*x509.Certificate{}
 	}
 
-	c.log.Infof("Found %d operator certs ...", len(operatorCerts))
+	c.log.Infof("Found %d user certs ...", len(userCerts))
 
 	certs := []*x509.Certificate{}
-	for _, operator := range operatorCerts {
-		block, _ := pem.Decode([]byte(operator.CertificatePEM))
+	for _, user := range userCerts {
+		block, _ := pem.Decode([]byte(user.CertificatePEM))
 		if block == nil {
 			c.log.Warn("failed to parse certificate PEM")
 			continue

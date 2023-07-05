@@ -72,17 +72,17 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
-		operator := args[0]
+		user := args[0]
 
-		fmt.Printf(info+"Removing client certificate(s)/token(s) for %s, please wait ... \n", operator)
+		fmt.Printf(info+"Removing client certificate(s)/token(s) for %s, please wait ... \n", user)
 
-		err := serv.DeleteUser(operator)
+		err := serv.DeleteUser(user)
 		if err != nil {
 			fmt.Printf(warn+"Failed to remove the user certificate: %v \n", err)
 			return
 		}
 
-		fmt.Printf(info+"User %s has been deleted from the teamserver, and kicked out.\n", operator)
+		fmt.Printf(info+"User %s has been deleted from the teamserver, and kicked out.\n", user)
 	}
 }
 

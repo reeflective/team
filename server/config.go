@@ -147,12 +147,6 @@ func (c *Server) RemoveListener(id string) {
 	c.config.Listeners = listeners
 }
 
-// SystemdConfig returns an example systemd service config file.
-func (s *Server) SystemdConfig() []byte {
-	return []byte{}
-	// return systemd.NewFrom(s.Name(), nil)
-}
-
 func (c *Server) getDefaultServerConfig() *Config {
 	return &Config{
 		DaemonMode: struct {

@@ -92,24 +92,24 @@ func (s *Server) GetVersion(context.Context, *proto.Empty) (*proto.Version, erro
 	}, nil
 }
 
-// ClientLog accepts a stream of client logs to save on the teamserver.
-func (s *Server) ClientLog(proto.Team_ClientLogServer) error {
-	return status.Errorf(codes.Unimplemented, "method ClientLog not implemented")
-}
-
 // GetUsers returns the list of teamserver users and their status.
 func (s *Server) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
-	operators := []*db.User{}
-	err := s.db.Distinct("Name").Find(&operators).Error
+	users := []*db.User{}
+	err := s.db.Distinct("Name").Find(&users).Error
 
 	var userspb *proto.Users
-	for _, user := range operators {
+	for _, user := range users {
 		userspb.Users = append(userspb.Users, &proto.User{
 			Name: user.Name,
 		})
 	}
 
 	return userspb, err
+}
+
+// ClientLog accepts a stream of client logs to save on the teamserver.
+func (s *Server) ClientLog(proto.Team_ClientLogServer) error {
+	return status.Errorf(codes.Unimplemented, "method ClientLog not implemented")
 }
 
 // Name returns the name of the application handled by the teamserver.

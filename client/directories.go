@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	teamserverClientDir = "teamserver/client"
+	teamserverClientDir = "teamclient"
 )
 
-// AppDir returns the directory of the team application (named ~/.<app>/teamserver/client/),
-// creating the directory if needed, or logging a fatal event if failing to create it.
+// AppDir returns the teamclient directory of the app (named ~/.<app>/teamserver/client/),
+// creating the directory if needed, or logging an error event if failing to create it.
 func (c *Client) AppDir() string {
 	user, _ := user.Current()
 	dir := filepath.Join(user.HomeDir, "."+c.name, teamserverClientDir)
@@ -37,15 +37,3 @@ func (c *Client) LogsDir() string {
 	}
 	return logsDir
 }
-
-// GetConsoleLogsDir - Get the client console logs dir ~/.app/logs/console/
-// func (c *Client) ConsoleLogsDir() string {
-// 	consoleLogsDir := filepath.Join(c.LogsDir(), "console")
-// 	if _, err := os.Stat(consoleLogsDir); os.IsNotExist(err) {
-// 		err = os.MkdirAll(consoleLogsDir, 0o700)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 	}
-// 	return consoleLogsDir
-// }

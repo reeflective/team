@@ -19,7 +19,7 @@ var (
 // either the provided host:port arguments, or the ones found in the teamserver config.
 // It also accepts a function that will be called just after starting the server, so
 // that users can still register their per-application services before actually blocking.
-func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Server)) {
+func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Server)) error {
 	daemonLog := log.NamedLogger(s.log, "daemon", "main")
 
 	// TODO: Use the logger stdout instead of printf ?
@@ -34,12 +34,10 @@ func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Serv
 		port = uint16(s.config.DaemonMode.Port)
 	}
 
-	daemonLog.Infof("Starting Sliver daemon %s:%d ...", host, port)
+	daemonLog.Infof("Starting %s teamserver daemon %s:%d ...", s.Name(), host, port)
 	_, ln, err := s.ServeAddr(host, port)
 	if err != nil {
-		fmt.Printf("[!] Failed to start daemon %s", err)
-		daemonLog.Errorf("Error starting client listener %s", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to start daemon %w", err)
 	}
 
 	for _, startFunc := range postStart {
@@ -52,7 +50,7 @@ func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Serv
 	// we just serve it for him
 	hostPort := regexp.MustCompile(fmt.Sprintf("%s:%d", host, port))
 
-	err = s.StartPersistentJobs()
+	err = s.startPersistentJobs()
 	if err != nil && hostPort.MatchString(err.Error()) {
 		daemonLog.Infof("Error starting persistent listeners: %s", err)
 	}
@@ -67,4 +65,6 @@ func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Serv
 		done <- true
 	}()
 	<-done
+
+	return nil
 }
