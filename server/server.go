@@ -130,6 +130,7 @@ func (s *Server) newServer() *Server {
 		opts:                    s.opts,
 		config:                  s.config,
 		certs:                   s.certs,
+		userTokens:              s.userTokens,
 		init:                    &sync.Once{},
 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}

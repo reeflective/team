@@ -69,7 +69,7 @@ func NewManager(db *gorm.DB, log *logrus.Entry, appDir string) *Manager {
 
 	// Ensure CAs are initialized.
 	certs.GenerateCA(mtlsCA, "mtls")
-	certs.GenerateCA(userCA, "users")
+	certs.GenerateCA(userCA, "teamusers")
 
 	return certs
 }

@@ -128,7 +128,6 @@ func (s *Server) serveLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, er
 	// Initialize all backend things for this server:
 	// database, certificate authorities and related loggers.
 	s.initServer(opts...)
-	s.opts.local = true
 
 	ln := bufconn.Listen(bufSize)
 
@@ -137,7 +136,9 @@ func (s *Server) serveLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, er
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
 	}
 
+	s.opts.local = true
 	server, err := s.initRPC(ln, options)
+	s.opts.local = false
 
 	// And connect the client
 	ctxDialer := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {

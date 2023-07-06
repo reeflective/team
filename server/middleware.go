@@ -10,11 +10,12 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_tags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/reeflective/team/internal/log"
 )
 
 // initMiddleware - Initialize middleware logger
@@ -64,13 +65,13 @@ func (s *Server) initMiddleware() []grpc.ServerOption {
 
 func serverAuthFunc(ctx context.Context) (context.Context, error) {
 	newCtx := context.WithValue(ctx, "transport", "local")
-	newCtx = context.WithValue(newCtx, "operator", "server")
+	newCtx = context.WithValue(newCtx, "user", "server")
 	return newCtx, nil
 }
 
 func (s *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 	log := log.NamedLogger(s.log, "transport", "auth")
-	log.Debugf("Auth interceptor checking operator token ...")
+	log.Debugf("Auth interceptor checking user token ...")
 	rawToken, err := grpc_auth.AuthFromMD(ctx, "Bearer")
 	if err != nil {
 		log.Errorf("Authentication failure: %s", err)
@@ -83,19 +84,19 @@ func (s *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 	newCtx := context.WithValue(ctx, "transport", "mtls")
 	if name, ok := s.userTokens.Load(token); ok {
 		log.Debugf("Token in cache!")
-		newCtx = context.WithValue(newCtx, "operator", name.(string))
+		newCtx = context.WithValue(newCtx, "user", name.(string))
 		return newCtx, nil
 	}
 
-	operator, err := s.userByToken(token)
-	if err != nil || operator == nil {
+	user, err := s.userByToken(token)
+	if err != nil || user == nil {
 		log.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
-	log.Debugf("Valid user token for %s", operator.Name)
-	s.userTokens.Store(token, operator.Name)
+	log.Debugf("Valid user token for %s", user.Name)
+	s.userTokens.Store(token, user.Name)
 
-	newCtx = context.WithValue(newCtx, "operator", operator.Name)
+	newCtx = context.WithValue(newCtx, "user", user.Name)
 	return newCtx, nil
 }
 
