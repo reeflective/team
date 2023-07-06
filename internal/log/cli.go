@@ -9,6 +9,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Text effects.
+const (
+	SGRStart = "\x1b["
+	Fg       = "38;05;"
+	Bg       = "48;05;"
+	SGREnd   = "m"
+)
+
 const (
 	FieldTimestamp = "timestamp"
 	FieldPackage   = "logger"
@@ -19,63 +27,17 @@ const (
 	MinimumPackagePad = 11
 )
 
-func defaultFieldsFormat() map[string]string {
-	return map[string]string{
-		FieldTimestamp: style.BrightBlack,
-		FieldPackage:   style.Dim,
-		FieldMessage:   style.BrightWhite,
-	}
-}
-
-func defaultLevelFields() map[logrus.Level]string {
-	return map[logrus.Level]string{
-		logrus.TraceLevel: "▪",
-		logrus.DebugLevel: "▫",
-		logrus.InfoLevel:  "○",
-		logrus.WarnLevel:  "▲",
-		logrus.ErrorLevel: "✖",
-		logrus.FatalLevel: "☠",
-		logrus.PanicLevel: "!!",
-	}
-}
-
-func defaultLevelFieldsColored(l map[logrus.Level]string) map[string]string {
-	return map[string]string{
-		"▪":  style.BrightBlack,
-		"▫":  style.Dim,
-		"○":  style.BrightBlue,
-		"▲":  style.Yellow,
-		"✖":  style.BrightRed,
-		"☠":  style.BgBrightCyan,
-		"!!": style.BgBrightMagenta,
-	}
-}
-
-func (f *CustomFormatter) getLevelFieldColor(level logrus.Level) (string, string) {
-	// Builtin configurations.
-	signs := defaultLevelFields()
-	colors := defaultLevelFieldsColored(signs)
-
-	if sign, ok := signs[level]; ok {
-		if color, ok := colors[sign]; ok {
-			return sign, color
-		} else {
-			return sign, style.Default
-		}
-	}
-
-	return signs[logrus.InfoLevel], style.Default
-}
-
-type CustomFormatter struct {
+type textFormatter struct {
+	name            string
 	DisableColors   bool
 	ShowTimestamp   bool
 	TimestampFormat string
 	Colors          map[string]string
+	logger          *logrus.Logger
 }
 
 // Format is a custom formatter for all stdout/text logs, with better format and coloring.
-func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+func (f *textFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	// Basic information.
 	sign, signColor := f.getLevelFieldColor(entry.Level)
 	levelLog := fmt.Sprintf("%s%s%s", color(signColor), sign, color(style.Default))
@@ -114,13 +76,53 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return []byte(logMessage), nil
 }
 
-// Text effects.
-const (
-	SGRStart = "\x1b["
-	Fg       = "38;05;"
-	Bg       = "48;05;"
-	SGREnd   = "m"
-)
+func (f *textFormatter) getLevelFieldColor(level logrus.Level) (string, string) {
+	// Builtin configurations.
+	signs := defaultLevelFields()
+	colors := defaultLevelFieldsColored(signs)
+
+	if sign, ok := signs[level]; ok {
+		if color, ok := colors[sign]; ok {
+			return sign, color
+		} else {
+			return sign, style.Default
+		}
+	}
+
+	return signs[logrus.InfoLevel], style.Default
+}
+
+func defaultFieldsFormat() map[string]string {
+	return map[string]string{
+		FieldTimestamp: style.BrightBlack,
+		FieldPackage:   style.Dim,
+		FieldMessage:   style.BrightWhite,
+	}
+}
+
+func defaultLevelFields() map[logrus.Level]string {
+	return map[logrus.Level]string{
+		logrus.TraceLevel: "▪",
+		logrus.DebugLevel: "▫",
+		logrus.InfoLevel:  "○",
+		logrus.WarnLevel:  "▲",
+		logrus.ErrorLevel: "✖",
+		logrus.FatalLevel: "☠",
+		logrus.PanicLevel: "!!",
+	}
+}
+
+func defaultLevelFieldsColored(l map[logrus.Level]string) map[string]string {
+	return map[string]string{
+		"▪":  style.BrightBlack,
+		"▫":  style.Dim,
+		"○":  style.BrightBlue,
+		"▲":  style.Yellow,
+		"✖":  style.BrightRed,
+		"☠":  style.BgBrightCyan,
+		"!!": style.BgBrightMagenta,
+	}
+}
 
 func color(color string) string {
 	return SGRStart + style.SGR(color) + SGREnd

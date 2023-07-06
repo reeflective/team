@@ -43,20 +43,24 @@ func (c *Client) Name() string {
 // New returns an application client ready to work.
 // The application client log file is opened and served to the client builtin logger.
 // The client will panic if it can't open or create this log file as ~/.app/client.log.
-func New(application string, options ...Options) *Client {
-	c := &Client{
+func New(application string, options ...Options) (*Client, error) {
+	var err error
+
+	client := &Client{
 		opts:       &opts{},
 		name:       application,
 		connected:  false,
 		connectedT: &sync.Once{},
 	}
 
-	c.log = log.NewLoggerStream()
-	// c.logFile = c.initLogging(c.AppDir())
+	client.apply(options...)
 
-	c.apply(options...)
+	// Loggers
+	if client.log, err = log.NewClient(client.AppDir(), application); err != nil {
+		return nil, err
+	}
 
-	return c
+	return client, nil
 }
 
 // Connect uses the default client configurations to connect to the team server.

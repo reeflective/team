@@ -28,8 +28,10 @@ const bufSize = 2 * mb
 
 // ServeSelf returns a local runtime client to this teamserver.
 func (s *Server) Self(opts ...Options) *client.Client {
-	// Make a new default client: no working connection yet.
-	cli := client.New(s.Name())
+	// We just ignore any issue here, since
+	// they would be triggered by things we
+	// have already checked.
+	cli, _ := client.New(s.Name())
 
 	// Get the connection strategy for this client:
 	// Either prioritize finding a server, which and how.

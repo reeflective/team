@@ -64,11 +64,12 @@ func New(application string, options ...Options) (*Server, error) {
 	// Ensure all teamserver-specific directories are writable.
 
 	// Logging (not writing to files until init)
-	if server.log, err = log.NewLoggerRoot(server.Name(), "root", server.LogsDir()); err != nil {
+	if server.log, err = log.NewRoot(server.Name(), server.LogsDir()); err != nil {
 		return nil, err
 	}
 
-	if server.audit, err = log.NewLoggerAudit(server.AppDir()); err != nil {
+	// Log all RPC requests and their content.
+	if server.audit, err = log.NewAudit(server.AppDir()); err != nil {
 		return nil, err
 	}
 

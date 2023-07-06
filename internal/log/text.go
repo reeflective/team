@@ -8,27 +8,27 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TxtHook - Hook in a textual version of the logs
-type TxtHook struct {
+// txtHook - Hook in a textual version of the logs
+type txtHook struct {
 	Name   string
 	app    string
 	logger *logrus.Logger
 }
 
-// NewTxtHook - returns a new txt hook
-func NewTxtHook(app, name, logDir string) *TxtHook {
-	hook := &TxtHook{
-		Name: name,
+// newTxtHook - returns a new txt hook
+func newTxtHook(path, app string) *txtHook {
+	hook := &txtHook{
+		Name: app,
 		app:  app,
 	}
 
-	hook.logger, _ = NewLoggerText(logDir)
+	hook.logger, _ = NewText(path, app)
 
 	return hook
 }
 
 // Fire - Implements the fire method of the Logrus hook
-func (hook *TxtHook) Fire(entry *logrus.Entry) error {
+func (hook *txtHook) Fire(entry *logrus.Entry) error {
 	if hook.logger == nil {
 		return errors.New("no txt logger")
 	}
@@ -68,6 +68,6 @@ func (hook *TxtHook) Fire(entry *logrus.Entry) error {
 }
 
 // Levels - Hook all levels
-func (hook *TxtHook) Levels() []logrus.Level {
+func (hook *txtHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }

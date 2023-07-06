@@ -13,7 +13,10 @@ func main() {
 	// Create a new teamserver client, without any working
 	// gRPC connection at this stage. We could pass some options
 	// to it if we want to customize behavior.
-	client := client.New("teamserver")
+	client, err := client.New("teamserver")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Let the teamserver client dedicated command tree make use of it.
 	root := cli.Commands(client)
@@ -30,7 +33,7 @@ func main() {
 
 	// Run your application: anything having to do with
 	// the teamserver or one of its commands, will be done
-	err := root.Execute()
+	err = root.Execute()
 	if err != nil {
 		log.Fatal(err)
 	}
