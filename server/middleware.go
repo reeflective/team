@@ -10,7 +10,6 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_tags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,45 +18,45 @@ import (
 )
 
 // initMiddleware - Initialize middleware logger
-func (s *Server) initMiddleware() []grpc.ServerOption {
-	logrusEntry := log.NamedLogger(s.log, "transport", "grpc")
+func (ts *Server) initMiddleware() []grpc.ServerOption {
+	logrusEntry := log.NewNamed(ts.log, "transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
-		grpc_logrus.WithLevels(codeToLevel),
+		grpc_logrus.WithLevels(log.CodeToLevel),
 	}
 	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
 
-	remoteAuth := !s.opts.local
+	remoteAuth := !ts.opts.local
 
 	if remoteAuth {
 		return []grpc.ServerOption{
 			grpc_middleware.WithUnaryServerChain(
-				grpc_auth.UnaryServerInterceptor(s.tokenAuthFunc),
-				s.auditLogUnaryServerInterceptor(),
+				grpc_auth.UnaryServerInterceptor(ts.tokenAuthFunc),
+				ts.auditLogUnaryServerInterceptor(),
 				grpc_tags.UnaryServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
 				grpc_logrus.UnaryServerInterceptor(logrusEntry, logrusOpts...),
-				grpc_logrus.PayloadUnaryServerInterceptor(logrusEntry, s.deciderUnary),
+				grpc_logrus.PayloadUnaryServerInterceptor(logrusEntry, ts.deciderUnary),
 			),
 			grpc_middleware.WithStreamServerChain(
-				grpc_auth.StreamServerInterceptor(s.tokenAuthFunc),
+				grpc_auth.StreamServerInterceptor(ts.tokenAuthFunc),
 				grpc_tags.StreamServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
 				grpc_logrus.StreamServerInterceptor(logrusEntry, logrusOpts...),
-				grpc_logrus.PayloadStreamServerInterceptor(logrusEntry, s.deciderStream),
+				grpc_logrus.PayloadStreamServerInterceptor(logrusEntry, ts.deciderStream),
 			),
 		}
 	} else {
 		return []grpc.ServerOption{
 			grpc_middleware.WithUnaryServerChain(
 				grpc_auth.UnaryServerInterceptor(serverAuthFunc),
-				s.auditLogUnaryServerInterceptor(),
+				ts.auditLogUnaryServerInterceptor(),
 				grpc_tags.UnaryServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
 				grpc_logrus.UnaryServerInterceptor(logrusEntry, logrusOpts...),
-				grpc_logrus.PayloadUnaryServerInterceptor(logrusEntry, s.deciderUnary),
+				grpc_logrus.PayloadUnaryServerInterceptor(logrusEntry, ts.deciderUnary),
 			),
 			grpc_middleware.WithStreamServerChain(
 				grpc_auth.StreamServerInterceptor(serverAuthFunc),
 				grpc_tags.StreamServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
 				grpc_logrus.StreamServerInterceptor(logrusEntry, logrusOpts...),
-				grpc_logrus.PayloadStreamServerInterceptor(logrusEntry, s.deciderStream),
+				grpc_logrus.PayloadStreamServerInterceptor(logrusEntry, ts.deciderStream),
 			),
 		}
 	}
@@ -69,8 +68,8 @@ func serverAuthFunc(ctx context.Context) (context.Context, error) {
 	return newCtx, nil
 }
 
-func (s *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
-	log := log.NamedLogger(s.log, "transport", "auth")
+func (ts *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
+	log := log.NewNamed(ts.log, "transport", "auth")
 	log.Debugf("Auth interceptor checking user token ...")
 	rawToken, err := grpc_auth.AuthFromMD(ctx, "Bearer")
 	if err != nil {
@@ -82,72 +81,30 @@ func (s *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 	digest := sha256.Sum256([]byte(rawToken))
 	token := hex.EncodeToString(digest[:])
 	newCtx := context.WithValue(ctx, "transport", "mtls")
-	if name, ok := s.userTokens.Load(token); ok {
+	if name, ok := ts.userTokens.Load(token); ok {
 		log.Debugf("Token in cache!")
 		newCtx = context.WithValue(newCtx, "user", name.(string))
 		return newCtx, nil
 	}
 
-	user, err := s.userByToken(token)
+	user, err := ts.userByToken(token)
 	if err != nil || user == nil {
 		log.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 	log.Debugf("Valid user token for %s", user.Name)
-	s.userTokens.Store(token, user.Name)
+	ts.userTokens.Store(token, user.Name)
 
 	newCtx = context.WithValue(newCtx, "user", user.Name)
 	return newCtx, nil
 }
 
-func (s *Server) deciderUnary(_ context.Context, _ string, _ interface{}) bool {
-	return s.config.Log.GRPCUnaryPayloads
+func (ts *Server) deciderUnary(_ context.Context, _ string, _ interface{}) bool {
+	return ts.config.Log.GRPCUnaryPayloads
 }
 
-func (s *Server) deciderStream(_ context.Context, _ string, _ interface{}) bool {
-	return s.config.Log.GRPCStreamPayloads
-}
-
-// Maps a grpc response code to a logging level
-func codeToLevel(code codes.Code) logrus.Level {
-	switch code {
-	case codes.OK:
-		return logrus.DebugLevel
-	case codes.Canceled:
-		return logrus.DebugLevel
-	case codes.Unknown:
-		return logrus.ErrorLevel
-	case codes.InvalidArgument:
-		return logrus.WarnLevel
-	case codes.DeadlineExceeded:
-		return logrus.WarnLevel
-	case codes.NotFound:
-		return logrus.DebugLevel
-	case codes.AlreadyExists:
-		return logrus.DebugLevel
-	case codes.PermissionDenied:
-		return logrus.WarnLevel
-	case codes.Unauthenticated:
-		return logrus.WarnLevel
-	case codes.ResourceExhausted:
-		return logrus.WarnLevel
-	case codes.FailedPrecondition:
-		return logrus.WarnLevel
-	case codes.Aborted:
-		return logrus.WarnLevel
-	case codes.OutOfRange:
-		return logrus.WarnLevel
-	case codes.Unimplemented:
-		return logrus.ErrorLevel
-	case codes.Internal:
-		return logrus.ErrorLevel
-	case codes.Unavailable:
-		return logrus.WarnLevel
-	case codes.DataLoss:
-		return logrus.ErrorLevel
-	default:
-		return logrus.ErrorLevel
-	}
+func (ts *Server) deciderStream(_ context.Context, _ string, _ interface{}) bool {
+	return ts.config.Log.GRPCStreamPayloads
 }
 
 type auditUnaryLogMsg struct {
@@ -155,8 +112,8 @@ type auditUnaryLogMsg struct {
 	Method  string `json:"method"`
 }
 
-func (s *Server) auditLogUnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	log := log.NamedLogger(s.log, "transport", "middleware")
+func (ts *Server) auditLogUnaryServerInterceptor() grpc.UnaryServerInterceptor {
+	log := log.NewNamed(ts.log, "transport", "middleware")
 
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (_ interface{}, err error) {
 		rawRequest, err := json.Marshal(req)
@@ -176,7 +133,7 @@ func (s *Server) auditLogUnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		}
 
 		msgData, _ := json.Marshal(msg)
-		s.audit.Info(string(msgData))
+		ts.audit.Info(string(msgData))
 
 		resp, err := handler(ctx, req)
 		return resp, err

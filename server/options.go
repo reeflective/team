@@ -19,10 +19,13 @@ type opts struct {
 	preServeHooks []func(s *Server) error
 }
 
-func (s *Server) apply(options ...Options) {
+func (ts *Server) apply(options ...Options) {
 	for _, optFunc := range options {
-		s.opts = optFunc(s.opts)
+		ts.opts = optFunc(ts.opts)
 	}
+
+	// Update configuration
+	ts.config.DaemonMode.Port = int(ts.opts.port)
 }
 
 // WithDatabaseConfig sets the server to use a database backend with a given configuration.
@@ -72,3 +75,8 @@ func WithOSUserDefault() Options {
 		return opts
 	}
 }
+
+// WithLogger
+// WithAuditFile
+// WithLogFile
+// WithNoLogs

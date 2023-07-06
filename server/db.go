@@ -17,19 +17,19 @@ const (
 )
 
 // GetDatabaseConfigPath - File path to config.json
-func (s *Server) dbConfigPath() string {
-	appDir := s.AppDir()
-	log := log.NamedLogger(s.log, "config", "database")
+func (ts *Server) dbConfigPath() string {
+	appDir := ts.AppDir()
+	log := log.NewNamed(ts.log, "config", "database")
 	databaseConfigPath := filepath.Join(appDir, "configs", databaseConfigFileName)
 	log.Debugf("Loading config from %s", databaseConfigPath)
 	return databaseConfigPath
 }
 
 // Save - Save config file to disk
-func (s *Server) SaveDatabaseConfig(c *db.Config) error {
-	log := log.NamedLogger(s.log, "config", "database")
+func (ts *Server) SaveDatabaseConfig(c *db.Config) error {
+	log := log.NewNamed(ts.log, "config", "database")
 
-	configPath := s.dbConfigPath()
+	configPath := ts.dbConfigPath()
 	configDir := path.Dir(configPath)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		log.Debugf("Creating config dir %s", configDir)
@@ -51,11 +51,11 @@ func (s *Server) SaveDatabaseConfig(c *db.Config) error {
 }
 
 // GetDatabaseConfig - Get config value
-func (s *Server) GetDatabaseConfig() *db.Config {
-	log := log.NamedLogger(s.log, "config", "database")
+func (ts *Server) GetDatabaseConfig() *db.Config {
+	log := log.NewNamed(ts.log, "config", "database")
 
-	configPath := s.dbConfigPath()
-	config := s.getDefaultDatabaseConfig()
+	configPath := ts.dbConfigPath()
+	config := ts.getDefaultDatabaseConfig()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
@@ -78,16 +78,16 @@ func (s *Server) GetDatabaseConfig() *db.Config {
 		config.MaxOpenConns = 1
 	}
 
-	err := s.SaveDatabaseConfig(config) // This updates the config with any missing fields
+	err := ts.SaveDatabaseConfig(config) // This updates the config with any missing fields
 	if err != nil {
 		log.Errorf("Failed to save default config %s", err)
 	}
 	return config
 }
 
-func (s *Server) getDefaultDatabaseConfig() *db.Config {
+func (ts *Server) getDefaultDatabaseConfig() *db.Config {
 	return &db.Config{
-		Database:     filepath.Join(s.AppDir(), fmt.Sprintf("%s.db", s.name)),
+		Database:     filepath.Join(ts.AppDir(), fmt.Sprintf("%s.db", ts.name)),
 		Dialect:      db.Sqlite,
 		MaxIdleConns: 10,
 		MaxOpenConns: 100,

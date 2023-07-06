@@ -36,57 +36,56 @@ type Config struct {
 }
 
 // GetServerConfigPath - File path to the server config.json file.
-func (s *Server) ConfigPath() string {
-	appDir := s.AppDir()
+func (ts *Server) ConfigPath() string {
+	appDir := ts.AppDir()
 
-	log := log.NamedLogger(s.log, "config", "server")
+	log := log.NewNamed(ts.log, "config", "server")
 	serverConfigPath := filepath.Join(appDir, "configs", serverConfigFileName)
 	log.Debugf("Loading config from %s", serverConfigPath)
 	return serverConfigPath
 }
 
 // GetConfig returns the team server configuration struct.
-func (s *Server) GetConfig() *Config {
-	cfgLog := log.NamedLogger(s.log, "config", "server")
+func (ts *Server) GetConfig() *Config {
+	cfgLog := log.NewNamed(ts.log, "config", "server")
 
-	configPath := s.ConfigPath()
-	config := s.getDefaultServerConfig()
+	configPath := ts.ConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
 			cfgLog.Errorf("Failed to read config file %s", err)
-			return config
+			return ts.config
 		}
-		err = json.Unmarshal(data, config)
+		err = json.Unmarshal(data, ts.config)
 		if err != nil {
 			cfgLog.Errorf("Failed to parse config file %s", err)
-			return config
+			return ts.config
 		}
 	} else {
 		cfgLog.Warnf("Config file does not exist, using defaults")
 	}
 
-	if config.Log.Level < 0 {
-		config.Log.Level = 0
+	if ts.config.Log.Level < 0 {
+		ts.config.Log.Level = 0
 	}
-	if 6 < config.Log.Level {
-		config.Log.Level = 6
+	if 6 < ts.config.Log.Level {
+		ts.config.Log.Level = 6
 	}
-	s.log.SetLevel(log.LevelFrom(config.Log.Level))
+	ts.log.SetLevel(log.LevelFrom(ts.config.Log.Level))
 
 	// This updates the config with any missing fields
-	err := s.SaveConfig(config)
+	err := ts.SaveConfig(ts.config)
 	if err != nil {
 		cfgLog.Errorf("Failed to save default config %s", err)
 	}
-	return config
+	return ts.config
 }
 
 // Save - Save config file to disk
-func (s *Server) SaveConfig(c *Config) error {
-	log := log.NamedLogger(s.log, "config", "server")
+func (ts *Server) SaveConfig(c *Config) error {
+	log := log.NewNamed(ts.log, "config", "server")
 
-	configPath := s.ConfigPath()
+	configPath := ts.ConfigPath()
 	configDir := filepath.Dir(configPath)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		log.Debugf("Creating config dir %s", configDir)
@@ -108,7 +107,7 @@ func (s *Server) SaveConfig(c *Config) error {
 }
 
 // AddListenerJob adds a teamserver listener job to the config and saves it.
-func (s *Server) AddListener(host string, port uint16) error {
+func (ts *Server) AddListener(host string, port uint16) error {
 	listener := struct {
 		Host string `json:"host"`
 		Port uint16 `json:"port"`
@@ -119,18 +118,18 @@ func (s *Server) AddListener(host string, port uint16) error {
 		ID:   getRandomID(),
 	}
 
-	s.config.Listeners = append(s.config.Listeners, listener)
+	ts.config.Listeners = append(ts.config.Listeners, listener)
 
-	return s.SaveConfig(s.config)
+	return ts.SaveConfig(ts.config)
 }
 
 // RemoveListenerJob removes a server listener job from the configuration and saves it.
-func (c *Server) RemoveListener(id string) {
-	if c.config.Listeners == nil {
+func (ts *Server) RemoveListener(id string) {
+	if ts.config.Listeners == nil {
 		return
 	}
 
-	defer c.SaveConfig(c.config)
+	defer ts.SaveConfig(ts.config)
 
 	var listeners []struct {
 		Host string `json:"host"`
@@ -138,23 +137,21 @@ func (c *Server) RemoveListener(id string) {
 		ID   string `json:"id"`
 	}
 
-	for _, listener := range c.config.Listeners {
+	for _, listener := range ts.config.Listeners {
 		if listener.ID != id {
 			listeners = append(listeners, listener)
 		}
 	}
 
-	c.config.Listeners = listeners
+	ts.config.Listeners = listeners
 }
 
-func (c *Server) getDefaultServerConfig() *Config {
+func getDefaultServerConfig() *Config {
 	return &Config{
 		DaemonMode: struct {
 			Host string `json:"host"`
 			Port int    `json:"port"`
-		}{
-			Port: int(c.opts.port),
-		},
+		}{},
 		Log: struct {
 			Level              int  `json:"level"`
 			GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
@@ -171,13 +168,13 @@ func (c *Server) getDefaultServerConfig() *Config {
 	}
 }
 
-func (s *Server) clientServerMatch(config *client.Config) bool {
+func (ts *Server) clientServerMatch(config *client.Config) bool {
 	if config == nil {
 		return false
 	}
 
-	if s.config.Listeners != nil {
-		for _, job := range s.config.Listeners {
+	if ts.config.Listeners != nil {
+		for _, job := range ts.config.Listeners {
 			if job.Host == config.Host && job.Port == uint16(config.Port) {
 				return true
 			}
@@ -185,7 +182,7 @@ func (s *Server) clientServerMatch(config *client.Config) bool {
 	}
 
 	// If matching our daemon config.
-	if s.config.DaemonMode.Host == config.Host && s.config.DaemonMode.Port == config.Port {
+	if ts.config.DaemonMode.Host == config.Host && ts.config.DaemonMode.Port == config.Port {
 		return true
 	}
 

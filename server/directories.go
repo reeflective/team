@@ -15,13 +15,13 @@ const (
 
 // AppDir returns the directory of the team server app (named ~/.<application>-server),
 // creating the directory if needed, or logging a fatal event if failing to create it.
-func (s *Server) AppDir() string {
-	value := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(s.name)))
+func (ts *Server) AppDir() string {
+	value := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(ts.name)))
 
 	var dir string
 	if len(value) == 0 {
 		user, _ := user.Current()
-		dir = filepath.Join(user.HomeDir, fmt.Sprintf(".%s", s.name), teamserverDir)
+		dir = filepath.Join(user.HomeDir, fmt.Sprintf(".%s", ts.name), teamserverDir)
 	} else {
 		dir = value
 	}
@@ -29,7 +29,7 @@ func (s *Server) AppDir() string {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {
-			s.log.Errorf("Cannot write to %s root dir: %w", dir)
+			ts.log.Errorf("Cannot write to %s root dir: %w", dir)
 		}
 	}
 	return dir
@@ -37,8 +37,8 @@ func (s *Server) AppDir() string {
 
 // LogsDir returns the directory of the client (~/.app-server/logs), creating
 // the directory if needed, or logging a fatal event if failing to create it.
-func (s *Server) LogsDir() string {
-	rootDir := s.AppDir()
+func (ts *Server) LogsDir() string {
+	rootDir := ts.AppDir()
 	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
 		err = os.MkdirAll(rootDir, 0o700)
 		if err != nil {
@@ -49,7 +49,7 @@ func (s *Server) LogsDir() string {
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		err = os.MkdirAll(logDir, 0o700)
 		if err != nil {
-			s.log.Errorf("Cannot write logs dir %s", logDir)
+			ts.log.Errorf("Cannot write logs dir %s", logDir)
 		}
 	}
 	return logDir
@@ -60,6 +60,6 @@ func (s *Server) LogsDir() string {
 // to write do indeed exist, and make them anyway.
 // If any error happens it will returned right away and the creator
 // of the teamserver will know right away that it can't work correctly.
-func (s *Server) checkWritableDirs() error {
+func (ts *Server) checkWritableDirs() error {
 	return nil
 }

@@ -58,13 +58,17 @@ func New(application string, options ...Options) (*Server, error) {
 		userTokens:              &sync.Map{},
 		opts:                    &opts{},
 		init:                    &sync.Once{},
+		config:                  getDefaultServerConfig(),
 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}
 
 	// Ensure all teamserver-specific directories are writable.
 
 	// Logging (not writing to files until init)
-	if server.log, err = log.NewClient(server.LogsDir(), server.Name()); err != nil {
+	level := logrus.Level(server.config.Log.Level)
+
+	server.log, err = log.NewClient(server.LogsDir(), server.Name(), level)
+	if err != nil {
 		return nil, err
 	}
 
@@ -77,7 +81,7 @@ func New(application string, options ...Options) (*Server, error) {
 }
 
 // GetVersion returns the teamserver version.
-func (s *Server) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
+func (ts *Server) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
 	dirty := version.GitDirty != ""
 	semVer := version.Semantic()
 	compiled, _ := version.Compiled()
@@ -94,9 +98,9 @@ func (s *Server) GetVersion(context.Context, *proto.Empty) (*proto.Version, erro
 }
 
 // GetUsers returns the list of teamserver users and their status.
-func (s *Server) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
+func (ts *Server) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
 	users := []*db.User{}
-	err := s.db.Distinct("Name").Find(&users).Error
+	err := ts.db.Distinct("Name").Find(&users).Error
 
 	var userspb *proto.Users
 	for _, user := range users {
@@ -109,7 +113,7 @@ func (s *Server) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
 }
 
 // ClientLog accepts a stream of client logs to save on the teamserver.
-func (s *Server) ClientLog(proto.Team_ClientLogServer) error {
+func (ts *Server) ClientLog(proto.Team_ClientLogServer) error {
 	return status.Errorf(codes.Unimplemented, "method ClientLog not implemented")
 }
 
@@ -117,56 +121,56 @@ func (s *Server) ClientLog(proto.Team_ClientLogServer) error {
 // Since you can embed multiple teamservers (one for each application)
 // into a single binary, this is different from the program binary name
 // running this teamserver.
-func (s *Server) Name() string {
-	return s.name
+func (ts *Server) Name() string {
+	return ts.name
 }
 
-func (s *Server) newServer() *Server {
+func (ts *Server) newServer() *Server {
 	serv := &Server{
-		name:                    s.name,
-		rootDirEnv:              s.rootDirEnv,
-		log:                     s.log,
-		audit:                   s.audit,
-		opts:                    s.opts,
-		config:                  s.config,
-		certs:                   s.certs,
-		userTokens:              s.userTokens,
+		name:                    ts.name,
+		rootDirEnv:              ts.rootDirEnv,
+		log:                     ts.log,
+		audit:                   ts.audit,
+		opts:                    ts.opts,
+		config:                  ts.config,
+		certs:                   ts.certs,
+		userTokens:              ts.userTokens,
 		init:                    &sync.Once{},
 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}
 
 	// One session per listener should be enough for now.
-	serv.db = s.db.Session(&gorm.Session{
+	serv.db = ts.db.Session(&gorm.Session{
 		FullSaveAssociations: true,
 	})
 
 	return serv
 }
 
-func (s *Server) initServer(opts ...Options) error {
+func (ts *Server) initServer(opts ...Options) error {
 	var err error
 
-	s.init.Do(func() {
+	ts.init.Do(func() {
 		// Default and user options do not prevail
 		// on what is in the configuration file
-		s.apply(WithDatabaseConfig(s.GetDatabaseConfig()))
-		s.apply(opts...)
+		ts.apply(WithDatabaseConfig(ts.GetDatabaseConfig()))
+		ts.apply(opts...)
 
 		// Load any relevant server configuration: on disk,
 		// contained in options, or the default one.
-		s.config = s.GetConfig()
+		ts.config = ts.GetConfig()
 
 		// Database
-		if s.opts.db == nil {
-			s.db, err = db.NewClient(s.opts.dbConfig, s.log)
+		if ts.opts.db == nil {
+			ts.db, err = db.NewClient(ts.opts.dbConfig, ts.log)
 			if err != nil {
 				return
 			}
 		}
 
 		// Certificate infrastructure
-		certsLog := log.NamedLogger(s.log, "certs", "certificates")
-		s.certs = certs.NewManager(s.db.Session(&gorm.Session{}), certsLog, s.AppDir())
+		certsLog := log.NewNamed(ts.log, "certs", "certificates")
+		ts.certs = certs.NewManager(ts.db.Session(&gorm.Session{}), certsLog, ts.AppDir())
 	})
 
 	return err

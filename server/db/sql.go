@@ -40,7 +40,7 @@ func NewClient(dbConfig *Config, logger *logrus.Logger) (*gorm.DB, error) {
 		return nil, fmt.Errorf("Failed to marshal database DSN: %w", err)
 	}
 
-	dbLogger := log.NamedLogger(logger, "database", "database")
+	dbLogger := log.NewNamed(logger, "database", "database")
 
 	dbLog := getGormLogger(logger, dbConfig.LogLevel)
 

@@ -11,13 +11,13 @@ type opts struct {
 	console bool
 }
 
-func (c *Client) apply(options ...Options) {
+func (tc *Client) apply(options ...Options) {
 	for _, optFunc := range options {
-		c.opts = optFunc(c.opts)
+		tc.opts = optFunc(tc.opts)
 	}
 
-	if c.opts.conn != nil {
-		c.conn = c.opts.conn
+	if tc.opts.conn != nil {
+		tc.conn = tc.opts.conn
 	}
 }
 

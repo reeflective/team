@@ -29,13 +29,13 @@ type Config struct {
 }
 
 // GetConfigDir - Returns the path to the config dir
-func (c *Client) ConfigsDir() string {
-	rootDir, _ := filepath.Abs(c.AppDir())
+func (tc *Client) ConfigsDir() string {
+	rootDir, _ := filepath.Abs(tc.AppDir())
 	dir := filepath.Join(rootDir, configsDirName)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {
-			c.log.Errorf(fmt.Sprintf("cannot write to %s configs dir: %w", dir, err))
+			tc.log.Errorf("cannot write to %s configs dir: %w", dir, err)
 		}
 	}
 	return dir
@@ -43,11 +43,11 @@ func (c *Client) ConfigsDir() string {
 
 // GetConfigs returns a list of available configs in
 // the application config directory (~/.app/configs)
-func (c *Client) GetConfigs() map[string]*Config {
-	configDir := c.ConfigsDir()
+func (tc *Client) GetConfigs() map[string]*Config {
+	configDir := tc.ConfigsDir()
 	configFiles, err := os.ReadDir(configDir)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("No configs found %v", err))
+		tc.log.Error(fmt.Sprintf("No configs found %v", err))
 		return map[string]*Config{}
 	}
 
@@ -55,7 +55,7 @@ func (c *Client) GetConfigs() map[string]*Config {
 	for _, confFile := range configFiles {
 		confFilePath := filepath.Join(configDir, confFile.Name())
 
-		conf, err := c.ReadConfig(confFilePath)
+		conf, err := tc.ReadConfig(confFilePath)
 		if err != nil {
 			continue
 		}
@@ -66,60 +66,60 @@ func (c *Client) GetConfigs() map[string]*Config {
 }
 
 // ReadConfig loads a client config into a struct.
-func (c *Client) ReadConfig(confFilePath string) (*Config, error) {
+func (tc *Client) ReadConfig(confFilePath string) (*Config, error) {
 	confFile, err := os.Open(confFilePath)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("Open failed %v", err))
+		tc.log.Errorf("Open failed %v", err)
 		return nil, err
 	}
 	defer confFile.Close()
 	data, err := io.ReadAll(confFile)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("Read failed %v", err))
+		tc.log.Errorf("Read failed %v", err)
 		return nil, err
 	}
 	conf := &Config{}
 	err = json.Unmarshal(data, conf)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("Parse failed %v", err))
+		tc.log.Errorf("Parse failed %v", err)
 		return nil, err
 	}
 	return conf, nil
 }
 
 // SaveConfig saves a client config to disk.
-func (c *Client) SaveConfig(config *Config) error {
+func (tc *Client) SaveConfig(config *Config) error {
 	if config.Host == "" || config.User == "" {
 		return errors.New("empty config")
 	}
-	configDir := c.ConfigsDir()
+	configDir := tc.ConfigsDir()
 	filename := fmt.Sprintf("%s_%s.cfg", filepath.Base(config.User), filepath.Base(config.Host))
 	saveTo, _ := filepath.Abs(filepath.Join(configDir, filename))
 	configJSON, _ := json.Marshal(config)
 	err := os.WriteFile(saveTo, configJSON, 0o600)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("Failed to write config to: %s (%v)", saveTo, err))
+		tc.log.Errorf("Failed to write config to: %s (%v)", saveTo, err)
 		return err
 	}
-	c.log.Infof(fmt.Sprintf("Saved new client config to: %s", saveTo))
+	tc.log.Infof("Saved new client config to: %s", saveTo)
 	return nil
 }
 
 // DefaultUserConfig returns the default user configuration for this application.
 // the file is of the following form: ~/.app/configs/app_USERNAME_default.cfg.
 // If the latter is found, it returned, otherwise no config is returned.
-func (c *Client) DefaultUserConfig() (cfg *Config) {
+func (tc *Client) DefaultUserConfig() (cfg *Config) {
 	user, err := user.Current()
 	if err != nil {
 		return nil
 	}
 
-	filename := fmt.Sprintf("%s_%s_default", c.Name(), user.Username)
-	saveTo := c.ConfigsDir()
+	filename := fmt.Sprintf("%s_%s_default", tc.Name(), user.Username)
+	saveTo := tc.ConfigsDir()
 
 	configPath := filepath.Join(saveTo, filename+".cfg")
 	if _, err := os.Stat(configPath); err == nil {
-		cfg, _ = c.ReadConfig(configPath)
+		cfg, _ = tc.ReadConfig(configPath)
 	}
 
 	return cfg
@@ -128,8 +128,8 @@ func (c *Client) DefaultUserConfig() (cfg *Config) {
 // SelectConfig either returns the only configuration found in the
 // application client configs directory, or prompts the user to select one.
 // This call might thus be blocking, and expect user input.
-func (c *Client) SelectConfig() *Config {
-	configs := c.GetConfigs()
+func (tc *Client) SelectConfig() *Config {
+	configs := tc.GetConfigs()
 
 	if len(configs) == 0 {
 		return nil

@@ -20,18 +20,18 @@ const (
 	mb = kb * 1024
 	gb = mb * 1024
 
+	bufSize = 2 * mb
+
 	// ServerMaxMessageSize - Server-side max GRPC message size
 	ServerMaxMessageSize = 2*gb - 1
 )
 
-const bufSize = 2 * mb
-
 // ServeSelf returns a local runtime client to this teamserver.
-func (s *Server) Self(opts ...Options) *client.Client {
+func (ts *Server) Self(opts ...Options) *client.Client {
 	// We just ignore any issue here, since
 	// they would be triggered by things we
 	// have already checked.
-	cli, _ := client.New(s.Name())
+	cli, _ := client.New(ts.Name())
 
 	// Get the connection strategy for this client:
 	// Either prioritize finding a server, which and how.
@@ -47,15 +47,15 @@ func (s *Server) Self(opts ...Options) *client.Client {
 // that a sister server is running accordingly, we do NOT start the server, but
 // instead connect as clients over to the teamserver, not using any database or
 // server-only code in the process.
-func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error) {
+func (ts *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error) {
 	// Initialize all backend things for this server:
 	// database, certificate authorities and related loggers.
-	s.initServer(opts...)
+	ts.initServer(opts...)
 
 	// If the default user configuration is the same as us,
 	// or one of our multiplayer jobs, start our listeners
 	// first and let the client connect afterwards.
-	conn, server, err := s.serveLocal()
+	conn, server, err := ts.serveLocal()
 	if err != nil {
 		return server, err
 	}
@@ -75,35 +75,35 @@ func (s *Server) Serve(cli *client.Client, opts ...Options) (*grpc.Server, error
 // Starting listeners from application code (not from teamserver' commands) should most
 // of the time be done with this function, as it will return you the gRPC server to which
 // you can attach any application-specific APIs.
-func (s *Server) ServeAddr(host string, port uint16, opts ...Options) (*grpc.Server, net.Listener, error) {
+func (ts *Server) ServeAddr(host string, port uint16, opts ...Options) (*grpc.Server, net.Listener, error) {
 	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		s.log.Error(err)
+		ts.log.Error(err)
 		return nil, nil, err
 	}
 
-	server, err := s.serveListener(ln, opts...)
+	server, err := ts.serveListener(ln, opts...)
 
 	return server, ln, err
 }
 
 // Close gracefully stops all components of the server,
 // letting pending connections to it to finish first.
-func (s *Server) Close() {
-	defer s.log.Writer().Close()
-	defer s.audit.Writer().Close()
+func (ts *Server) Close() {
+	defer ts.log.Writer().Close()
+	defer ts.audit.Writer().Close()
 }
 
 // serveListener starts a gRPC teamserver on the provided listener (setting up MutualTLS on it).
-func (s *Server) serveListener(ln net.Listener, opts ...Options) (*grpc.Server, error) {
-	bufConnLog := log.NamedLogger(s.log, "server", "mTLS")
+func (ts *Server) serveListener(ln net.Listener, opts ...Options) (*grpc.Server, error) {
+	bufConnLog := log.NewNamed(ts.log, "server", "mTLS")
 	bufConnLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
 
 	// Initialize all backend things for this server:
 	// database, certificate authorities and related loggers.
-	s.initServer(opts...)
+	ts.initServer(opts...)
 
-	tlsConfig := s.getUserTLSConfig("teamusers")
+	tlsConfig := ts.getUserTLSConfig("teamusers")
 	creds := credentials.NewTLS(tlsConfig)
 
 	options := []grpc.ServerOption{
@@ -112,7 +112,7 @@ func (s *Server) serveListener(ln net.Listener, opts ...Options) (*grpc.Server, 
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
 	}
 
-	server, err := s.initRPC(ln, options)
+	server, err := ts.initRPC(ln, options)
 
 	return server, err
 }
@@ -121,13 +121,13 @@ func (s *Server) serveListener(ln net.Listener, opts ...Options) (*grpc.Server, 
 // functionality with itself. It returns a gRPC client connection to be registered to
 // a client (team/client package), the gRPC server for registering per-application
 // services, or an error if listening failed.
-func (s *Server) serveLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, error) {
-	bufConnLog := log.NamedLogger(s.log, "transport", "local")
+func (ts *Server) serveLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, error) {
+	bufConnLog := log.NewNamed(ts.log, "transport", "local")
 	bufConnLog.Infof("Binding gRPC to listener ...")
 
 	// Initialize all backend things for this server:
 	// database, certificate authorities and related loggers.
-	s.initServer(opts...)
+	ts.initServer(opts...)
 
 	ln := bufconn.Listen(bufSize)
 
@@ -136,9 +136,9 @@ func (s *Server) serveLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, er
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
 	}
 
-	s.opts.local = true
-	server, err := s.initRPC(ln, options)
-	s.opts.local = false
+	ts.opts.local = true
+	server, err := ts.initRPC(ln, options)
+	ts.opts.local = false
 
 	// And connect the client
 	ctxDialer := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
@@ -160,10 +160,10 @@ func (s *Server) serveLocal(opts ...Options) (*grpc.ClientConn, *grpc.Server, er
 }
 
 // initRPC starts the gRPC server and register the core teamserver services to it.
-func (s *Server) initRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.Server, error) {
-	rpcLog := log.NamedLogger(s.log, "transport", "rpc")
+func (ts *Server) initRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.Server, error) {
+	rpcLog := log.NewNamed(ts.log, "transport", "rpc")
 
-	options = append(options, s.initMiddleware()...)
+	options = append(options, ts.initMiddleware()...)
 	grpcServer := grpc.NewServer(options...)
 
 	go func() {
@@ -181,11 +181,11 @@ func (s *Server) initRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.Se
 	}()
 
 	// Register the core teamserver service
-	proto.RegisterTeamServer(grpcServer, s.newServer())
+	proto.RegisterTeamServer(grpcServer, ts.newServer())
 
 	// Run user-specified hooks
-	for _, postServeHook := range s.opts.preServeHooks {
-		if err := postServeHook(s); err != nil {
+	for _, postServeHook := range ts.opts.preServeHooks {
+		if err := postServeHook(ts); err != nil {
 			return grpcServer, err
 		}
 	}
@@ -195,13 +195,13 @@ func (s *Server) initRPC(ln net.Listener, options []grpc.ServerOption) (*grpc.Se
 
 // startPersistentJobs starts all teamserver listeners,
 // aborting and returning an error if one of those raise one.
-func (s *Server) startPersistentJobs() error {
-	if s.config.Listeners == nil {
+func (ts *Server) startPersistentJobs() error {
+	if ts.config.Listeners == nil {
 		return nil
 	}
 
-	for _, j := range s.config.Listeners {
-		_, _, err := s.ServeAddr(j.Host, j.Port)
+	for _, j := range ts.config.Listeners {
+		_, _, err := ts.ServeAddr(j.Host, j.Port)
 		if err != nil {
 			return err
 		}
