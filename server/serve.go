@@ -96,14 +96,14 @@ func (s *Server) Close() {
 
 // serveListener starts a gRPC teamserver on the provided listener (setting up MutualTLS on it).
 func (s *Server) serveListener(ln net.Listener, opts ...Options) (*grpc.Server, error) {
-	bufConnLog := log.NamedLogger(s.log, "transport", "mtls")
+	bufConnLog := log.NamedLogger(s.log, "server", "mTLS")
 	bufConnLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
 
 	// Initialize all backend things for this server:
 	// database, certificate authorities and related loggers.
 	s.initServer(opts...)
 
-	tlsConfig := s.getUserTLSConfig("multiplayer")
+	tlsConfig := s.getUserTLSConfig("teamusers")
 	creds := credentials.NewTLS(tlsConfig)
 
 	options := []grpc.ServerOption{

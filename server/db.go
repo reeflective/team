@@ -19,20 +19,20 @@ const (
 // GetDatabaseConfigPath - File path to config.json
 func (s *Server) dbConfigPath() string {
 	appDir := s.AppDir()
-	databaseConfigLog := log.NamedLogger(s.log, "config", "database")
+	log := log.NamedLogger(s.log, "config", "database")
 	databaseConfigPath := filepath.Join(appDir, "configs", databaseConfigFileName)
-	databaseConfigLog.Debugf("Loading config from %s", databaseConfigPath)
+	log.Debugf("Loading config from %s", databaseConfigPath)
 	return databaseConfigPath
 }
 
 // Save - Save config file to disk
 func (s *Server) SaveDatabaseConfig(c *db.Config) error {
-	databaseConfigLog := log.NamedLogger(s.log, "config", "database")
+	log := log.NamedLogger(s.log, "config", "database")
 
 	configPath := s.dbConfigPath()
 	configDir := path.Dir(configPath)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		databaseConfigLog.Debugf("Creating config dir %s", configDir)
+		log.Debugf("Creating config dir %s", configDir)
 		err := os.MkdirAll(configDir, 0o700)
 		if err != nil {
 			return err
@@ -42,33 +42,33 @@ func (s *Server) SaveDatabaseConfig(c *db.Config) error {
 	if err != nil {
 		return err
 	}
-	databaseConfigLog.Infof("Saving config to %s", configPath)
+	log.Infof("Saving config to %s", configPath)
 	err = os.WriteFile(configPath, data, 0o600)
 	if err != nil {
-		databaseConfigLog.Errorf("Failed to write config %s", err)
+		log.Errorf("Failed to write config %s", err)
 	}
 	return nil
 }
 
 // GetDatabaseConfig - Get config value
 func (s *Server) GetDatabaseConfig() *db.Config {
-	databaseConfigLog := log.NamedLogger(s.log, "config", "database")
+	log := log.NamedLogger(s.log, "config", "database")
 
 	configPath := s.dbConfigPath()
 	config := s.getDefaultDatabaseConfig()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
-			databaseConfigLog.Errorf("Failed to read config file %s", err)
+			log.Errorf("Failed to read config file %s", err)
 			return config
 		}
 		err = json.Unmarshal(data, config)
 		if err != nil {
-			databaseConfigLog.Errorf("Failed to parse config file %s", err)
+			log.Errorf("Failed to parse config file %s", err)
 			return config
 		}
 	} else {
-		databaseConfigLog.Warnf("Config file does not exist, using defaults")
+		log.Warnf("Config file does not exist, using defaults")
 	}
 
 	if config.MaxIdleConns < 1 {
@@ -80,7 +80,7 @@ func (s *Server) GetDatabaseConfig() *db.Config {
 
 	err := s.SaveDatabaseConfig(config) // This updates the config with any missing fields
 	if err != nil {
-		databaseConfigLog.Errorf("Failed to save default config %s", err)
+		log.Errorf("Failed to save default config %s", err)
 	}
 	return config
 }

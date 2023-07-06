@@ -39,31 +39,31 @@ type Config struct {
 func (s *Server) ConfigPath() string {
 	appDir := s.AppDir()
 
-	serverConfigLog := log.NamedLogger(s.log, "config", "server")
+	log := log.NamedLogger(s.log, "config", "server")
 	serverConfigPath := filepath.Join(appDir, "configs", serverConfigFileName)
-	serverConfigLog.Debugf("Loading config from %s", serverConfigPath)
+	log.Debugf("Loading config from %s", serverConfigPath)
 	return serverConfigPath
 }
 
 // GetConfig returns the team server configuration struct.
 func (s *Server) GetConfig() *Config {
-	serverConfigLog := log.NamedLogger(s.log, "config", "server")
+	cfgLog := log.NamedLogger(s.log, "config", "server")
 
 	configPath := s.ConfigPath()
 	config := s.getDefaultServerConfig()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
-			serverConfigLog.Errorf("Failed to read config file %s", err)
+			cfgLog.Errorf("Failed to read config file %s", err)
 			return config
 		}
 		err = json.Unmarshal(data, config)
 		if err != nil {
-			serverConfigLog.Errorf("Failed to parse config file %s", err)
+			cfgLog.Errorf("Failed to parse config file %s", err)
 			return config
 		}
 	} else {
-		serverConfigLog.Warnf("Config file does not exist, using defaults")
+		cfgLog.Warnf("Config file does not exist, using defaults")
 	}
 
 	if config.Log.Level < 0 {
@@ -77,19 +77,19 @@ func (s *Server) GetConfig() *Config {
 	// This updates the config with any missing fields
 	err := s.SaveConfig(config)
 	if err != nil {
-		serverConfigLog.Errorf("Failed to save default config %s", err)
+		cfgLog.Errorf("Failed to save default config %s", err)
 	}
 	return config
 }
 
 // Save - Save config file to disk
 func (s *Server) SaveConfig(c *Config) error {
-	serverConfigLog := log.NamedLogger(s.log, "config", "server")
+	log := log.NamedLogger(s.log, "config", "server")
 
 	configPath := s.ConfigPath()
 	configDir := filepath.Dir(configPath)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		serverConfigLog.Debugf("Creating config dir %s", configDir)
+		log.Debugf("Creating config dir %s", configDir)
 		err := os.MkdirAll(configDir, 0o700)
 		if err != nil {
 			return err
@@ -99,10 +99,10 @@ func (s *Server) SaveConfig(c *Config) error {
 	if err != nil {
 		return err
 	}
-	serverConfigLog.Debugf("Saving config to %s", configPath)
+	log.Debugf("Saving config to %s", configPath)
 	err = os.WriteFile(configPath, data, 0o600)
 	if err != nil {
-		serverConfigLog.Errorf("Failed to write config %s", err)
+		log.Errorf("Failed to write config %s", err)
 	}
 	return nil
 }

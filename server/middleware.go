@@ -64,16 +64,16 @@ func (s *Server) initMiddleware() []grpc.ServerOption {
 
 func serverAuthFunc(ctx context.Context) (context.Context, error) {
 	newCtx := context.WithValue(ctx, "transport", "local")
-	newCtx = context.WithValue(newCtx, "user", "server")
+	newCtx = context.WithValue(newCtx, "operator", "server")
 	return newCtx, nil
 }
 
 func (s *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
-	mtlsLog := log.NamedLogger(s.log, "transport", "auth")
-	mtlsLog.Debugf("Auth interceptor checking user token ...")
+	log := log.NamedLogger(s.log, "transport", "auth")
+	log.Debugf("Auth interceptor checking operator token ...")
 	rawToken, err := grpc_auth.AuthFromMD(ctx, "Bearer")
 	if err != nil {
-		mtlsLog.Errorf("Authentication failure: %s", err)
+		log.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
@@ -82,20 +82,20 @@ func (s *Server) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 	token := hex.EncodeToString(digest[:])
 	newCtx := context.WithValue(ctx, "transport", "mtls")
 	if name, ok := s.userTokens.Load(token); ok {
-		mtlsLog.Debugf("Token in cache!")
-		newCtx = context.WithValue(newCtx, "user", name.(string))
+		log.Debugf("Token in cache!")
+		newCtx = context.WithValue(newCtx, "operator", name.(string))
 		return newCtx, nil
 	}
 
-	user, err := s.userByToken(token)
-	if err != nil || user == nil {
-		mtlsLog.Errorf("Authentication failure: %s", err)
+	operator, err := s.userByToken(token)
+	if err != nil || operator == nil {
+		log.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
-	mtlsLog.Debugf("Valid user token for %s", user.Name)
-	s.userTokens.Store(token, user.Name)
+	log.Debugf("Valid user token for %s", operator.Name)
+	s.userTokens.Store(token, operator.Name)
 
-	newCtx = context.WithValue(newCtx, "user", user.Name)
+	newCtx = context.WithValue(newCtx, "operator", operator.Name)
 	return newCtx, nil
 }
 

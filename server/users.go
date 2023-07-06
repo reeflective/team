@@ -14,6 +14,7 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/server/db"
 )
 
@@ -116,9 +117,10 @@ func (s *Server) userByToken(value string) (*db.User, error) {
 // getUserTLSConfig - Generate the TLS configuration, we do now allow the end user
 // to specify any TLS parameters, we choose sensible defaults instead.
 func (s *Server) getUserTLSConfig(host string) *tls.Config {
+	log := log.NamedLogger(s.log, "certs", "mtls")
 	caCertPtr, _, err := s.certs.GetUsersCA()
 	if err != nil {
-		s.log.Fatal("Failed to get users certificate authority")
+		log.Error("Failed to get users certificate authority")
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AddCert(caCertPtr)
@@ -130,13 +132,13 @@ func (s *Server) getUserTLSConfig(host string) *tls.Config {
 
 	certPEM, keyPEM, err := s.certs.UserServerGetCertificate(host)
 	if err != nil {
-		s.log.Errorf("Failed to generate or fetch certificate %s", err)
+		log.Errorf("Failed to generate or fetch certificate %s", err)
 		return nil
 	}
 
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		s.log.Fatalf("Error loading server certificate: %v", err)
+		log.Errorf("Error loading server certificate: %v", err)
 	}
 
 	tlsConfig := &tls.Config{
@@ -147,9 +149,7 @@ func (s *Server) getUserTLSConfig(host string) *tls.Config {
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	// if s.certs.TLSKeyLogger != nil {
-	// 	tlsConfig.KeyLogWriter = s.certs.TLSKeyLogger
-	// }
+	tlsConfig.KeyLogWriter = s.certs.NewKeyLogger()
 
 	return tlsConfig
 }

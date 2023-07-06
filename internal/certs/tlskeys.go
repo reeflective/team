@@ -25,7 +25,7 @@ const (
 	mtlsCA = "mtls-server"
 )
 
-func (c *Manager) newKeyLogger() *os.File {
+func (c *Manager) NewKeyLogger() *os.File {
 	keyFilePath, present := os.LookupEnv("SSLKEYLOGFILE")
 	if present {
 		keyFile, err := os.OpenFile(keyFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
