@@ -149,7 +149,9 @@ func (s *Server) getUserTLSConfig(host string) *tls.Config {
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	tlsConfig.KeyLogWriter = s.certs.NewKeyLogger()
+	if keyLogger := s.certs.NewKeyLogger(); keyLogger != nil {
+		tlsConfig.KeyLogWriter = s.certs.NewKeyLogger()
+	}
 
 	return tlsConfig
 }

@@ -27,7 +27,7 @@ func NewClient(path string, app string) (*logrus.Logger, error) {
 		Colors:        defaultFieldsFormat(),
 	}
 
-	txtLogger.SetLevel(logrus.WarnLevel)
+	txtLogger.SetLevel(logrus.ErrorLevel)
 	txtLogger.SetReportCaller(true)
 
 	// Output both to the screen and to a file.
@@ -47,7 +47,7 @@ func NewRoot(app, logDir string) (*logrus.Logger, error) {
 		return nil, fmt.Errorf("Failed to open log file %v", err)
 	}
 	rootLogger.Out = jsonFile
-	rootLogger.SetLevel(logrus.DebugLevel)
+	rootLogger.SetLevel(logrus.WarnLevel)
 	rootLogger.SetReportCaller(true)
 	rootLogger.AddHook(newTxtHook(logDir, app, rootLogger))
 	return rootLogger, nil
