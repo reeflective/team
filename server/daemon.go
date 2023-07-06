@@ -22,8 +22,6 @@ var (
 func (s *Server) ServeDaemon(host string, port uint16, postStart ...func(s *Server)) error {
 	log := log.NamedLogger(s.log, "daemon", "main")
 
-	// TODO: Use the logger stdout instead of printf ?
-
 	// cli args take president over config
 	if host == blankHost {
 		log.Info("No cli lhost, using config file or default value")

@@ -27,12 +27,12 @@ func NewClient(path string, app string) (*logrus.Logger, error) {
 		Colors:        defaultFieldsFormat(),
 	}
 
-	txtLogger.SetLevel(logrus.DebugLevel)
+	txtLogger.SetLevel(logrus.WarnLevel)
 	txtLogger.SetReportCaller(true)
 
 	// Output both to the screen and to a file.
 	txtLogger.Out = os.Stdout
-	txtLogger.AddHook(newTxtHook(path, app))
+	txtLogger.AddHook(newTxtHook(path, app, txtLogger))
 
 	return txtLogger, nil
 }
@@ -49,7 +49,7 @@ func NewRoot(app, logDir string) (*logrus.Logger, error) {
 	rootLogger.Out = jsonFile
 	rootLogger.SetLevel(logrus.DebugLevel)
 	rootLogger.SetReportCaller(true)
-	rootLogger.AddHook(newTxtHook(logDir, app))
+	rootLogger.AddHook(newTxtHook(logDir, app, rootLogger))
 	return rootLogger, nil
 }
 
