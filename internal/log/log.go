@@ -9,15 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// NewNamed - Returns a logger wrapped with package/stream fields.
-func NewNamed(log *logrus.Logger, pkg, stream string) *logrus.Entry {
-	return log.WithFields(logrus.Fields{
-		PackageFieldKey: pkg,
-		"stream":        stream,
-	})
-}
-
 // NewStdout returns a logger printing its results to stdout.
+// Default logging level: error (no output when things work)
 func NewStdout(app string, level logrus.Level) *logrus.Logger {
 	stdLogger := logrus.New()
 	stdLogger.Formatter = &textFormatter{
@@ -33,9 +26,9 @@ func NewStdout(app string, level logrus.Level) *logrus.Logger {
 	return stdLogger
 }
 
-// NewClient creates a default in-memory logger which
-// prints everything out (with formatting) to os.Stdout.
-// All clients and servers make use of this logger.
+// NewClient creates a default in-memory logger which prints everything out (with formatting)
+// to os.Stdout, and a side-hook writing the log event in a slightly different format to a file.
+// Logging levels as independent between stdout and text file.
 func NewClient(path string, app string, level logrus.Level) (*logrus.Logger, error) {
 	txtLogger := logrus.New()
 	txtLogger.Formatter = &textFormatter{
@@ -54,7 +47,7 @@ func NewClient(path string, app string, level logrus.Level) (*logrus.Logger, err
 	return txtLogger, nil
 }
 
-// NewRoot returns the root logger.
+// NewRoot returns a logger writing to the central log file of the teamserver, JSON-encoded.
 func NewRoot(app, logDir string, level logrus.Level) (*logrus.Logger, error) {
 	rootLogger := logrus.New()
 	rootLogger.Formatter = &logrus.JSONFormatter{}
@@ -70,7 +63,7 @@ func NewRoot(app, logDir string, level logrus.Level) (*logrus.Logger, error) {
 	return rootLogger, nil
 }
 
-// NewAudit returns a new client gRPC connections audit logger.
+// NewAudit returns a new client gRPC connections audit logger, JSON-encoded.
 func NewAudit(logDir string) (*logrus.Logger, error) {
 	auditLogger := logrus.New()
 	auditLogger.Formatter = &logrus.JSONFormatter{}

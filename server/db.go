@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/server/db"
 )
 
@@ -19,7 +18,7 @@ const (
 // GetDatabaseConfigPath - File path to config.json
 func (ts *Server) dbConfigPath() string {
 	appDir := ts.AppDir()
-	log := log.NewNamed(ts.log, "config", "database")
+	log := ts.NamedLogger("config", "database")
 	databaseConfigPath := filepath.Join(appDir, "configs", databaseConfigFileName)
 	log.Debugf("Loading config from %s", databaseConfigPath)
 	return databaseConfigPath
@@ -27,7 +26,7 @@ func (ts *Server) dbConfigPath() string {
 
 // Save - Save config file to disk
 func (ts *Server) saveDatabaseConfig(c *db.Config) error {
-	log := log.NewNamed(ts.log, "config", "database")
+	log := ts.NamedLogger("config", "database")
 
 	configPath := ts.dbConfigPath()
 	configDir := path.Dir(configPath)

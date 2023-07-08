@@ -49,7 +49,7 @@ func New(application string, client Teamclient[any], options ...Options) (*Clien
 	}
 
 	// Loggers
-	teamclient.log, err = log.NewClient(teamclient.AppDir(), application, logrus.ErrorLevel)
+	teamclient.log, err = log.NewClient(teamclient.AppDir(), application, logrus.DebugLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -180,5 +180,8 @@ func (tc *Client) ServerVersion() (ver proto.Version, err error) {
 // NamedLogger returns a new logging "thread" which should grossly
 // indicate the package/general domain, and a more precise flow/stream.
 func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
-	return log.NewNamed(tc.log, pkg, stream)
+	return tc.log.WithFields(logrus.Fields{
+		log.PackageFieldKey: pkg,
+		"stream":            stream,
+	})
 }

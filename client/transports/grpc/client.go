@@ -2,11 +2,13 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
@@ -58,6 +60,7 @@ func (h *handler) Init(cli *client.Client) error {
 		grpc.WithBlock(),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(ClientMaxReceiveMessageSize)),
 		grpc.WithUnaryInterceptor(grpc_logrus.UnaryClientInterceptor(logrusEntry, logrusOpts...)),
+		grpc.WithUnaryInterceptor(h.loggingInterceptor(logrusEntry)),
 	}
 
 	// If the configuration has no credentials, we are most probably
@@ -132,4 +135,18 @@ func (h *handler) Version() (*proto.Version, error) {
 	}
 
 	return version, nil
+}
+
+func (h *handler) loggingInterceptor(log *logrus.Entry) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		rawRequest, err := json.Marshal(req)
+		if err != nil {
+			log.Errorf("Failed to serialize %s", err)
+			return invoker(ctx, method, req, reply, cc, opts...)
+		}
+
+		log.Debugf("Raw request: %s", string(rawRequest))
+
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
 }

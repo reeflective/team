@@ -14,7 +14,6 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
-	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/internal/transport"
 	"github.com/reeflective/team/server/db"
@@ -108,7 +107,7 @@ func (ts *Server) DeleteUser(name string) error {
 }
 
 func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized bool, err error) {
-	log := log.NewNamed(ts.log, "server", "auth")
+	log := ts.NamedLogger("server", "auth")
 	log.Debugf("Authorization-checking user token ...")
 
 	// Check auth cache
@@ -171,7 +170,7 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 // getUserTLSConfig - Generate the TLS configuration, we do now allow the end user
 // to specify any TLS parameters, we choose sensible defaults instead.
 func (ts *Server) GetUserTLSConfig() *tls.Config {
-	log := log.NewNamed(ts.log, "certs", "mtls")
+	log := ts.NamedLogger("certs", "mtls")
 	caCertPtr, _, err := ts.certs.GetUsersCA()
 	if err != nil {
 		log.Error("Failed to get users certificate authority")

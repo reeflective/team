@@ -128,7 +128,9 @@ func (ts *handler) auditLogUnaryServerInterceptor(auditLog *logrus.Logger) grpc.
 			log.Errorf("Failed to serialize %s", err)
 			return
 		}
+
 		log.Debugf("Raw request: %s", string(rawRequest))
+
 		if err != nil {
 			log.Errorf("Middleware failed to insert details: %s", err)
 		}

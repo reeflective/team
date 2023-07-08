@@ -50,7 +50,7 @@ func (ts *Server) ConfigPath() string {
 
 // GetConfig returns the team server configuration struct.
 func (ts *Server) GetConfig() *Config {
-	cfgLog := log.NewNamed(ts.log, "config", "server")
+	cfgLog := ts.NamedLogger("config", "server")
 
 	configPath := ts.ConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
@@ -89,7 +89,7 @@ func (ts *Server) GetConfig() *Config {
 
 // Save - Save config file to disk
 func (ts *Server) SaveConfig(c *Config) error {
-	log := log.NewNamed(ts.log, "config", "server")
+	log := ts.NamedLogger("config", "server")
 
 	configPath := ts.ConfigPath()
 	configDir := filepath.Dir(configPath)

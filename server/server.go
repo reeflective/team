@@ -173,7 +173,7 @@ func (ts *Server) ServeAddr(host string, port uint16, opts ...Options) (net.List
 // It also accepts a function that will be called just after starting the server, so
 // that users can still register their per-application services before actually blocking.
 func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
-	log := log.NewNamed(ts.log, "daemon", "main")
+	log := ts.NamedLogger("daemon", "main")
 
 	// cli args take president over config
 	if host == blankHost {
@@ -228,7 +228,10 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 // NamedLogger returns a new logging "thread" which should grossly
 // indicate the package/general domain, and a more precise flow/stream.
 func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
-	return log.NewNamed(ts.log, pkg, stream)
+	return ts.log.WithFields(logrus.Fields{
+		log.PackageFieldKey: pkg,
+		"stream":            stream,
+	})
 }
 
 // init a function that must not be ran when the teamserver
