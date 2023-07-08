@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,31 +15,6 @@ import (
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/version"
-)
-
-const (
-	// ANSI Colors
-	normal    = "\033[0m"
-	black     = "\033[30m"
-	red       = "\033[31m"
-	green     = "\033[32m"
-	orange    = "\033[33m"
-	blue      = "\033[34m"
-	purple    = "\033[35m"
-	cyan      = "\033[36m"
-	gray      = "\033[37m"
-	bold      = "\033[1m"
-	clearln   = "\r\x1b[2K"
-	upN       = "\033[%dA"
-	downN     = "\033[%dB"
-	underline = "\033[4m"
-
-	// info - Display colorful information
-	info = bold + cyan + "[*] " + normal
-	// warn - warn a user
-	warn = bold + red + "[!] " + normal
-	// debugl - Display debugl information
-	debugl = bold + purple + "[-] " + normal
 )
 
 // Commands initliazes and returns a command tree to embed in client applications
@@ -84,18 +60,18 @@ func clientCommands(cli *client.Client) *cobra.Command {
 			// Server
 			serverVer, err := cli.ServerVersion()
 			if err != nil {
-				fmt.Printf(warn+"Server error: %w", err)
+				fmt.Printf(command.Warn+"Server error: %s\n", err)
 			}
 
 			dirty := ""
 			if serverVer.Dirty {
-				dirty = fmt.Sprintf(" - %sDirty%s", bold, normal)
+				dirty = fmt.Sprintf(" - %sDirty%s", command.Bold, command.Normal)
 			}
 			serverSemVer := fmt.Sprintf("%d.%d.%d", serverVer.Major, serverVer.Minor, serverVer.Patch)
-			fmt.Printf(info+"Server v%s - %s%s\n", serverSemVer, serverVer.Commit, dirty)
+			fmt.Printf(command.Info+"Server v%s - %s%s\n", serverSemVer, serverVer.Commit, dirty)
 
 			// Client
-			fmt.Printf(info+"Client %s\n", version.Full())
+			fmt.Printf(command.Info+"Client %s\n", version.Full())
 
 			return nil
 		},
@@ -110,8 +86,10 @@ func clientCommands(cli *client.Client) *cobra.Command {
 			if 0 < len(args) {
 				for _, arg := range args {
 					conf, err := cli.ReadConfig(arg)
-					if err != nil {
-						fmt.Printf("[!] %s\n", err)
+					if jsonErr, ok := err.(*json.SyntaxError); ok {
+						fmt.Printf(command.Warn+"%s\n", jsonErr.Error())
+					} else if err != nil {
+						fmt.Printf(command.Warn+"%s\n", err.Error())
 						continue
 					}
 					cli.SaveConfig(conf)
@@ -155,12 +133,12 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 		var compErrors []carapace.Action
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			compErrors = append(compErrors, carapace.ActionMessage("failed to get user home dir: %w", err))
+			compErrors = append(compErrors, carapace.ActionMessage("failed to get user home dir: %s", err))
 		}
 
 		dirs, err := os.ReadDir(homeDir)
 		if err != nil {
-			compErrors = append(compErrors, carapace.ActionMessage("failed to list user directories: %w", err))
+			compErrors = append(compErrors, carapace.ActionMessage("failed to list user directories: %s", err))
 		}
 
 		var results []string
