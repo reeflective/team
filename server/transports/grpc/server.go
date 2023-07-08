@@ -30,6 +30,7 @@ const (
 
 type handler struct {
 	*server.Server
+	sconfig *server.Config
 
 	options []grpc.ServerOption
 	conn    *bufconn.Listener
@@ -75,6 +76,7 @@ func DialerFrom(server *handler) (teamclient client.Teamclient[any]) {
 // done as long as it's for ensuring that the rest will work.
 func (h *handler) Init(serv *server.Server) (err error) {
 	h.Server = serv
+	h.sconfig = h.Server.GetConfig()
 
 	// Logging/authentication/audit
 	serverOptions, err := h.initMiddleware()

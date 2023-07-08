@@ -44,9 +44,7 @@ type Config struct {
 func (ts *Server) ConfigPath() string {
 	appDir := ts.AppDir()
 
-	log := log.NewNamed(ts.log, "config", "server")
 	serverConfigPath := filepath.Join(appDir, "configs", serverConfigFileName)
-	log.Debugf("Loading config from %s", serverConfigPath)
 	return serverConfigPath
 }
 
@@ -56,6 +54,8 @@ func (ts *Server) GetConfig() *Config {
 
 	configPath := ts.ConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		cfgLog.Debugf("Loading config from %s", configPath)
+
 		data, err := os.ReadFile(configPath)
 		if err != nil {
 			cfgLog.Errorf("Failed to read config file %s", err)
@@ -100,10 +100,12 @@ func (ts *Server) SaveConfig(c *Config) error {
 			return err
 		}
 	}
+
 	data, err := json.MarshalIndent(c, "", "    ")
 	if err != nil {
 		return err
 	}
+
 	log.Debugf("Saving config to %s", configPath)
 	err = os.WriteFile(configPath, data, 0o600)
 	if err != nil {

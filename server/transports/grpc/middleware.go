@@ -107,11 +107,11 @@ func (ts *handler) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 }
 
 func (ts *handler) deciderUnary(_ context.Context, _ string, _ interface{}) bool {
-	return ts.GetConfig().Log.GRPCUnaryPayloads
+	return ts.sconfig.Log.GRPCUnaryPayloads
 }
 
 func (ts *handler) deciderStream(_ context.Context, _ string, _ interface{}) bool {
-	return ts.GetConfig().Log.GRPCStreamPayloads
+	return ts.sconfig.Log.GRPCStreamPayloads
 }
 
 type auditUnaryLogMsg struct {
