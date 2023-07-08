@@ -5,8 +5,10 @@ import (
 
 	"github.com/rsteube/carapace"
 
+	teamclient "github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/command/server"
-	"github.com/reeflective/team/server"
+	teamserver "github.com/reeflective/team/server"
+	"github.com/reeflective/team/server/transports/grpc"
 )
 
 func main() {
@@ -16,14 +18,25 @@ func main() {
 	//
 	// This call to create the server only creates the application default directory.
 	// No files, logs, connections or any interaction with the os/filesystem are made.
-	teamServer, err := server.New("teamserver", server.WithDefaultPort(31340))
+	// TODO: Rewrite comments
+	listener := grpc.NewServer()
+
+	server, err := teamserver.New("teamserver", listener)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// TODO: write comments
+	dialer := grpc.DialerFrom(listener)
+
+	client, err := teamclient.New(server.Name(), dialer)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Generate a tree of server-side commands: this tree also has client-only
 	// commands as a subcommand "client" of the "teamserver" command root here.
-	serverCmds := cli.Commands(teamServer, teamServer.Self())
+	serverCmds := cli.Commands(server, client)
 
 	// Generate completions for the tree.
 	carapace.Gen(serverCmds)

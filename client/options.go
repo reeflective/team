@@ -1,41 +1,36 @@
 package client
 
-import "google.golang.org/grpc"
-
 // Options are client options.
-type Options func(opts *opts) *opts
+type Options func(opts *opts)
 
 type opts struct {
 	config  *Config
-	conn    *grpc.ClientConn
 	console bool
+	dialer  Dialer[any]
+	hooks   []func(s any) error
+}
+
+func defaultOpts() *opts {
+	return &opts{
+		config: &Config{},
+	}
 }
 
 func (tc *Client) apply(options ...Options) {
 	for _, optFunc := range options {
-		tc.opts = optFunc(tc.opts)
+		optFunc(tc.opts)
 	}
 
-	if tc.opts.conn != nil {
-		tc.conn = tc.opts.conn
-	}
-}
-
-// WithConnection sets up the client to use a given gRPC client connection.
-// This should generally only be used by server binary to speak to themselves.
-func WithConnection(conn *grpc.ClientConn) Options {
-	return func(opts *opts) *opts {
-		opts.conn = conn
-		return opts
+	if tc.opts.dialer != nil {
+		tc.dialer = tc.opts.dialer
 	}
 }
 
 // WithConfig sets the client to use a given teamserver configuration for
 // connection, instead of using default user/application configurations.
 func WithConfig(config *Config) Options {
-	return func(opts *opts) *opts {
+	return func(opts *opts) {
 		opts.config = config
-		return opts
 	}
 }
 
@@ -45,8 +40,24 @@ func WithConfig(config *Config) Options {
 // If this is the case, this option will ensure that any cobra client command
 // runners produced by this library will not disconnect after each execution.
 func WithNoDisconnect() Options {
-	return func(opts *opts) *opts {
+	return func(opts *opts) {
 		opts.console = true
-		return opts
+	}
+}
+
+// WithDialer sets a custom dialer to connect to the teamserver.
+func WithDialer(dialer Dialer[any]) Options {
+	return func(opts *opts) {
+		opts.dialer = dialer
+	}
+}
+
+// WithPostConnectHooks adds a list of hooks to run on the generic RPC client
+// returned by the Teamclient/Dialer Dial() method. This client object can be
+// pretty much any client-side RPC connection, or just raw connection.
+// You will have to typecast this conn in your hooks.
+func WithPostConnectHooks(hooks ...func(conn any) error) Options {
+	return func(opts *opts) {
+		opts.hooks = append(opts.hooks, hooks...)
 	}
 }

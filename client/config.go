@@ -28,19 +28,6 @@ type Config struct {
 	Certificate   string `json:"certificate"`
 }
 
-// GetConfigDir - Returns the path to the config dir
-func (tc *Client) ConfigsDir() string {
-	rootDir, _ := filepath.Abs(tc.AppDir())
-	dir := filepath.Join(rootDir, configsDirName)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0o700)
-		if err != nil {
-			tc.log.Errorf("cannot write to %s configs dir: %w", dir, err)
-		}
-	}
-	return dir
-}
-
 // GetConfigs returns a list of available configs in
 // the application config directory (~/.app/configs)
 func (tc *Client) GetConfigs() map[string]*Config {
@@ -105,26 +92,6 @@ func (tc *Client) SaveConfig(config *Config) error {
 	return nil
 }
 
-// DefaultUserConfig returns the default user configuration for this application.
-// the file is of the following form: ~/.app/configs/app_USERNAME_default.cfg.
-// If the latter is found, it returned, otherwise no config is returned.
-func (tc *Client) DefaultUserConfig() (cfg *Config) {
-	user, err := user.Current()
-	if err != nil {
-		return nil
-	}
-
-	filename := fmt.Sprintf("%s_%s_default", tc.Name(), user.Username)
-	saveTo := tc.ConfigsDir()
-
-	configPath := filepath.Join(saveTo, filename+".cfg")
-	if _, err := os.Stat(configPath); err == nil {
-		cfg, _ = tc.ReadConfig(configPath)
-	}
-
-	return cfg
-}
-
 // SelectConfig either returns the only configuration found in the
 // application client configs directory, or prompts the user to select one.
 // This call might thus be blocking, and expect user input.
@@ -150,6 +117,31 @@ func (tc *Client) SelectConfig() *Config {
 	}
 
 	return configs[answer.Config]
+}
+
+// Config returns the current teamclient server configuration.
+func (tc *Client) Config() *Config {
+	return tc.opts.config
+}
+
+// defaultUserConfig returns the default user configuration for this application.
+// the file is of the following form: ~/.app/configs/app_USERNAME_default.cfg.
+// If the latter is found, it returned, otherwise no config is returned.
+func (tc *Client) defaultUserConfig() (cfg *Config) {
+	user, err := user.Current()
+	if err != nil {
+		return nil
+	}
+
+	filename := fmt.Sprintf("%s_%s_default", tc.Name(), user.Username)
+	saveTo := tc.ConfigsDir()
+
+	configPath := filepath.Join(saveTo, filename+".cfg")
+	if _, err := os.Stat(configPath); err == nil {
+		cfg, _ = tc.ReadConfig(configPath)
+	}
+
+	return cfg
 }
 
 func getPromptForConfigs(configs map[string]*Config) []*survey.Question {

@@ -6,6 +6,7 @@ import (
 	"github.com/rsteube/carapace"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/client/transports/grpc"
 	cli "github.com/reeflective/team/command/client"
 )
 
@@ -13,7 +14,7 @@ func main() {
 	// Create a new teamserver client, without any working
 	// gRPC connection at this stage. We could pass some options
 	// to it if we want to customize behavior.
-	client, err := client.New("teamserver")
+	client, err := client.New("teamserver", grpc.NewTeamClient())
 	if err != nil {
 		log.Fatal(err)
 	}
