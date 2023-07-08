@@ -68,51 +68,52 @@ func (tc *Client) Name() string {
 // will prompt the user to choose one of them.
 // TODO: Run with once.
 func (tc *Client) Connect(options ...Options) (err error) {
-	tc.apply(options...)
+	tc.connectedT.Do(func() {
+		tc.apply(options...)
 
-	cfg := tc.opts.config
+		cfg := tc.opts.config
 
-	// Else connect with any available configuration.
-	// TODO: Change this, since config is never nil...
-	if tc.opts.config != nil {
-		configs := tc.GetConfigs()
-		if len(configs) == 0 {
-			return fmt.Errorf("no config files found at %s", tc.ConfigsDir())
+		if !tc.opts.local {
+			configs := tc.GetConfigs()
+			if len(configs) == 0 {
+				err = fmt.Errorf("no config files found at %s", tc.ConfigsDir())
+				return
+			}
+			cfg = tc.SelectConfig()
 		}
-		cfg = tc.SelectConfig()
-	}
 
-	if cfg == nil {
-		return errors.New("no application was selected or parsed")
-	}
-	tc.opts.config = cfg
-
-	// Our teamclient must be a dialer, only use
-	// it if we don't have a custom dialer to use
-	if tc.dialer == nil {
-		tc.dialer = tc.core
-	}
-
-	// Initialize the dialer with our client.
-	err = tc.dialer.Init(tc)
-	if err != nil {
-		return err
-	}
-
-	// Connect to the teamserver.
-	client, err := tc.dialer.Dial()
-	if err != nil {
-		return err
-	}
-
-	// Post-run hooks are used by consumers to further setup/consume
-	// the connection after the latter was established. In the case
-	// of RPCs, this client is generally used to register them.
-	for _, hook := range tc.opts.hooks {
-		if err := hook(client); err != nil {
-			return err
+		if cfg == nil {
+			err = errors.New("no application was selected or parsed")
 		}
-	}
+		tc.opts.config = cfg
+
+		// Our teamclient must be a dialer, only use
+		// it if we don't have a custom dialer to use
+		if tc.dialer == nil {
+			tc.dialer = tc.core
+		}
+
+		// Initialize the dialer with our client.
+		err = tc.dialer.Init(tc)
+		if err != nil {
+			return
+		}
+
+		// Connect to the teamserver.
+		client, err := tc.dialer.Dial()
+		if err != nil {
+			return
+		}
+
+		// Post-run hooks are used by consumers to further setup/consume
+		// the connection after the latter was established. In the case
+		// of RPCs, this client is generally used to register them.
+		for _, hook := range tc.opts.hooks {
+			if err = hook(client); err != nil {
+				return
+			}
+		}
+	})
 
 	return
 }

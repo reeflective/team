@@ -119,14 +119,17 @@ func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 		return err
 	}
 
-	_, err = ts.ServeAddr("", 0, opts...)
+	host := cli.Config().Host
+	port := uint16(cli.Config().Port)
+
+	_, err = ts.ServeAddr(host, port, opts...)
 	if err != nil {
 		return err
 	}
 
 	// Attempt to connect with the user configuration.
 	// Return if we are done, since we
-	err = cli.Connect()
+	err = cli.Connect(client.WithLocalDialer())
 	if err != nil {
 		return err
 	}

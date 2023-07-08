@@ -78,6 +78,7 @@ func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 	}, nil
 }
 
+// TODO: Should we change the default in-memory server name ?
 func serverAuthFunc(ctx context.Context) (context.Context, error) {
 	newCtx := context.WithValue(ctx, "transport", "local")
 	newCtx = context.WithValue(newCtx, "user", "server")

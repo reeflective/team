@@ -6,11 +6,12 @@ import "github.com/sirupsen/logrus"
 type Options func(opts *opts)
 
 type opts struct {
-	config  *Config
 	noLogs  bool
 	logFile string
-	logger  *logrus.Logger
 	console bool
+	local   bool
+	config  *Config
+	logger  *logrus.Logger
 	dialer  Dialer[any]
 	hooks   []func(s any) error
 }
@@ -86,5 +87,17 @@ func WithDialer(dialer Dialer[any]) Options {
 func WithPostConnectHooks(hooks ...func(conn any) error) Options {
 	return func(opts *opts) {
 		opts.hooks = append(opts.hooks, hooks...)
+	}
+}
+
+// WithLocalDialer sets the teamclient to connect with an in-memory dialer
+// (provided when creating the teamclient). This in effect only prevents
+// the teamclient from looking and loading/prompting remote client configs.
+//
+// Because this option is automatically called by the teamserver.ServeLocal()
+// function, you should probably not have any reason to use this option.
+func WithLocalDialer() Options {
+	return func(opts *opts) {
+		opts.local = true
 	}
 }

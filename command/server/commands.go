@@ -50,16 +50,7 @@ func Commands(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 		}
 
 		// And connect the client locally, only needed.
-		_ = teamserver.ServeLocal(teamclient)
-		// _, err := teamserver.Serve(teamclient)
-
-		// And connect the client locally, only needed.
-		// err = teamclient.Connect()
-		// if err != nil {
-		// 	return err
-		// }
-
-		return nil
+		return teamserver.ServeLocal(teamclient)
 	}
 
 	// Server-only commands always need to have open log
