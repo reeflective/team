@@ -11,23 +11,23 @@ import (
 type Options func(opts *opts[any])
 
 type opts[server any] struct {
-	config      *Config
-	dbConfig    *db.Config
-	db          *gorm.DB
-	logger      *logrus.Logger
 	logFile     string
 	local       bool
 	userDefault bool
 	noLogs      bool
 	noFiles     bool
 
-	handler func(ln Handler[any]) error
-	hooks   []func(serv server) error
+	config   *Config
+	dbConfig *db.Config
+	db       *gorm.DB
+	logger   *logrus.Logger
+
+	hooks []func(serv server) error
 }
 
 // default in-memory configuration, ready to run.
-func newDefaultOpts[server any]() *opts[server] {
-	options := &opts[server]{
+func newDefaultOpts() *opts[any] {
+	options := &opts[any]{
 		config: getDefaultServerConfig(),
 		local:  false,
 	}
@@ -98,12 +98,6 @@ func WithDatabaseConfig(config *db.Config) Options {
 func WithDatabase(db *gorm.DB) Options {
 	return func(opts *opts[any]) {
 		opts.db = db
-	}
-}
-
-func WithCustomHandler(handler func(ln Handler[any]) error) Options {
-	return func(opts *opts[any]) {
-		opts.handler = handler
 	}
 }
 

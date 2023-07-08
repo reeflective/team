@@ -17,6 +17,22 @@ func NewNamed(log *logrus.Logger, pkg, stream string) *logrus.Entry {
 	})
 }
 
+// NewStdout returns a logger printing its results to stdout.
+func NewStdout(app string, level logrus.Level) *logrus.Logger {
+	stdLogger := logrus.New()
+	stdLogger.Formatter = &textFormatter{
+		DisableColors: false,
+		ShowTimestamp: false,
+		Colors:        defaultFieldsFormat(),
+	}
+
+	stdLogger.SetLevel(logrus.ErrorLevel)
+	stdLogger.SetReportCaller(true)
+	stdLogger.Out = os.Stdout
+
+	return stdLogger
+}
+
 // NewClient creates a default in-memory logger which
 // prints everything out (with formatting) to os.Stdout.
 // All clients and servers make use of this logger.

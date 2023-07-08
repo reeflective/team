@@ -59,31 +59,32 @@ func (ts *Server) GetConfig() *Config {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
 			cfgLog.Errorf("Failed to read config file %s", err)
-			return ts.config
+			return ts.opts.config
 		}
-		err = json.Unmarshal(data, ts.config)
+		err = json.Unmarshal(data, ts.opts.config)
 		if err != nil {
 			cfgLog.Errorf("Failed to parse config file %s", err)
-			return ts.config
+			return ts.opts.config
 		}
 	} else {
 		cfgLog.Warnf("Config file does not exist, using defaults")
 	}
 
-	if ts.config.Log.Level < 0 {
-		ts.config.Log.Level = 0
+	if ts.opts.config.Log.Level < 0 {
+		ts.opts.config.Log.Level = 0
 	}
-	if 6 < ts.config.Log.Level {
-		ts.config.Log.Level = 6
+	if 6 < ts.opts.config.Log.Level {
+		ts.opts.config.Log.Level = 6
 	}
-	ts.log.SetLevel(log.LevelFrom(ts.config.Log.Level))
+	ts.log.SetLevel(log.LevelFrom(ts.opts.config.Log.Level))
 
 	// This updates the config with any missing fields
-	err := ts.SaveConfig(ts.config)
+	err := ts.SaveConfig(ts.opts.config)
 	if err != nil {
 		cfgLog.Errorf("Failed to save default config %s", err)
 	}
-	return ts.config
+
+	return ts.opts.config
 }
 
 // Save - Save config file to disk
@@ -123,18 +124,18 @@ func (ts *Server) AddListener(host string, port uint16) error {
 		ID:   getRandomID(),
 	}
 
-	ts.config.Listeners = append(ts.config.Listeners, listener)
+	ts.opts.config.Listeners = append(ts.opts.config.Listeners, listener)
 
-	return ts.SaveConfig(ts.config)
+	return ts.SaveConfig(ts.opts.config)
 }
 
 // RemoveListenerJob removes a server listener job from the configuration and saves it.
 func (ts *Server) RemoveListener(id string) {
-	if ts.config.Listeners == nil {
+	if ts.opts.config.Listeners == nil {
 		return
 	}
 
-	defer ts.SaveConfig(ts.config)
+	defer ts.SaveConfig(ts.opts.config)
 
 	var listeners []struct {
 		Host string `json:"host"`
@@ -142,23 +143,23 @@ func (ts *Server) RemoveListener(id string) {
 		ID   string `json:"id"`
 	}
 
-	for _, listener := range ts.config.Listeners {
+	for _, listener := range ts.opts.config.Listeners {
 		if listener.ID != id {
 			listeners = append(listeners, listener)
 		}
 	}
 
-	ts.config.Listeners = listeners
+	ts.opts.config.Listeners = listeners
 }
 
 // startPersistentListeners starts all teamserver listeners,
 // aborting and returning an error if one of those raise one.
 func (ts *Server) startPersistentListeners() error {
-	if ts.config.Listeners == nil {
+	if ts.opts.config.Listeners == nil {
 		return nil
 	}
 
-	for _, j := range ts.config.Listeners {
+	for _, j := range ts.opts.config.Listeners {
 		_, err := ts.ServeAddr(j.Host, j.Port)
 		if err != nil {
 			return err
@@ -197,8 +198,8 @@ func (ts *Server) clientServerMatch(config *client.Config) bool {
 		return false
 	}
 
-	if ts.config.Listeners != nil {
-		for _, job := range ts.config.Listeners {
+	if ts.opts.config.Listeners != nil {
+		for _, job := range ts.opts.config.Listeners {
 			if job.Host == config.Host && job.Port == uint16(config.Port) {
 				return true
 			}
@@ -206,7 +207,7 @@ func (ts *Server) clientServerMatch(config *client.Config) bool {
 	}
 
 	// If matching our daemon config.
-	if ts.config.DaemonMode.Host == config.Host && ts.config.DaemonMode.Port == config.Port {
+	if ts.opts.config.DaemonMode.Host == config.Host && ts.opts.config.DaemonMode.Port == config.Port {
 		return true
 	}
 

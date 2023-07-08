@@ -30,15 +30,14 @@ type Server struct {
 	userTokens *sync.Map
 
 	// Configurations
-	opts   *opts[any]
-	config *Config
-	db     *gorm.DB
-	certs  *certs.Manager
+	opts  *opts[any]
+	db    *gorm.DB
+	certs *certs.Manager
 
 	ln Handler[any]
 
 	// Services
-	init *sync.Once
+	initOnce *sync.Once
 	*proto.UnimplementedTeamServer
 }
 
@@ -73,27 +72,30 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		name:                    application,
 		rootDirEnv:              fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
 		userTokens:              &sync.Map{},
-		opts:                    &opts[any]{},
+		opts:                    newDefaultOpts(),
 		ln:                      ln,
-		init:                    &sync.Once{},
-		config:                  getDefaultServerConfig(),
+		initOnce:                &sync.Once{},
 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}
 
+	// Logging
+	level := logrus.Level(server.opts.config.Log.Level)
+
 	// Ensure all teamserver-specific directories are writable.
-	if !server.opts.noLogs {
+	if !server.opts.noLogs || !server.opts.noFiles {
 		if err := server.checkWritableFiles(); err != nil {
 			return nil, err
 		}
+		server.log, err = log.NewClient(server.LogsDir(), server.Name(), level)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		server.log = log.NewStdout(server.Name(), level)
 	}
 
-	// Logging (not writing to files until init)
-	level := logrus.Level(server.config.Log.Level)
-
-	server.log, err = log.NewClient(server.LogsDir(), server.Name(), level)
-	if err != nil {
-		return nil, err
-	}
+	// Database configuration.
+	server.opts.dbConfig = server.getDatabaseConfig()
 
 	return server, nil
 }
@@ -108,7 +110,12 @@ func (ts *Server) Name() string {
 
 // TODO: Rewrite doc comment.
 func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
-	err := ts.ln.Init(ts)
+	err := ts.init(opts...)
+	if err != nil {
+		return err
+	}
+
+	err = ts.ln.Init(ts)
 	if err != nil {
 		return err
 	}
@@ -135,6 +142,11 @@ func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 // of the time be done with this function, as it will return you the gRPC server to which
 // you can attach any application-specific APIs.
 func (ts *Server) ServeAddr(host string, port uint16, opts ...Options) (net.Listener, error) {
+	err := ts.init(opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	listener, err := ts.ln.Listen(fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return listener, err
@@ -163,11 +175,11 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 
 	// cli args take president over config
 	if host == blankHost {
-		host = ts.config.DaemonMode.Host
+		host = ts.opts.config.DaemonMode.Host
 		log.Info("No host specified, using config file default: %s", host)
 	}
 	if port == blankPort {
-		port = uint16(ts.config.DaemonMode.Port)
+		port = uint16(ts.opts.config.DaemonMode.Port)
 		log.Infof("No port specified, using config file default: %d", port)
 	}
 
@@ -216,18 +228,19 @@ func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
 	return log.NewNamed(ts.log, pkg, stream)
 }
 
-func (ts *Server) initServer(opts ...Options) error {
+// init a function that must not be ran when the teamserver
+// is instantiated, but when it starts serving its users.
+// This starts database connections, certificates setup, applies last-minute options, etc.
+func (ts *Server) init(opts ...Options) error {
 	var err error
 
-	ts.init.Do(func() {
-		// Default and user options do not prevail
-		// on what is in the configuration file
-		ts.apply(WithDatabaseConfig(ts.getDatabaseConfig()))
+	ts.initOnce.Do(func() {
+		// Last time for setting options.
 		ts.apply(opts...)
 
 		// Load any relevant server configuration: on disk,
 		// contained in options, or the default one.
-		ts.config = ts.GetConfig()
+		ts.opts.config = ts.GetConfig()
 
 		// Database
 		if ts.opts.db == nil {
@@ -238,7 +251,7 @@ func (ts *Server) initServer(opts ...Options) error {
 		}
 
 		// Certificate infrastructure
-		certsLog := log.NewNamed(ts.log, "certs", "certificates")
+		certsLog := ts.NamedLogger("certs", "certificates")
 		ts.certs = certs.NewManager(ts.db.Session(&gorm.Session{}), certsLog, ts.AppDir())
 	})
 
