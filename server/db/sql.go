@@ -32,7 +32,7 @@ import (
 var ErrRecordNotFound = gorm.ErrRecordNotFound
 
 // NewClient initializes a database client connection to a backend specified in config.
-func NewClient(dbConfig *Config, logger *logrus.Logger) (*gorm.DB, error) {
+func NewClient(dbConfig *Config, dbLogger *logrus.Entry) (*gorm.DB, error) {
 	var dbClient *gorm.DB
 
 	dsn, err := dbConfig.DSN()
@@ -40,9 +40,8 @@ func NewClient(dbConfig *Config, logger *logrus.Logger) (*gorm.DB, error) {
 		return nil, fmt.Errorf("Failed to marshal database DSN: %w", err)
 	}
 
-	dbLogger := log.NewNamed(logger, "database", "database")
-
-	dbLog := getGormLogger(logger, dbConfig.LogLevel)
+	// Logging middleware (queries)
+	dbLog := log.NewDatabase(dbLogger, dbConfig.LogLevel)
 
 	switch dbConfig.Dialect {
 	case Sqlite:

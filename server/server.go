@@ -247,7 +247,8 @@ func (ts *Server) init(opts ...Options) error {
 
 		// Database
 		if ts.opts.db == nil {
-			ts.db, err = db.NewClient(ts.opts.dbConfig, ts.log)
+			dbLogger := ts.NamedLogger("database", "database")
+			ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
 			if err != nil {
 				return
 			}
