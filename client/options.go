@@ -1,10 +1,15 @@
 package client
 
+import "github.com/sirupsen/logrus"
+
 // Options are client options.
 type Options func(opts *opts)
 
 type opts struct {
 	config  *Config
+	noLogs  bool
+	logFile string
+	logger  *logrus.Logger
 	console bool
 	dialer  Dialer[any]
 	hooks   []func(s any) error
@@ -23,6 +28,28 @@ func (tc *Client) apply(options ...Options) {
 
 	if tc.opts.dialer != nil {
 		tc.dialer = tc.opts.dialer
+	}
+}
+
+// WithNoLogs deactivates all logging normally done by the teamclient
+// if noLogs is set to true, or keeps/reestablishes them if false.
+func WithNoLogs(noLogs bool) Options {
+	return func(opts *opts) {
+		opts.noLogs = noLogs
+	}
+}
+
+// WithLogFile sets the path to the file where teamclient logging should be done.
+func WithLogFile(filePath string) Options {
+	return func(opts *opts) {
+		opts.logFile = filePath
+	}
+}
+
+// WithLogger sets the teamclient to use a specific logger for logging
+func WithLogger(logger *logrus.Logger) Options {
+	return func(opts *opts) {
+		opts.logger = logger
 	}
 }
 

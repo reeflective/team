@@ -4,6 +4,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/reeflective/team/server/db"
+	"github.com/sirupsen/logrus"
 )
 
 // Options are server options.
@@ -13,9 +14,12 @@ type opts[server any] struct {
 	config      *Config
 	dbConfig    *db.Config
 	db          *gorm.DB
+	logger      *logrus.Logger
+	logFile     string
 	local       bool
 	userDefault bool
 	noLogs      bool
+	noFiles     bool
 
 	handler func(ln Handler[any]) error
 	hooks   []func(serv server) error
@@ -37,21 +41,48 @@ func (ts *Server) apply(options ...Options) {
 	}
 }
 
-// WithLogger
-// WithAuditFile
-// WithLogFile
-
-func WithNoLogs() Options {
-	return func(opts *opts[any]) {
-		opts.noLogs = true
-	}
-}
-
 // WithDefaultPort sets the default port on which the teamserver should start listeners.
 // This default is used in the default daemon configuration, and as command flags defaults.
 func WithDefaultPort(port uint16) Options {
 	return func(opts *opts[any]) {
 		opts.config.DaemonMode.Port = int(port)
+	}
+}
+
+// WithNoFiles deactivates all interactions between the teamserver and
+// the OS filesystem: no database is created, no log files written.
+// Using this option with noFiles set to true will in effect disable
+// the multiplayer/remote functionality of the teamserver.
+//
+// This option can be useful if you have embedded a teamserver into
+// your application because you might need it in the future, but that
+// you don't want it yet to do anything other than being compiled in.
+func WithNoFiles(noFiles bool) Options {
+	return func(opts *opts[any]) {
+		opts.noFiles = noFiles
+	}
+}
+
+// WithNoLogs deactivates all logging normally done by the teamserver
+// if noLogs is set to true, or keeps/reestablishes them if false.
+func WithNoLogs(noLogs bool) Options {
+	return func(opts *opts[any]) {
+		opts.noLogs = noLogs
+	}
+}
+
+// WithLogFile sets the path to the file where teamserver logging should be done.
+func WithLogFile(filePath string) Options {
+	return func(opts *opts[any]) {
+		opts.logFile = filePath
+	}
+}
+
+// WithLogger sets the teamserver to use a specific logger for
+// all logging, except the audit log which is indenpendent.
+func WithLogger(logger *logrus.Logger) Options {
+	return func(opts *opts[any]) {
+		opts.logger = logger
 	}
 }
 
@@ -90,8 +121,8 @@ func WithPreServeHooks(hooks ...func(server any) error) Options {
 // WithOSUserDefault automatically creates a user for the teamserver, using the current OS user.
 // This will create the client application directory (~/.app) if needed, and will write the config
 // in the configs dir, using 'app_local_user_default.cfg' name, overwriting any file having this name.
-func WithOSUserDefault() Options {
-	return func(opts *opts[any]) {
-		opts.userDefault = true
-	}
-}
+// func WithOSUserDefault() Options {
+// 	return func(opts *opts[any]) {
+// 		opts.userDefault = true
+// 	}
+// }
