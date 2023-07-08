@@ -96,9 +96,6 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		server.log = log.NewStdout(server.Name(), level)
 	}
 
-	// Database configuration.
-	server.opts.dbConfig = server.getDatabaseConfig()
-
 	return server, nil
 }
 
@@ -241,6 +238,9 @@ func (ts *Server) init(opts ...Options) error {
 	var err error
 
 	ts.initOnce.Do(func() {
+		// Database configuration.
+		ts.opts.dbConfig = ts.getDatabaseConfig()
+
 		// Last time for setting options.
 		ts.apply(opts...)
 
