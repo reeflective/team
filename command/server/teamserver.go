@@ -11,17 +11,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
-	return func(cmd *cobra.Command, _ []string) {
+func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, _ []string) error {
 		lhost, err := cmd.Flags().GetString("host")
 		if err != nil {
-			fmt.Printf("Failed to parse --host flag %s\n", err)
-			return
+			return fmt.Errorf("Failed to parse --host flag %s\n", err)
 		}
 		lport, err := cmd.Flags().GetUint16("port")
 		if err != nil {
-			fmt.Printf("Failed to parse --port flag %s\n", lport, err)
-			return
+			return fmt.Errorf("Failed to parse --port flag %s\n", lport, err)
 		}
 
 		defer func() {
@@ -33,7 +31,7 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		}()
 
 		// Blocking call, your program will only exit/resume on Ctrl-C/SIGTERM
-		serv.ServeDaemon(lhost, lport)
+		return serv.ServeDaemon(lhost, lport)
 	}
 }
 

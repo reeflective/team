@@ -148,7 +148,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		Use:     "daemon",
 		Short:   "Start the teamserver in daemon mode (blocking)",
 		GroupID: command.TeamServerGroup,
-		Run:     daemoncmd(server),
+		RunE:    daemoncmd(server),
 	}
 	daemonCmd.Flags().StringP("host", "l", "-", "multiplayer listener host")
 	daemonCmd.Flags().Uint16P("port", "p", uint16(0), "multiplayer listener port")

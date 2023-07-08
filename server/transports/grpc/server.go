@@ -3,7 +3,6 @@ package grpc
 import (
 	"context"
 	"net"
-	"net/url"
 	"runtime/debug"
 	"sync"
 
@@ -90,18 +89,15 @@ func (h *handler) Init(serv *server.Server) (err error) {
 }
 
 func (h *handler) Listen(addr string) (net.Listener, error) {
+	rpcLog := h.NamedLogger("transport", "mTLS")
+
 	if h.conn != nil {
 		return h.conn, nil
 	}
 
-	// Parse the address into a URL.
-	// We just want to keep the host:port combination.
-	url, err := url.Parse(addr)
-	if err != nil {
-		return nil, err
-	}
+	rpcLog.Debugf("Starting gGRPC TLS listener on %s", addr)
 
-	ln, err := net.Listen("tcp", url.Host)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

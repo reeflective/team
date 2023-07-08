@@ -176,7 +176,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	// cli args take president over config
 	if host == blankHost {
 		host = ts.opts.config.DaemonMode.Host
-		log.Info("No host specified, using config file default: %s", host)
+		log.Infof("No host specified, using config file default: %s", host)
 	}
 	if port == blankPort {
 		port = uint16(ts.opts.config.DaemonMode.Port)
@@ -186,7 +186,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	log.Infof("Starting %s teamserver daemon %s:%d ...", ts.Name(), host, port)
 	ln, err := ts.ServeAddr(host, port, opts...)
 	if err != nil {
-		return fmt.Errorf("failed to start daemon %w", err)
+		return fmt.Errorf("failed to start daemon: %w", err)
 	}
 
 	// Now that the main teamserver listener is started,
@@ -206,6 +206,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	signal.Notify(signals, syscall.SIGTERM)
 	go func() {
 		<-signals
+		println("HERE")
 		log.Infof("Received SIGTERM, exiting ...")
 		ln.Close()
 		done <- true
