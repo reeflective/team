@@ -32,6 +32,7 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 			}
 		}()
 
+		// Blocking call, your program will only exit/resume on Ctrl-C/SIGTERM
 		serv.ServeDaemon(lhost, lport)
 	}
 }
@@ -42,7 +43,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		lport, _ := cmd.Flags().GetUint16("port")
 		persistent, _ := cmd.Flags().GetBool("persistent")
 
-		_, _, err := serv.ServeAddr(lhost, lport)
+		_, err := serv.ServeAddr(lhost, lport)
 		if err == nil {
 			fmt.Printf(info+"Teamserver listener started on %s:%d\n", lhost, lport)
 			if persistent {

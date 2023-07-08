@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"strings"
 
 	"github.com/rsteube/carapace"
@@ -11,7 +10,6 @@ import (
 	"github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/command/client"
 	"github.com/reeflective/team/internal/command"
-	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/server"
 )
 
@@ -52,13 +50,14 @@ func Commands(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 		}
 
 		// And connect the client locally, only needed.
-		_, err := teamserver.Serve(teamclient)
+		_ = teamserver.ServeLocal(teamclient)
+		// _, err := teamserver.Serve(teamclient)
 
 		// And connect the client locally, only needed.
-		err = teamclient.Connect()
-		if err != nil {
-			return err
-		}
+		// err = teamclient.Connect()
+		// if err != nil {
+		// 	return err
+		// }
 
 		return nil
 	}
@@ -97,13 +96,14 @@ func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraR
 		}
 
 		// And connect the client locally, only needed.
-		_, err := teamserver.Serve(teamclient)
+		_ = teamserver.ServeLocal(teamclient)
+		// _, err := teamserver.Serve(teamclient)
 
 		// And connect the client locally, only needed.
-		err = teamclient.Connect()
-		if err != nil {
-			return err
-		}
+		// err = teamclient.Connect()
+		// if err != nil {
+		// 	return err
+		// }
 
 		return nil
 	}
@@ -214,12 +214,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	carapace.Gen(rmUserCmd).PositionalCompletion(
 		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-			req, err := server.GetUsers(context.Background(), &proto.Empty{})
-			if err != nil {
-				return carapace.ActionMessage("failed to get teamserver users: %s", err)
-			}
-
-			users := req.GetUsers()
+			users := client.Users()
 
 			results := make([]string, len(users))
 			for _, user := range users {
