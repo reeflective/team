@@ -1,12 +1,15 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/reeflective/team/internal/log"
 )
 
 const (
@@ -60,6 +63,20 @@ func (ts *Server) LogsDir() string {
 // to write do indeed exist, and make them anyway.
 // If any error happens it will returned right away and the creator
 // of the teamserver will know right away that it can't work correctly.
-func (ts *Server) checkWritableDirs() error {
+func (ts *Server) checkWritableFiles() error {
+	// Check home application directory.
+	// If it does not exist but we don't have write permission
+	// on /user/home, we return an error as we can't work.
+	appDirWrite, err := log.IsWritable(ts.AppDir())
+	if err != nil && os.IsNotExist(err) {
+		if homeWritable, err := log.IsWritable(os.Getenv("HOME")); !homeWritable {
+			return fmt.Errorf("Cannot create application teamserver directory: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("Cannot write to application teamserver directory: %w", err)
+	} else if !appDirWrite {
+		return errors.New("The application teamserver directory seems to be unwritable")
+	}
+
 	return nil
 }

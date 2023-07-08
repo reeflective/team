@@ -7,41 +7,72 @@ import (
 )
 
 // Options are server options.
-type Options func(opts *opts) *opts
+type Options func(opts *opts[any])
 
-type opts struct {
-	local         bool
-	userDefault   bool
-	port          uint16
-	config        *Config
-	db            *gorm.DB
-	dbConfig      *db.Config
-	preServeHooks []func(s *Server) error
+type opts[server any] struct {
+	config      *Config
+	dbConfig    *db.Config
+	db          *gorm.DB
+	local       bool
+	userDefault bool
+	noLogs      bool
+
+	handler func(ln Handler[any]) error
+	hooks   []func(serv server) error
+}
+
+// default in-memory configuration, ready to run.
+func newDefaultOpts[server any]() *opts[server] {
+	options := &opts[server]{
+		config: getDefaultServerConfig(),
+		local:  false,
+	}
+
+	return options
 }
 
 func (ts *Server) apply(options ...Options) {
 	for _, optFunc := range options {
-		ts.opts = optFunc(ts.opts)
+		optFunc(ts.opts)
 	}
+}
 
-	// Update configuration
-	ts.config.DaemonMode.Port = int(ts.opts.port)
+// WithLogger
+// WithAuditFile
+// WithLogFile
+
+func WithNoLogs() Options {
+	return func(opts *opts[any]) {
+		opts.noLogs = true
+	}
+}
+
+// WithDefaultPort sets the default port on which the teamserver should start listeners.
+// This default is used in the default daemon configuration, and as command flags defaults.
+func WithDefaultPort(port uint16) Options {
+	return func(opts *opts[any]) {
+		opts.config.DaemonMode.Port = int(port)
+	}
 }
 
 // WithDatabaseConfig sets the server to use a database backend with a given configuration.
 func WithDatabaseConfig(config *db.Config) Options {
-	return func(opts *opts) *opts {
+	return func(opts *opts[any]) {
 		opts.dbConfig = config
-		return opts
 	}
 }
 
 // WithDatabase sets the server database to an existing database.
 // Note that it will run an automigration of the teamserver types (certificates and users).
 func WithDatabase(db *gorm.DB) Options {
-	return func(opts *opts) *opts {
+	return func(opts *opts[any]) {
 		opts.db = db
-		return opts
+	}
+}
+
+func WithCustomHandler(handler func(ln Handler[any]) error) Options {
+	return func(opts *opts[any]) {
+		opts.handler = handler
 	}
 }
 
@@ -50,19 +81,9 @@ func WithDatabase(db *gorm.DB) Options {
 // you to further manipulate the server connection after start, it is useful for persistent jobs
 // that restarted on server start: in order to bind your application functionality to them, you
 // need to use register hooks here.
-func WithPreServeHooks(hooks ...func(s *Server) error) Options {
-	return func(opts *opts) *opts {
-		opts.preServeHooks = append(opts.preServeHooks, hooks...)
-		return opts
-	}
-}
-
-// WithDefaultPort sets the default port on which the teamserver should start listeners.
-// This default is used in the default daemon configuration, and as command flags defaults.
-func WithDefaultPort(port uint16) Options {
-	return func(opts *opts) *opts {
-		opts.port = port
-		return opts
+func WithPreServeHooks(hooks ...func(server any) error) Options {
+	return func(opts *opts[any]) {
+		opts.hooks = append(opts.hooks, hooks...)
 	}
 }
 
@@ -70,13 +91,7 @@ func WithDefaultPort(port uint16) Options {
 // This will create the client application directory (~/.app) if needed, and will write the config
 // in the configs dir, using 'app_local_user_default.cfg' name, overwriting any file having this name.
 func WithOSUserDefault() Options {
-	return func(opts *opts) *opts {
+	return func(opts *opts[any]) {
 		opts.userDefault = true
-		return opts
 	}
 }
-
-// WithLogger
-// WithAuditFile
-// WithLogFile
-// WithNoLogs

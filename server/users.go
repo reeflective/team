@@ -15,10 +15,33 @@ import (
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/log"
+	"github.com/reeflective/team/internal/proto"
+	"github.com/reeflective/team/internal/transport"
 	"github.com/reeflective/team/server/db"
 )
 
+const (
+	userTLSHostname = "teamusers"
+)
+
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
+
+// GetUsers returns the list of users saved in the teamserver application database.
+// The error returned only originates, if non-nil, from the database backend,
+// and this function still returns the list of users in which it was parsed.
+func (ts *Server) GetUsers() ([]*proto.User, error) {
+	users := []*db.User{}
+	err := ts.db.Distinct("Name").Find(&users).Error
+
+	var userspb []*proto.User
+	for _, user := range users {
+		userspb = append(userspb, &proto.User{
+			Name: user.Name,
+		})
+	}
+
+	return userspb, err
+}
 
 // NewUserConfig generates a new user client connection configuration.
 func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]byte, error) {
@@ -32,7 +55,7 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 		return nil, errors.New("invalid team server host (empty)")
 	}
 	if lport == blankPort {
-		lport = ts.opts.port
+		lport = uint16(ts.opts.config.DaemonMode.Port)
 	}
 
 	rawToken := ts.newUserToken()
@@ -80,6 +103,31 @@ func (ts *Server) DeleteUser(name string) error {
 	return ts.certs.UserClientRemoveCertificate(name)
 }
 
+func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized bool, err error) {
+	log := log.NewNamed(ts.log, "server", "auth")
+	log.Debugf("Authorization-checking user token ...")
+
+	// Check auth cache
+	digest := sha256.Sum256([]byte(rawToken))
+	token := hex.EncodeToString(digest[:])
+
+	if name, ok := ts.userTokens.Load(token); ok {
+		log.Debugf("Token in cache!")
+		return name.(string), true, nil
+	}
+
+	user, err := ts.userByToken(token)
+	if err != nil || user == nil {
+		log.Errorf("Authentication failure: %s", err)
+		return "", false, transport.ErrUnauthenticated
+	}
+
+	log.Debugf("Valid user token for %s", user.Name)
+	ts.userTokens.Store(token, user.Name)
+
+	return user.Name, true, nil
+}
+
 // GetUsersCA returns the bytes of a PEM-encoded certificate authority,
 // which may contain multiple teamserver users and their master.
 func (ts *Server) GetUsersCA() ([]byte, []byte, error) {
@@ -116,7 +164,7 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 
 // getUserTLSConfig - Generate the TLS configuration, we do now allow the end user
 // to specify any TLS parameters, we choose sensible defaults instead.
-func (ts *Server) getUserTLSConfig(host string) *tls.Config {
+func (ts *Server) GetUserTLSConfig() *tls.Config {
 	log := log.NewNamed(ts.log, "certs", "mtls")
 	caCertPtr, _, err := ts.certs.GetUsersCA()
 	if err != nil {
@@ -125,12 +173,12 @@ func (ts *Server) getUserTLSConfig(host string) *tls.Config {
 	caCertPool := x509.NewCertPool()
 	caCertPool.AddCert(caCertPtr)
 
-	_, _, err = ts.certs.UserServerGetCertificate(host)
+	_, _, err = ts.certs.UserServerGetCertificate(userTLSHostname)
 	if err == certs.ErrCertDoesNotExist {
-		ts.certs.UserServerGenerateCertificate(host)
+		ts.certs.UserServerGenerateCertificate(userTLSHostname)
 	}
 
-	certPEM, keyPEM, err := ts.certs.UserServerGetCertificate(host)
+	certPEM, keyPEM, err := ts.certs.UserServerGetCertificate(userTLSHostname)
 	if err != nil {
 		log.Errorf("Failed to generate or fetch certificate %s", err)
 		return nil

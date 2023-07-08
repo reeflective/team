@@ -1,21 +1,22 @@
 package server
 
 import (
-	"context"
 	"fmt"
-	"runtime"
+	"net"
+	"os"
+	"os/signal"
+	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 
+	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/proto"
-	"github.com/reeflective/team/internal/version"
 	"github.com/reeflective/team/server/db"
 )
 
@@ -26,18 +27,34 @@ type Server struct {
 	rootDirEnv string
 	listening  bool
 	log        *logrus.Logger
-	audit      *logrus.Logger
 	userTokens *sync.Map
 
 	// Configurations
-	opts   *opts
+	opts   *opts[any]
 	config *Config
 	db     *gorm.DB
 	certs  *certs.Manager
 
+	ln Handler[any]
+
 	// Services
 	init *sync.Once
 	*proto.UnimplementedTeamServer
+}
+
+// Handler represents a teamserver listener stack.
+// It must be satisfied by any type aiming to be used
+// as a transport and RPC backend of the teamserver.
+//
+// The server type parameter represents the server-side of a connection
+// between a teamclient and the teamserver. It may or may not offer the
+// RPC services to the client yet. Implementations are free to decide.
+// TODO: Write about the Options(hooks) to use with this generic type.
+type Handler[server any] interface {
+	Init(s *Server) error
+	Listen(addr string) (ln net.Listener, err error)
+	Serve(net.Listener) (serv server, err error)
+	Close() error
 }
 
 // New creates a new teamserver for the provided application name.
@@ -49,20 +66,26 @@ type Server struct {
 //
 // This call to create the server only creates the application default directory.
 // No files, logs, connections or any interaction with the os/filesystem are made.
-func New(application string, options ...Options) (*Server, error) {
+func New(application string, ln Handler[any], options ...Options) (*Server, error) {
 	var err error
 
 	server := &Server{
 		name:                    application,
 		rootDirEnv:              fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
 		userTokens:              &sync.Map{},
-		opts:                    &opts{},
+		opts:                    &opts[any]{},
+		ln:                      ln,
 		init:                    &sync.Once{},
 		config:                  getDefaultServerConfig(),
 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}
 
 	// Ensure all teamserver-specific directories are writable.
+	if !server.opts.noLogs {
+		if err := server.checkWritableFiles(); err != nil {
+			return nil, err
+		}
+	}
 
 	// Logging (not writing to files until init)
 	level := logrus.Level(server.config.Log.Level)
@@ -72,49 +95,7 @@ func New(application string, options ...Options) (*Server, error) {
 		return nil, err
 	}
 
-	// Log all RPC requests and their content.
-	if server.audit, err = log.NewAudit(server.AppDir()); err != nil {
-		return nil, err
-	}
-
 	return server, nil
-}
-
-// GetVersion returns the teamserver version.
-func (ts *Server) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
-	dirty := version.GitDirty != ""
-	semVer := version.Semantic()
-	compiled, _ := version.Compiled()
-	return &proto.Version{
-		Major:      int32(semVer[0]),
-		Minor:      int32(semVer[1]),
-		Patch:      int32(semVer[2]),
-		Commit:     strings.TrimSuffix(version.GitCommit, "\n"),
-		Dirty:      dirty,
-		CompiledAt: compiled.Unix(),
-		OS:         runtime.GOOS,
-		Arch:       runtime.GOARCH,
-	}, nil
-}
-
-// GetUsers returns the list of teamserver users and their status.
-func (ts *Server) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
-	users := []*db.User{}
-	err := ts.db.Distinct("Name").Find(&users).Error
-
-	var userspb *proto.Users
-	for _, user := range users {
-		userspb.Users = append(userspb.Users, &proto.User{
-			Name: user.Name,
-		})
-	}
-
-	return userspb, err
-}
-
-// ClientLog accepts a stream of client logs to save on the teamserver.
-func (ts *Server) ClientLog(proto.Team_ClientLogServer) error {
-	return status.Errorf(codes.Unimplemented, "method ClientLog not implemented")
 }
 
 // Name returns the name of the application handled by the teamserver.
@@ -125,26 +106,114 @@ func (ts *Server) Name() string {
 	return ts.name
 }
 
-func (ts *Server) newServer() *Server {
-	serv := &Server{
-		name:                    ts.name,
-		rootDirEnv:              ts.rootDirEnv,
-		log:                     ts.log,
-		audit:                   ts.audit,
-		opts:                    ts.opts,
-		config:                  ts.config,
-		certs:                   ts.certs,
-		userTokens:              ts.userTokens,
-		init:                    &sync.Once{},
-		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
+// TODO: Rewrite doc comment.
+func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
+	err := ts.ln.Init(ts)
+	if err != nil {
+		return err
 	}
 
-	// One session per listener should be enough for now.
-	serv.db = ts.db.Session(&gorm.Session{
-		FullSaveAssociations: true,
-	})
+	_, err = ts.ServeAddr("", 0, opts...)
+	if err != nil {
+		return err
+	}
 
-	return serv
+	// Attempt to connect with the user configuration.
+	// Return if we are done, since we
+	err = cli.Connect()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// TODO: Rewrite doc comment.
+// ServeAddr sets and start a gRPC teamserver listener (on MutualTLS) with registered
+// teamserver services onto it.
+// Starting listeners from application code (not from teamserver' commands) should most
+// of the time be done with this function, as it will return you the gRPC server to which
+// you can attach any application-specific APIs.
+func (ts *Server) ServeAddr(host string, port uint16, opts ...Options) (net.Listener, error) {
+	listener, err := ts.ln.Listen(fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return listener, err
+	}
+
+	serv, err := ts.ln.Serve(listener)
+	if err != nil {
+		return listener, err
+	}
+
+	for _, hook := range ts.opts.hooks {
+		if err := hook(serv); err != nil {
+			return listener, err
+		}
+	}
+
+	return listener, nil
+}
+
+// ServeDaemon is a blocking call which starts the server as daemon process, using
+// either the provided host:port arguments, or the ones found in the teamserver config.
+// It also accepts a function that will be called just after starting the server, so
+// that users can still register their per-application services before actually blocking.
+func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
+	log := log.NewNamed(ts.log, "daemon", "main")
+
+	// cli args take president over config
+	if host == blankHost {
+		host = ts.config.DaemonMode.Host
+		log.Info("No host specified, using config file default: %s", host)
+	}
+	if port == blankPort {
+		port = uint16(ts.config.DaemonMode.Port)
+		log.Infof("No port specified, using config file default: %d", port)
+	}
+
+	log.Infof("Starting %s teamserver daemon %s:%d ...", ts.Name(), host, port)
+	ln, err := ts.ServeAddr(host, port, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to start daemon %w", err)
+	}
+
+	// Now that the main teamserver listener is started,
+	// we can start all our persistent teamserver listeners.
+	// That way, if any of them collides with our current bind,
+	// we just serve it for him
+	hostPort := regexp.MustCompile(fmt.Sprintf("%s:%d", host, port))
+
+	err = ts.startPersistentListeners()
+	if err != nil && hostPort.MatchString(err.Error()) {
+		log.Warnf("Error starting persistent listeners: %s", err)
+	}
+
+	// TODO: Close server ? When ?
+	done := make(chan bool)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM)
+	go func() {
+		<-signals
+		log.Infof("Received SIGTERM, exiting ...")
+		ln.Close()
+		done <- true
+	}()
+	<-done
+
+	return nil
+}
+
+// Close gracefully stops all components of the server,
+// letting pending connections to it to finish first.
+// func (ts *Server) Close() {
+// 	defer ts.log.Writer().Close()
+// 	// defer ts.audit.Writer().Close()
+// }
+
+// NamedLogger returns a new logging "thread" which should grossly
+// indicate the package/general domain, and a more precise flow/stream.
+func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
+	return log.NewNamed(ts.log, pkg, stream)
 }
 
 func (ts *Server) initServer(opts ...Options) error {
@@ -153,7 +222,7 @@ func (ts *Server) initServer(opts ...Options) error {
 	ts.init.Do(func() {
 		// Default and user options do not prevail
 		// on what is in the configuration file
-		ts.apply(WithDatabaseConfig(ts.GetDatabaseConfig()))
+		ts.apply(WithDatabaseConfig(ts.getDatabaseConfig()))
 		ts.apply(opts...)
 
 		// Load any relevant server configuration: on disk,
@@ -175,3 +244,25 @@ func (ts *Server) initServer(opts ...Options) error {
 
 	return err
 }
+
+// func (ts *Server[_]) newServer() *Server {
+// 	serv := &Server{
+// 		name:       ts.name,
+// 		rootDirEnv: ts.rootDirEnv,
+// 		log:        ts.log,
+// 		// audit:                   ts.audit,
+// 		opts:                    ts.opts,
+// 		config:                  ts.config,
+// 		certs:                   ts.certs,
+// 		userTokens:              ts.userTokens,
+// 		init:                    &sync.Once{},
+// 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
+// 	}
+//
+// 	// One session per listener should be enough for now.
+// 	serv.db = ts.db.Session(&gorm.Session{
+// 		FullSaveAssociations: true,
+// 	})
+//
+// 	return serv
+// }

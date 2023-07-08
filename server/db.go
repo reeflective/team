@@ -26,7 +26,7 @@ func (ts *Server) dbConfigPath() string {
 }
 
 // Save - Save config file to disk
-func (ts *Server) SaveDatabaseConfig(c *db.Config) error {
+func (ts *Server) saveDatabaseConfig(c *db.Config) error {
 	log := log.NewNamed(ts.log, "config", "database")
 
 	configPath := ts.dbConfigPath()
@@ -50,8 +50,8 @@ func (ts *Server) SaveDatabaseConfig(c *db.Config) error {
 	return nil
 }
 
-// GetDatabaseConfig - Get config value
-func (ts *Server) GetDatabaseConfig() *db.Config {
+// getDatabaseConfig - Get config value
+func (ts *Server) getDatabaseConfig() *db.Config {
 	log := log.NewNamed(ts.log, "config", "database")
 
 	configPath := ts.dbConfigPath()
@@ -78,7 +78,7 @@ func (ts *Server) GetDatabaseConfig() *db.Config {
 		config.MaxOpenConns = 1
 	}
 
-	err := ts.SaveDatabaseConfig(config) // This updates the config with any missing fields
+	err := ts.saveDatabaseConfig(config) // This updates the config with any missing fields
 	if err != nil {
 		log.Errorf("Failed to save default config %s", err)
 	}
