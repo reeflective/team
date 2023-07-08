@@ -66,8 +66,10 @@ func (hook *txtHook) Fire(entry *logrus.Entry) error {
 		hook.logger.Warnf(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	case logrus.InfoLevel:
 		hook.logger.Infof(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.DebugLevel, logrus.TraceLevel:
+	case logrus.DebugLevel:
 		hook.logger.Debugf(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+	case logrus.TraceLevel:
+		hook.logger.Tracef(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	}
 
 	return nil

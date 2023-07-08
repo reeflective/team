@@ -73,7 +73,7 @@ func (tc *Client) Connect(options ...Options) (err error) {
 
 	// Else connect with any available configuration.
 	// TODO: Change this, since config is never nil...
-	if tc.opts.config == nil {
+	if tc.opts.config != nil {
 		configs := tc.GetConfigs()
 		if len(configs) == 0 {
 			return fmt.Errorf("no config files found at %s", tc.ConfigsDir())

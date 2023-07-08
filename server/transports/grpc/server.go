@@ -88,6 +88,9 @@ func (h *handler) Init(serv *server.Server) (err error) {
 	return nil
 }
 
+// Listen implements server.Handler.Listen().
+// It starts listening on a network address for incoming gRPC clients.
+// This connection CANNOT initiate in-memory connections.
 func (h *handler) Listen(addr string) (net.Listener, error) {
 	rpcLog := h.NamedLogger("transport", "mTLS")
 
@@ -95,7 +98,7 @@ func (h *handler) Listen(addr string) (net.Listener, error) {
 		return h.conn, nil
 	}
 
-	rpcLog.Debugf("Starting gGRPC TLS listener on %s", addr)
+	rpcLog.Debugf("Starting gRPC TLS listener on %s", addr)
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -105,12 +108,16 @@ func (h *handler) Listen(addr string) (net.Listener, error) {
 	return ln, nil
 }
 
+// Serve implements server.Handler.Serve().
+// It accepts a network listener that will be served by a gRPC server.
+// This also registers the Teamclient RPC service.
 func (h *handler) Serve(ln net.Listener) (any, error) {
 	rpcLog := h.NamedLogger("transport", "grpc")
-	rpcLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
 
 	// Encryption.
 	if h.conn == nil {
+		rpcLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
+
 		tlsConfig := h.GetUserTLSConfig()
 		creds := credentials.NewTLS(tlsConfig)
 		h.options = append(h.options, grpc.Creds(creds))

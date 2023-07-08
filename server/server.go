@@ -78,6 +78,8 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 	}
 
+	server.apply(options...)
+
 	// Logging
 	level := logrus.Level(server.opts.config.Log.Level)
 
@@ -183,7 +185,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 		log.Infof("No port specified, using config file default: %d", port)
 	}
 
-	log.Infof("Starting %s teamserver daemon %s:%d ...", ts.Name(), host, port)
+	log.Infof("Starting %s teamserver daemon on %s:%d ...", ts.Name(), host, port)
 	ln, err := ts.ServeAddr(host, port, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to start daemon: %w", err)

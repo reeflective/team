@@ -52,7 +52,7 @@ func (ts *Server) saveDatabaseConfig(c *db.Config) error {
 
 // getDatabaseConfig - Get config value
 func (ts *Server) getDatabaseConfig() *db.Config {
-	log := log.NewNamed(ts.log, "config", "database")
+	log := ts.NamedLogger("config", "database")
 
 	configPath := ts.dbConfigPath()
 	config := ts.getDefaultDatabaseConfig()

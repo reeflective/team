@@ -3,8 +3,8 @@ package transport
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"log"
-	"os"
 )
 
 const (
@@ -15,8 +15,7 @@ const (
 func GetTLSConfig(caCertificate string, certificate string, privateKey string) (*tls.Config, error) {
 	certPEM, err := tls.X509KeyPair([]byte(certificate), []byte(privateKey))
 	if err != nil {
-		log.Printf("Cannot parse client certificate: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("Cannot parse client certificate: %v", err)
 	}
 
 	// Load CA cert
@@ -42,8 +41,7 @@ func RootOnlyVerifyCertificate(caCertificate string, rawCerts [][]byte) error {
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM([]byte(caCertificate))
 	if !ok {
-		log.Printf("Failed to parse root certificate")
-		os.Exit(3)
+		fmt.Errorf("Failed to parse root certificate")
 	}
 
 	cert, err := x509.ParseCertificate(rawCerts[0]) // We should only get one cert
@@ -59,11 +57,10 @@ func RootOnlyVerifyCertificate(caCertificate string, rawCerts [][]byte) error {
 		Roots: roots,
 	}
 	if options.Roots == nil {
-		panic("no root certificate")
+		return fmt.Errorf("Certificate root is nil")
 	}
 	if _, err := cert.Verify(options); err != nil {
-		log.Printf("Failed to verify certificate: " + err.Error())
-		return err
+		return fmt.Errorf("Failed to verify certificate: " + err.Error())
 	}
 
 	return nil

@@ -58,13 +58,17 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 		lport = uint16(ts.opts.config.DaemonMode.Port)
 	}
 
-	rawToken := ts.newUserToken()
+	rawToken, err := ts.newUserToken()
+	if err != nil {
+		return nil, err
+	}
+
 	digest := sha256.Sum256([]byte(rawToken))
 	dbuser := &db.User{
 		Name:  userName,
 		Token: hex.EncodeToString(digest[:]),
 	}
-	err := ts.db.Save(dbuser).Error
+	err = ts.db.Save(dbuser).Error
 	if err != nil {
 		return nil, err
 	}
@@ -141,13 +145,15 @@ func (ts *Server) SaveUsersCA(cert, key []byte) {
 }
 
 // newUserToken - Generate a new user authentication token.
-func (ts *Server) newUserToken() string {
+func (ts *Server) newUserToken() (string, error) {
 	buf := make([]byte, 32)
 	n, err := rand.Read(buf)
 	if err != nil || n != len(buf) {
-		panic(errors.New("failed to read from secure rand"))
+		return "", fmt.Errorf("failed to read from secure rand: %w", err)
+	} else if n != len(buf) {
+		return "", errors.New("failed to read from secure rand")
 	}
-	return hex.EncodeToString(buf)
+	return hex.EncodeToString(buf), nil
 }
 
 // userByToken - Select a teamserver user by token value
