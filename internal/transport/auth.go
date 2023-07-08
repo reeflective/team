@@ -1,6 +1,11 @@
 package transport
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var ErrUnauthenticated = errors.New("Authentication failure")
 
 type TokenAuth string
 

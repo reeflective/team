@@ -7,6 +7,11 @@ import (
 	"os"
 )
 
+const (
+	// Should be 31415, but... go to hell with your endless limits.
+	DefaultPort = 31416
+)
+
 func GetTLSConfig(caCertificate string, certificate string, privateKey string) (*tls.Config, error) {
 	certPEM, err := tls.X509KeyPair([]byte(certificate), []byte(privateKey))
 	if err != nil {

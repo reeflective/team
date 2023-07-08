@@ -10,10 +10,15 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/log"
+	"github.com/reeflective/team/internal/transport"
 	"github.com/sirupsen/logrus"
 )
 
-const serverConfigFileName = "server.json"
+const (
+	serverConfigFileName = "server.json"
+	blankHost            = "-"
+	blankPort            = uint16(0)
+)
 
 type Config struct {
 	DaemonMode struct {
@@ -146,12 +151,31 @@ func (ts *Server) RemoveListener(id string) {
 	ts.config.Listeners = listeners
 }
 
+// startPersistentListeners starts all teamserver listeners,
+// aborting and returning an error if one of those raise one.
+func (ts *Server) startPersistentListeners() error {
+	if ts.config.Listeners == nil {
+		return nil
+	}
+
+	for _, j := range ts.config.Listeners {
+		_, err := ts.ServeAddr(j.Host, j.Port)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func getDefaultServerConfig() *Config {
 	return &Config{
 		DaemonMode: struct {
 			Host string `json:"host"`
 			Port int    `json:"port"`
-		}{},
+		}{
+			Port: transport.DefaultPort, // 31416
+		},
 		Log: struct {
 			Level              int  `json:"level"`
 			GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
