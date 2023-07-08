@@ -45,14 +45,6 @@ const (
 // connecting to a teamserver. It requires only the client to use its functions.
 func Commands(cli *client.Client) *cobra.Command {
 	clientCmds := clientCommands(cli)
-
-	for _, cmd := range clientCmds.Commands() {
-		if isNoConnect(cmd) {
-			continue
-		}
-		cmd.PersistentPreRunE = PreRun(cli)
-	}
-
 	return clientCmds
 }
 
@@ -61,13 +53,6 @@ func Commands(cli *client.Client) *cobra.Command {
 // makes this runner able to be ran in closed-loop consoles.
 func PreRun(teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
-		// If the server is already serving us with an in-memory con, return.
-		// Also, the daemon command does not need a teamclient connection.
-		if teamclient.IsConnected() {
-			return nil
-		}
-
-		// And connect the client locally, only needed.
 		return teamclient.Connect()
 	}
 }
@@ -91,16 +76,16 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print teamserver client version",
-		Run: func(cmd *cobra.Command, args []string) {
-			// Server first
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cli.Connect(); err != nil {
+				return err
+			}
+
+			// Server
 			serverVer, err := cli.ServerVersion()
 			if err != nil {
-				fmt.Printf(warn+"Server (error: %w)\r\n", err)
+				fmt.Printf(warn+"Server error: %w", err)
 			}
-			// if serverVer == nil {
-			// fmt.Printf(warn+"No server version info)\r\n", err)
-			// return
-			// }
 
 			dirty := ""
 			if serverVer.Dirty {
@@ -111,6 +96,8 @@ func clientCommands(cli *client.Client) *cobra.Command {
 
 			// Client
 			fmt.Printf(info+"Client %s\n", version.Full())
+
+			return nil
 		},
 	}
 
@@ -125,7 +112,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 					conf, err := cli.ReadConfig(arg)
 					if err != nil {
 						fmt.Printf("[!] %s\n", err)
-						os.Exit(3)
+						continue
 					}
 					cli.SaveConfig(conf)
 				}

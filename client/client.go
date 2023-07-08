@@ -66,6 +66,7 @@ func (tc *Client) Name() string {
 // Note that this call might be blocking and expect user input, in the case where more
 // than one server configuration is found in the application directory: the application
 // will prompt the user to choose one of them.
+// TODO: Run with once.
 func (tc *Client) Connect(options ...Options) (err error) {
 	tc.apply(options...)
 
