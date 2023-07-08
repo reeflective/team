@@ -55,14 +55,14 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		fmt.Printf(info + "Generating new client certificate, please wait ... \n")
 		configJSON, err := serv.NewUserConfig(name, lhost, lport)
 		if err != nil {
-			fmt.Printf(warn+"%s\n", err)
+			fmt.Printf(warn+"%w\n", err)
 			return
 		}
 
 		saveTo = filepath.Join(saveTo, filename+".cfg")
 		err = ioutil.WriteFile(saveTo, configJSON, 0o600)
 		if err != nil {
-			fmt.Printf(warn+"Failed to write config to %s (%s) \n", saveTo, err)
+			fmt.Printf(warn+"Failed to write config to %s: %w \n", saveTo, err)
 			return
 		}
 
@@ -98,7 +98,7 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		data, err := os.ReadFile(load)
 		if err != nil {
-			fmt.Printf("Cannot read file %s", err)
+			fmt.Printf("Cannot read file: %w", err)
 			os.Exit(1)
 		}
 
@@ -111,7 +111,7 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		importCA := &CA{}
 		err = json.Unmarshal(data, importCA)
 		if err != nil {
-			fmt.Printf("Failed to parse file %s", err)
+			fmt.Printf("Failed to parse file: %w", err)
 			os.Exit(1)
 		}
 		cert := []byte(importCA.Certificate)

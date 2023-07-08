@@ -95,7 +95,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 			// Server first
 			serverVer, err := cli.ServerVersion()
 			if err != nil {
-				fmt.Printf(warn+"Server (error: %s)\r\n", err)
+				fmt.Printf(warn+"Server (error: %w)\r\n", err)
 			}
 			// if serverVer == nil {
 			// fmt.Printf(warn+"No server version info)\r\n", err)
@@ -168,12 +168,12 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 		var compErrors []carapace.Action
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			compErrors = append(compErrors, carapace.ActionMessage("failed to get user home dir: %s", err))
+			compErrors = append(compErrors, carapace.ActionMessage("failed to get user home dir: %w", err))
 		}
 
 		dirs, err := os.ReadDir(homeDir)
 		if err != nil {
-			compErrors = append(compErrors, carapace.ActionMessage("failed to list user directories: %s", err))
+			compErrors = append(compErrors, carapace.ActionMessage("failed to list user directories: %w", err))
 		}
 
 		var results []string

@@ -36,7 +36,7 @@ func (c *Manager) getCertDir() string {
 	if _, err := os.Stat(certDir); os.IsNotExist(err) {
 		err := os.MkdirAll(certDir, 0o700)
 		if err != nil {
-			c.log.Fatalf("Failed to create cert dir %s", err)
+			c.log.Fatalf("Failed to create cert dir: %w", err)
 		}
 	}
 	return certDir
@@ -68,7 +68,7 @@ func (c *Manager) GenerateCA(caType string, commonName string) (*x509.Certificat
 	}
 	cert, key, err := c.GetCA(caType)
 	if err != nil {
-		c.log.Fatalf("Failed to load CA %s", err)
+		c.log.Fatalf("Failed to load CA: %w", err)
 	}
 	return cert, key
 }
@@ -141,11 +141,11 @@ func (c *Manager) SaveCA(caType string, cert []byte, key []byte) {
 
 	err := ioutil.WriteFile(certFilePath, cert, 0o600)
 	if err != nil {
-		c.log.Fatalf("Failed write certificate data to: %s", certFilePath)
+		c.log.Fatalf("Failed write certificate data to %s, %w", certFilePath, err)
 	}
 
 	err = ioutil.WriteFile(keyFilePath, key, 0o600)
 	if err != nil {
-		c.log.Fatalf("Failed write certificate data to: %s", keyFilePath)
+		c.log.Fatalf("Failed write certificate data to %s: %w", keyFilePath, err)
 	}
 }

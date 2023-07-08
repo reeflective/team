@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -19,7 +20,7 @@ func NewStdout(app string, level logrus.Level) *logrus.Logger {
 		Colors:        defaultFieldsFormat(),
 	}
 
-	stdLogger.SetLevel(logrus.ErrorLevel)
+	stdLogger.SetLevel(logrus.WarnLevel)
 	stdLogger.SetReportCaller(true)
 	stdLogger.Out = os.Stdout
 
@@ -37,11 +38,11 @@ func NewClient(path string, app string, level logrus.Level) (*logrus.Logger, err
 		Colors:        defaultFieldsFormat(),
 	}
 
-	txtLogger.SetLevel(logrus.ErrorLevel)
+	txtLogger.SetLevel(logrus.InfoLevel)
 	txtLogger.SetReportCaller(true)
 
 	// Output both to the screen and to a file.
-	txtLogger.Out = os.Stdout
+	txtLogger.Out = io.Discard
 	txtLogger.AddHook(newTxtHook(path, app, level, txtLogger))
 
 	return txtLogger, nil

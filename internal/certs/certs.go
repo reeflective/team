@@ -167,7 +167,7 @@ func (c *Manager) GenerateECCCertificate(caType string, commonName string, isCA 
 	curve := curves[randomInt(len(curves))]
 	privateKey, err = ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
-		c.log.Fatalf("Failed to generate private key: %s", err)
+		c.log.Fatalf("Failed to generate private key: %w", err)
 	}
 	subject := pkix.Name{
 		CommonName: commonName,
@@ -185,7 +185,7 @@ func (c *Manager) GenerateRSACertificate(caType string, commonName string, isCA 
 	// Generate private key
 	privateKey, err = rsa.GenerateKey(rand.Reader, rsaKeySize())
 	if err != nil {
-		c.log.Fatalf("Failed to generate private key %s", err)
+		c.log.Fatalf("Failed to generate private key: %w", err)
 	}
 	subject := pkix.Name{
 		CommonName: commonName,
@@ -260,13 +260,13 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 	} else {
 		caCert, caKey, err := c.GetCA(caType) // Sign the new certificate with our CA
 		if err != nil {
-			c.log.Fatalf("Invalid ca type (%s): %v", caType, err)
+			c.log.Fatalf("Invalid ca type (%s): %w", caType, err)
 		}
 		derBytes, certErr = x509.CreateCertificate(rand.Reader, &template, caCert, publicKey(privateKey), caKey)
 	}
 	if certErr != nil {
 		// We maybe don't want this to be fatal, but it should basically never happen afaik
-		c.log.Fatalf("Failed to create certificate: %s", certErr)
+		c.log.Fatalf("Failed to create certificate: %w", certErr)
 	}
 
 	// Encode certificate and key

@@ -34,7 +34,7 @@ func (tc *Client) GetConfigs() map[string]*Config {
 	configDir := tc.ConfigsDir()
 	configFiles, err := os.ReadDir(configDir)
 	if err != nil {
-		tc.log.Error(fmt.Sprintf("No configs found %v", err))
+		tc.log.Errorf("No configs found: %w", err)
 		return map[string]*Config{}
 	}
 
@@ -56,19 +56,19 @@ func (tc *Client) GetConfigs() map[string]*Config {
 func (tc *Client) ReadConfig(confFilePath string) (*Config, error) {
 	confFile, err := os.Open(confFilePath)
 	if err != nil {
-		tc.log.Errorf("Open failed %v", err)
+		tc.log.Errorf("Open failed: %w", err)
 		return nil, err
 	}
 	defer confFile.Close()
 	data, err := io.ReadAll(confFile)
 	if err != nil {
-		tc.log.Errorf("Read failed %v", err)
+		tc.log.Errorf("Read failed: %w", err)
 		return nil, err
 	}
 	conf := &Config{}
 	err = json.Unmarshal(data, conf)
 	if err != nil {
-		tc.log.Errorf("Parse failed %v", err)
+		tc.log.Errorf("Parse failed: %w", err)
 		return nil, err
 	}
 	return conf, nil
@@ -85,10 +85,10 @@ func (tc *Client) SaveConfig(config *Config) error {
 	configJSON, _ := json.Marshal(config)
 	err := os.WriteFile(saveTo, configJSON, 0o600)
 	if err != nil {
-		tc.log.Errorf("Failed to write config to: %s (%v)", saveTo, err)
+		tc.log.Errorf("Failed to write config to: %s (%w)", saveTo, err)
 		return err
 	}
-	tc.log.Infof("Saved new client config to: %s", saveTo)
+	tc.log.Infof("Saved new client config to: %w", saveTo)
 	return nil
 }
 

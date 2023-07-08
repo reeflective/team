@@ -15,11 +15,11 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 	return func(cmd *cobra.Command, _ []string) error {
 		lhost, err := cmd.Flags().GetString("host")
 		if err != nil {
-			return fmt.Errorf("Failed to parse --host flag %s\n", err)
+			return fmt.Errorf("Failed to get --host flag: %w", err)
 		}
 		lport, err := cmd.Flags().GetUint16("port")
 		if err != nil {
-			return fmt.Errorf("Failed to parse --port flag %s\n", lport, err)
+			return fmt.Errorf("Failed to get --port (%d) flag: %w", lport, err)
 		}
 
 		defer func() {
@@ -72,7 +72,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		// should be attached the daemon command.
 		daemonCmd, _, err := cmd.Parent().Find([]string{"daemon"})
 		if err != nil {
-			fmt.Printf(warn+"Failed to find teamserver daemon command in tree: %s", err)
+			fmt.Printf(warn+"Failed to find teamserver daemon command in tree: %w", err)
 		}
 
 		config.Args = append(callerArgs(cmd.Parent()), daemonCmd.Name())

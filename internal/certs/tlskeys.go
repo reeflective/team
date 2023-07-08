@@ -17,7 +17,6 @@ package certs
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import (
-	"fmt"
 	"os"
 )
 
@@ -30,10 +29,10 @@ func (c *Manager) NewKeyLogger() *os.File {
 	if present {
 		keyFile, err := os.OpenFile(keyFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
-			c.log.Errorf(fmt.Sprintf("Failed to open TLS key file %v", err))
+			c.log.Errorf("Failed to open TLS key file %v", err)
 			return nil
 		}
-		fmt.Printf("NOTICE: TLS Keys logged to '%s'\n", keyFilePath)
+		c.log.Warnf("NOTICE: TLS Keys logged to '%s'\n", keyFilePath)
 		return keyFile
 	}
 	return nil

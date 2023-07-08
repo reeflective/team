@@ -57,19 +57,19 @@ func (hook *txtHook) Fire(entry *logrus.Entry) error {
 
 	switch entry.Level {
 	case logrus.PanicLevel:
-		hook.logger.Panicf(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+		hook.logger.Panicf(" [:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	case logrus.FatalLevel:
-		hook.logger.Fatalf(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+		hook.logger.Fatalf(" [:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	case logrus.ErrorLevel:
-		hook.logger.Errorf(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+		hook.logger.Errorf(" [:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	case logrus.WarnLevel:
-		hook.logger.Warnf(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+		hook.logger.Warnf(" [:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	case logrus.InfoLevel:
-		hook.logger.Infof(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+		hook.logger.Infof(" [:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	case logrus.DebugLevel:
-		hook.logger.Debugf(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+		hook.logger.Debugf(" [:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	case logrus.TraceLevel:
-		hook.logger.Tracef(" [%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+		hook.logger.Tracef(" [:%d] %s", srcFile, entry.Caller.Line, entry.Message)
 	}
 
 	return nil

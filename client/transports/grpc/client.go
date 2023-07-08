@@ -141,7 +141,7 @@ func (h *handler) loggingInterceptor(log *logrus.Entry) grpc.UnaryClientIntercep
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		rawRequest, err := json.Marshal(req)
 		if err != nil {
-			log.Errorf("Failed to serialize %s", err)
+			log.Errorf("Failed to serialize: %w", err)
 			return invoker(ctx, method, req, reply, cc, opts...)
 		}
 
