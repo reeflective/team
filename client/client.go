@@ -1,8 +1,6 @@
 package client
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"sync"
 
@@ -11,8 +9,6 @@ import (
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/log"
 )
-
-var ErrNoTeamclient = errors.New("This teamclient has no client implementation")
 
 // Client is a team client wrapper.
 // It offers the core functionality of any team client.
@@ -70,21 +66,10 @@ func (tc *Client) Connect(options ...Options) (err error) {
 	}
 
 	tc.connectedT.Do(func() {
-		cfg := tc.opts.config
-
-		if !tc.opts.local {
-			configs := tc.GetConfigs()
-			if len(configs) == 0 {
-				err = fmt.Errorf("no config files found at %s", tc.ConfigsDir())
-				return
-			}
-			cfg = tc.SelectConfig()
+		_, err = tc.initConfig()
+		if err != nil {
+			return
 		}
-
-		if cfg == nil {
-			err = errors.New("no application was selected or parsed")
-		}
-		tc.opts.config = cfg
 
 		// Initialize the dialer with our client.
 		err = tc.dialer.Init(tc)
@@ -112,17 +97,17 @@ func (tc *Client) Connect(options ...Options) (err error) {
 }
 
 // Users returns a list of all users registered to the application server.
-func (tc *Client) Users() (users []team.User) {
+func (tc *Client) Users() (users []team.User, err error) {
 	if tc.client == nil {
-		return nil
+		return nil, ErrNoTeamclient
 	}
 
 	res, err := tc.client.Users()
 	if err != nil && len(res) == 0 {
-		return nil
+		return nil, err
 	}
 
-	return res
+	return res, nil
 }
 
 // ServerVersion returns the version information of the server to which

@@ -28,8 +28,9 @@ const (
 	// userCA - Directory containing user certificates
 	userCA = "user"
 
-	clientNamespace = "client" // User clients
-	serverNamespace = "server" // User servers
+	clientNamespace  = "client"    // User clients
+	serverNamespace  = "server"    // User servers
+	userCertHostname = "teamusers" // Hostname used on certificate
 )
 
 // UserClientGenerateCertificate - Generate a certificate signed with a given CA
@@ -50,14 +51,14 @@ func (c *Manager) UserClientRemoveCertificate(user string) error {
 }
 
 // UserServerGetCertificate - Helper function to fetch a server cert
-func (c *Manager) UserServerGetCertificate(hostname string) ([]byte, []byte, error) {
-	return c.GetECCCertificate(userCA, fmt.Sprintf("%s.%s", serverNamespace, hostname))
+func (c *Manager) UserServerGetCertificate() ([]byte, []byte, error) {
+	return c.GetECCCertificate(userCA, fmt.Sprintf("%s.%s", serverNamespace, userCertHostname))
 }
 
 // UserServerGenerateCertificate - Generate a certificate signed with a given CA
-func (c *Manager) UserServerGenerateCertificate(hostname string) ([]byte, []byte, error) {
-	cert, key := c.GenerateECCCertificate(userCA, hostname, false, false)
-	err := c.saveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", serverNamespace, hostname), cert, key)
+func (c *Manager) UserServerGenerateCertificate() ([]byte, []byte, error) {
+	cert, key := c.GenerateECCCertificate(userCA, userCertHostname, false, false)
+	err := c.saveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", serverNamespace, userCertHostname), cert, key)
 	return cert, key, err
 }
 

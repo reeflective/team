@@ -18,16 +18,12 @@ import (
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
-	"github.com/reeflective/team/internal/transport"
 	"github.com/reeflective/team/internal/version"
-)
-
-const (
-	userTLSHostname = "teamusers"
 )
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
 
+// GetVersion returns the server binary version information.
 func (ts *Server) GetVersion() team.Version {
 	dirty := version.GitDirty != ""
 	semVer := version.Semantic()
@@ -45,6 +41,7 @@ func (ts *Server) GetVersion() team.Version {
 	}
 }
 
+// GetUsers returns the list of users in the teamserver database, and their information.
 func (ts *Server) GetUsers() ([]team.User, error) {
 	var users []team.User
 
@@ -52,7 +49,7 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 	err := ts.db.Distinct("Name").Find(&usersDB).Error
 
 	if err != nil && len(usersDB) == 0 {
-		return users, err
+		return users, fmt.Errorf("%w: %w", ErrDatabase, err)
 	}
 
 	for _, user := range users {
@@ -68,21 +65,22 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 // NewUserConfig generates a new user client connection configuration.
 func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]byte, error) {
 	if !namePattern.MatchString(userName) {
-		return nil, errors.New("invalid user name (alphanumerics only)")
+		return nil, fmt.Errorf("%w: invalid user name (alphanumerics only)", ErrUserConfig)
 	}
 	if userName == "" {
-		return nil, errors.New("user name required")
+		return nil, fmt.Errorf("%w: user name required ", ErrUserConfig)
 	}
 	if lhost == "" {
-		return nil, errors.New("invalid team server host (empty)")
+		return nil, fmt.Errorf("%w: invalid team server host (empty)", ErrUserConfig)
 	}
+
 	if lport == blankPort {
 		lport = uint16(ts.opts.config.DaemonMode.Port)
 	}
 
 	rawToken, err := ts.newUserToken()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrUserConfig, err)
 	}
 
 	digest := sha256.Sum256([]byte(rawToken))
@@ -92,12 +90,12 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 	}
 	err = ts.db.Save(dbuser).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrDatabase, err)
 	}
 
 	publicKey, privateKey, err := ts.certs.UserClientGenerateCertificate(userName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate certificate %s", err)
+		return nil, fmt.Errorf("%w: failed to generate certificate %w", ErrCertificate, err)
 	}
 
 	caCertPEM, _, _ := ts.certs.GetUsersCAPEM()
@@ -144,8 +142,9 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 
 	user, err := ts.userByToken(token)
 	if err != nil || user == nil {
-		log.Errorf("Authentication failure: %s", err)
-		return "", false, transport.ErrUnauthenticated
+		authErr := fmt.Errorf("Authentication failure: %s", err)
+		log.Error(authErr)
+		return "", false, ErrUnauthenticated
 	}
 
 	log.Debugf("Valid user token for %s", user.Name)
@@ -192,29 +191,34 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 
 // getUserTLSConfig - Generate the TLS configuration, we do now allow the end user
 // to specify any TLS parameters, we choose sensible defaults instead.
-func (ts *Server) GetUserTLSConfig() *tls.Config {
+func (ts *Server) GetUserTLSConfig() (*tls.Config, error) {
 	log := ts.NamedLogger("certs", "mtls")
 	caCertPtr, _, err := ts.certs.GetUsersCA()
 	if err != nil {
-		log.Error("Failed to get users certificate authority")
+		userCAErr := fmt.Errorf("%w: failed to get users certificate authority: %w", ErrCertificate, err)
+		log.Error(userCAErr)
+		return nil, userCAErr
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AddCert(caCertPtr)
 
-	_, _, err = ts.certs.UserServerGetCertificate(userTLSHostname)
+	_, _, err = ts.certs.UserServerGetCertificate()
 	if err == certs.ErrCertDoesNotExist {
-		ts.certs.UserServerGenerateCertificate(userTLSHostname)
+		ts.certs.UserServerGenerateCertificate()
 	}
 
-	certPEM, keyPEM, err := ts.certs.UserServerGetCertificate(userTLSHostname)
+	certPEM, keyPEM, err := ts.certs.UserServerGetCertificate()
 	if err != nil {
-		log.Errorf("Failed to generate or fetch certificate %s", err)
-		return nil
+		userCertErr := fmt.Errorf("%w: failed to generated or fetch user certificate: %w", ErrCertificate, err)
+		log.Error(userCertErr)
+		return nil, userCertErr
 	}
 
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		log.Errorf("Error loading server certificate: %v", err)
+		userCertErr := fmt.Errorf("%w: failed to load server certificate: %w", ErrCertificate, err)
+		log.Error(userCertErr)
+		return nil, userCertErr
 	}
 
 	tlsConfig := &tls.Config{
@@ -229,5 +233,5 @@ func (ts *Server) GetUserTLSConfig() *tls.Config {
 		tlsConfig.KeyLogWriter = ts.certs.NewKeyLogger()
 	}
 
-	return tlsConfig
+	return tlsConfig, nil
 }

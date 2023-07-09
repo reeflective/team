@@ -21,7 +21,7 @@ func main() {
 	// TODO: Rewrite comments
 	listener := grpc.NewTeamServer()
 
-	server, err := teamserver.New("teamserver", listener)
+	teamserver, err := teamserver.New("teamserver", listener)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -29,14 +29,14 @@ func main() {
 	// TODO: write comments
 	client, dialer := grpc.DialerFrom(listener)
 
-	teamclient, err := teamclient.New(server.Name(), client, teamclient.WithDialer(dialer))
+	teamclient, err := teamclient.New(teamserver.Name(), client, teamclient.WithDialer(dialer))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Generate a tree of server-side commands: this tree also has client-only
 	// commands as a subcommand "client" of the "teamserver" command root here.
-	serverCmds := commands.Generate(server, teamclient)
+	serverCmds := commands.Generate(teamserver, teamclient)
 
 	// Generate completions for the tree.
 	carapace.Gen(serverCmds)

@@ -28,6 +28,27 @@ type Config struct {
 	Certificate   string `json:"certificate"`
 }
 
+func (tc *Client) initConfig() (*Config, error) {
+	cfg := tc.opts.config
+
+	if !tc.opts.local {
+		configs := tc.GetConfigs()
+		if len(configs) == 0 {
+			err := fmt.Errorf("no config files found at %s", tc.ConfigsDir())
+			return nil, err
+		}
+		cfg = tc.SelectConfig()
+	}
+
+	if cfg == nil {
+		return nil, errors.New("no application was selected or parsed")
+	}
+
+	tc.opts.config = cfg
+
+	return nil, nil
+}
+
 // GetConfigs returns a list of available configs in
 // the application config directory (~/.app/configs)
 func (tc *Client) GetConfigs() map[string]*Config {
@@ -56,39 +77,46 @@ func (tc *Client) GetConfigs() map[string]*Config {
 func (tc *Client) ReadConfig(confFilePath string) (*Config, error) {
 	confFile, err := os.Open(confFilePath)
 	if err != nil {
-		tc.log.Errorf("Open failed: %w", err)
-		return nil, err
+		return nil, fmt.Errorf("open failed: %w", err)
 	}
 	defer confFile.Close()
 	data, err := io.ReadAll(confFile)
 	if err != nil {
-		tc.log.Errorf("Read failed: %w", err)
-		return nil, err
+		return nil, fmt.Errorf("read failed: %w", err)
 	}
 	conf := &Config{}
 	err = json.Unmarshal(data, conf)
 	if err != nil {
-		tc.log.Errorf("Parse failed: %w", err)
-		return nil, err
+		return nil, fmt.Errorf("parse failed: %w", err)
 	}
+
 	return conf, nil
 }
 
 // SaveConfig saves a client config to disk.
 func (tc *Client) SaveConfig(config *Config) error {
-	if config.Host == "" || config.User == "" {
-		return errors.New("empty config")
+	if config.User == "" {
+		return ErrConfigNoUser
 	}
+
 	configDir := tc.ConfigsDir()
+
 	filename := fmt.Sprintf("%s_%s.cfg", filepath.Base(config.User), filepath.Base(config.Host))
 	saveTo, _ := filepath.Abs(filepath.Join(configDir, filename))
-	configJSON, _ := json.Marshal(config)
-	err := os.WriteFile(saveTo, configJSON, 0o600)
+	configJSON, err := json.Marshal(config)
 	if err != nil {
-		tc.log.Errorf("Failed to write config to: %s (%w)", saveTo, err)
+		return fmt.Errorf("%w: %w", ErrConfig, err)
+	}
+
+	err = os.WriteFile(saveTo, configJSON, 0o600)
+	if err != nil {
+		err = fmt.Errorf("Failed to write config to: %s (%w)", saveTo, err)
+
+		tc.log.Error(err)
 		return err
 	}
 	tc.log.Infof("Saved new client config to: %w", saveTo)
+
 	return nil
 }
 
@@ -112,6 +140,7 @@ func (tc *Client) SelectConfig() *Config {
 	qs := getPromptForConfigs(configs)
 	err := survey.Ask(qs, &answer)
 	if err != nil {
+		// TODO: Println here should not
 		fmt.Println(err.Error())
 		return nil
 	}

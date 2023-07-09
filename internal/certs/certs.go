@@ -60,6 +60,9 @@ type Manager struct {
 // NewManager initializes and returns a certificate manager for a given teamserver.
 // The returned manager will have ensured that all certificate authorities are initialized
 // and working, or will create them if needed.
+// Any critical error happening at initialization time will send a log.Fatal event to the
+// provided logger. If the latter has no modified log.ExitFunc, this will make the server
+// panic and exit.
 func NewManager(db *gorm.DB, log *logrus.Entry, appDir string) *Manager {
 	certs := &Manager{
 		appDir: appDir,
@@ -68,8 +71,8 @@ func NewManager(db *gorm.DB, log *logrus.Entry, appDir string) *Manager {
 	}
 
 	// Ensure CAs are initialized.
-	certs.GenerateCA(mtlsCA, "mtls")
-	certs.GenerateCA(userCA, "teamusers")
+	certs.generateCA(mtlsCA, "mtls")
+	certs.generateCA(userCA, "teamusers")
 
 	return certs
 }
@@ -258,7 +261,7 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 		template.KeyUsage |= x509.KeyUsageCertSign
 		derBytes, certErr = x509.CreateCertificate(rand.Reader, &template, &template, publicKey(privateKey), privateKey)
 	} else {
-		caCert, caKey, err := c.GetCA(caType) // Sign the new certificate with our CA
+		caCert, caKey, err := c.getCA(caType) // Sign the new certificate with our CA
 		if err != nil {
 			c.log.Fatalf("Invalid ca type (%s): %w", caType, err)
 		}

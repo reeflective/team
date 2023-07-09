@@ -30,6 +30,7 @@ import (
 //  CERTIFICATE AUTHORITY
 // -----------------------
 
+// TODO: Check this directory on the server checkwritable.
 func (c *Manager) getCertDir() string {
 	rootDir := c.appDir
 	certDir := filepath.Join(rootDir, "certs")
@@ -44,38 +45,38 @@ func (c *Manager) getCertDir() string {
 
 // GetUsersCA returns the certificate authority for teamserver users.
 func (c *Manager) GetUsersCA() (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	return c.GetCA(userCA)
+	return c.getCA(userCA)
 }
 
 // GetUsersCAPEM returns the certificate authority for teamserver users, PEM-encoded.
 func (c *Manager) GetUsersCAPEM() ([]byte, []byte, error) {
-	return c.GetCAPEM(userCA)
+	return c.getCAPEM(userCA)
 }
 
 // SaveUsersCA saves a user certificate authority (may contain several users).
 func (c *Manager) SaveUsersCA(cert, key []byte) {
-	c.SaveCA(userCA, cert, key)
+	c.saveCA(userCA, cert, key)
 }
 
-// GenerateCA - Creates a new CA cert for a given type
-func (c *Manager) GenerateCA(caType string, commonName string) (*x509.Certificate, *ecdsa.PrivateKey) {
+// generateCA - Creates a new CA cert for a given type, or die trying.
+func (c *Manager) generateCA(caType string, commonName string) (*x509.Certificate, *ecdsa.PrivateKey) {
 	storageDir := c.getCertDir()
 	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s-ca-cert.pem", caType))
 	if _, err := os.Stat(certFilePath); os.IsNotExist(err) {
 		c.log.Infof("Generating certificate authority for '%s'", caType)
 		cert, key := c.GenerateECCCertificate(caType, commonName, true, false)
-		c.SaveCA(caType, cert, key)
+		c.saveCA(caType, cert, key)
 	}
-	cert, key, err := c.GetCA(caType)
+	cert, key, err := c.getCA(caType)
 	if err != nil {
 		c.log.Fatalf("Failed to load CA: %w", err)
 	}
 	return cert, key
 }
 
-// GetCA - Get the current CA certificate
-func (c *Manager) GetCA(caType string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	certPEM, keyPEM, err := c.GetCAPEM(caType)
+// getCA - Get the current CA certificate
+func (c *Manager) getCA(caType string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+	certPEM, keyPEM, err := c.getCAPEM(caType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,8 +106,8 @@ func (c *Manager) GetCA(caType string) (*x509.Certificate, *ecdsa.PrivateKey, er
 	return cert, key, nil
 }
 
-// GetCAPEM - Get PEM encoded CA cert/key
-func (c *Manager) GetCAPEM(caType string) ([]byte, []byte, error) {
+// getCAPEM - Get PEM encoded CA cert/key
+func (c *Manager) getCAPEM(caType string) ([]byte, []byte, error) {
 	caType = filepath.Base(caType)
 	caCertPath := filepath.Join(c.getCertDir(), fmt.Sprintf("%s-ca-cert.pem", caType))
 	caKeyPath := filepath.Join(c.getCertDir(), fmt.Sprintf("%s-ca-key.pem", caType))
@@ -125,10 +126,10 @@ func (c *Manager) GetCAPEM(caType string) ([]byte, []byte, error) {
 	return certPEM, keyPEM, nil
 }
 
-// SaveCA - Save the certificate and the key to the filesystem
+// saveCA - Save the certificate and the key to the filesystem
 // doesn't return an error because errors are fatal. If we can't generate CAs,
 // then we can't secure communication and we should die a horrible death.
-func (c *Manager) SaveCA(caType string, cert []byte, key []byte) {
+func (c *Manager) saveCA(caType string, cert []byte, key []byte) {
 	storageDir := c.getCertDir()
 	if _, err := os.Stat(storageDir); os.IsNotExist(err) {
 		os.MkdirAll(storageDir, 0o700)

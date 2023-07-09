@@ -83,15 +83,28 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 	// Ensure all teamserver-specific directories are writable.
 	if !server.opts.noLogs || !server.opts.noFiles {
 		if err := server.checkWritableFiles(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrDirectory, err)
 		}
 		server.log, err = log.NewClient(server.LogsDir(), server.Name(), level)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrLogging, err)
 		}
 	} else {
 		server.log = log.NewStdout(server.Name(), level)
 	}
+
+	// Ensure we have a working database configuration, whether
+	// this config is an in-memory one or some fetched/provided.
+	// In any case, even an in-memory one should be valid.
+	dbConfig, err := server.getDatabaseConfig()
+	if err != nil {
+		dbErr := fmt.Errorf("%w: %w", ErrLogging, err)
+		server.log.Error(err)
+
+		return nil, dbErr
+	}
+
+	server.opts.dbConfig = dbConfig
 
 	return server, nil
 }
@@ -106,28 +119,21 @@ func (ts *Server) Name() string {
 
 // TODO: Rewrite doc comment.
 func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
-	err := ts.init(opts...)
-	if err != nil {
-		return err
-	}
-
-	err = ts.ln.Init(ts)
-	if err != nil {
-		return err
-	}
-
 	host := cli.Config().Host
 	port := uint16(cli.Config().Port)
 
-	_, err = ts.ServeAddr(host, port, opts...)
+	// Some errors might come from user-provided hooks,
+	// so we don't wrap errors again, our own errors
+	// have been prepared accordingly in this call.
+	_, err := ts.ServeAddr(host, port, opts...)
 	if err != nil {
 		return err
 	}
 
 	// Attempt to connect with the user configuration.
-	// Return if we are done, since we
 	err = cli.Connect(client.WithLocalDialer())
 	if err != nil {
+		// Client error fromm client package
 		return err
 	}
 
@@ -143,19 +149,30 @@ func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 func (ts *Server) ServeAddr(host string, port uint16, opts ...Options) (net.Listener, error) {
 	err := ts.init(opts...)
 	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrTeamServer, err)
+	}
+
+	err = ts.ln.Init(ts)
+	if err != nil {
+		// Listener config error
 		return nil, err
 	}
 
 	listener, err := ts.ln.Listen(fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
+		// Listener config error
 		return listener, err
 	}
 
 	serv, err := ts.ln.Serve(listener)
 	if err != nil {
+		// Listener/server error
 		return listener, err
 	}
 
+	// Run provided server hooks on the server interface.
+	// Any error arising from this is returned as is, for
+	// users can directly compare it with their own errors.
 	for _, hook := range ts.opts.hooks {
 		if err := hook(serv); err != nil {
 			return listener, err
@@ -182,10 +199,11 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 		log.Infof("No port specified, using config file default: %d", port)
 	}
 
+	// Start the listener.
 	log.Infof("Starting %s teamserver daemon on %s:%d ...", ts.Name(), host, port)
 	ln, err := ts.ServeAddr(host, port, opts...)
 	if err != nil {
-		return fmt.Errorf("failed to start daemon: %w", err)
+		return err
 	}
 
 	// Now that the main teamserver listener is started,
@@ -238,26 +256,33 @@ func (ts *Server) init(opts ...Options) error {
 	var err error
 
 	ts.initOnce.Do(func() {
-		// Database configuration.
-		ts.opts.dbConfig = ts.getDatabaseConfig()
-
 		// Last time for setting options.
 		ts.apply(opts...)
+
+		// Database configuration.
+		// At creation time, we ensured that server had
+		// a valid database configuration, but we might
+		// have been modified with options to Serve().
+		ts.opts.dbConfig, err = ts.getDatabaseConfig()
+		if err != nil {
+			return
+		}
+
+		// Connect to database if not connected already.
+		if ts.opts.db == nil {
+			dbLogger := ts.NamedLogger("database", "database")
+			ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
+			if err != nil {
+				err = fmt.Errorf("%w: %w", ErrDatabase, err)
+				return
+			}
+		}
 
 		// Load any relevant server configuration: on disk,
 		// contained in options, or the default one.
 		ts.opts.config = ts.GetConfig()
 
-		// Database
-		if ts.opts.db == nil {
-			dbLogger := ts.NamedLogger("database", "database")
-			ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
-			if err != nil {
-				return
-			}
-		}
-
-		// Certificate infrastructure
+		// Certificate infrastructure, will make the code panic if unable to work properly.
 		certsLog := ts.NamedLogger("certs", "certificates")
 		ts.certs = certs.NewManager(ts.db.Session(&gorm.Session{}), certsLog, ts.AppDir())
 	})
@@ -266,22 +291,9 @@ func (ts *Server) init(opts ...Options) error {
 }
 
 // func (ts *Server[_]) newServer() *Server {
-// 	serv := &Server{
-// 		name:       ts.name,
-// 		rootDirEnv: ts.rootDirEnv,
-// 		log:        ts.log,
-// 		// audit:                   ts.audit,
-// 		opts:                    ts.opts,
-// 		config:                  ts.config,
-// 		certs:                   ts.certs,
-// 		userTokens:              ts.userTokens,
-// 		init:                    &sync.Once{},
-// 	}
 //
 // 	// One session per listener should be enough for now.
 // 	serv.db = ts.db.Session(&gorm.Session{
 // 		FullSaveAssociations: true,
 // 	})
-//
-// 	return serv
 // }

@@ -41,30 +41,29 @@ func (ts *Server) saveDatabaseConfig(c *db.Config) error {
 	if err != nil {
 		return err
 	}
+
 	log.Infof("Saving config to %s", configPath)
-	err = os.WriteFile(configPath, data, 0o600)
-	if err != nil {
-		log.Errorf("Failed to write config %s", err)
-	}
-	return nil
+	return os.WriteFile(configPath, data, 0o600)
 }
 
-// getDatabaseConfig - Get config value
-func (ts *Server) getDatabaseConfig() *db.Config {
+// getDatabaseConfig returns a working database configuration,
+// either fetched from the file system, adjusted with in-code
+// options, or a default one.
+// If an error happens, it is returned with a nil configuration.
+func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 	log := ts.NamedLogger("config", "database")
 
-	configPath := ts.dbConfigPath()
 	config := ts.getDefaultDatabaseConfig()
+
+	configPath := ts.dbConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
-			log.Errorf("Failed to read config file %s", err)
-			return config
+			return nil, fmt.Errorf("Failed to read config file %s", err)
 		}
 		err = json.Unmarshal(data, config)
 		if err != nil {
-			log.Errorf("Failed to parse config file %s", err)
-			return config
+			return nil, fmt.Errorf("Failed to parse config file %s", err)
 		}
 	} else {
 		log.Warnf("Config file does not exist, using defaults")
@@ -77,11 +76,14 @@ func (ts *Server) getDatabaseConfig() *db.Config {
 		config.MaxOpenConns = 1
 	}
 
-	err := ts.saveDatabaseConfig(config) // This updates the config with any missing fields
+	// This updates the config with any missing fields,
+	// failing to save is not critical for operation.
+	err := ts.saveDatabaseConfig(config)
 	if err != nil {
 		log.Errorf("Failed to save default config %s", err)
 	}
-	return config
+
+	return config, nil
 }
 
 func (ts *Server) getDefaultDatabaseConfig() *db.Config {

@@ -180,11 +180,18 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	carapace.Gen(rmUserCmd).PositionalCompletion(
 		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-			users := client.Users()
+			users, err := client.Users()
+			if err != nil {
+				return carapace.ActionMessage("Failed to get users: %s", err)
+			}
 
 			results := make([]string, len(users))
 			for _, user := range users {
 				results = append(results, strings.TrimSpace(user.Name))
+			}
+
+			if len(results) == 0 {
+				return carapace.ActionMessage("teamserver has no users")
 			}
 
 			return carapace.ActionValues(results...).Tag("teamserver users")

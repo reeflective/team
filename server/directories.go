@@ -70,12 +70,12 @@ func (ts *Server) checkWritableFiles() error {
 	appDirWrite, err := log.IsWritable(ts.AppDir())
 	if err != nil && os.IsNotExist(err) {
 		if homeWritable, err := log.IsWritable(os.Getenv("HOME")); !homeWritable {
-			return fmt.Errorf("Cannot create application teamserver directory: %w", err)
+			return fmt.Errorf("Cannot create %w", err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("Cannot write to application teamserver directory: %w", err)
+		return fmt.Errorf("Cannot write to %w", err)
 	} else if !appDirWrite {
-		return errors.New("The application teamserver directory seems to be unwritable")
+		return errors.New("The directory seems to be unwritable")
 	}
 
 	return nil

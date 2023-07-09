@@ -17,6 +17,7 @@ type opts[server any] struct {
 	userDefault bool
 	noLogs      bool
 	noFiles     bool
+	inMemory    bool
 
 	config   *Config
 	dbConfig *db.Config
@@ -44,9 +45,26 @@ func (ts *Server) apply(options ...Options) {
 
 // WithDefaultPort sets the default port on which the teamserver should start listeners.
 // This default is used in the default daemon configuration, and as command flags defaults.
+// The default port set for teamserver applications is port 31416.
 func WithDefaultPort(port uint16) Options {
 	return func(opts *opts[any]) {
 		opts.config.DaemonMode.Port = int(port)
+	}
+}
+
+// WithInMemory deactivates all interactions of the client with the filesystem.
+// This applies to logging, but will also to any forward feature using files.
+//
+// Implications on database backends:
+// By default, all teamservers use sqlite3 as a backend, and thus will run a
+// database in memory. All other databases are assumed to be unable to do so,
+// and this option will thus trigger an error whenever the option is applied,
+// whether it be at teamserver creation, or when it does start listeners.
+func WithInMemory() Options {
+	return func(opts *opts[any]) {
+		opts.noLogs = true
+		opts.noFiles = true
+		opts.inMemory = true
 	}
 }
 
