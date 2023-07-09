@@ -128,7 +128,10 @@ func (h *handler) Serve(ln net.Listener) (any, error) {
 	if h.conn == nil {
 		rpcLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
 
-		tlsConfig := h.GetUserTLSConfig()
+		tlsConfig, err := h.GetUserTLSConfig()
+		if err != nil {
+			return nil, err
+		}
 		creds := credentials.NewTLS(tlsConfig)
 		h.options = append(h.options, grpc.Creds(creds))
 	}

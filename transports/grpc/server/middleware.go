@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/reeflective/team/internal/log"
+	"github.com/reeflective/team/transports/grpc/common"
 )
 
 // initMiddleware - Initialize middleware logger
@@ -40,7 +41,7 @@ func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 	// Logging interceptors
 	logrusEntry := ts.NamedLogger("transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
-		grpc_logrus.WithLevels(log.CodeToLevel),
+		grpc_logrus.WithLevels(common.CodeToLevel),
 	}
 	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
 

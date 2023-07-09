@@ -15,8 +15,8 @@ import (
 
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/transport"
+	"github.com/reeflective/team/transports/grpc/common"
 	"github.com/reeflective/team/transports/grpc/proto"
 )
 
@@ -53,7 +53,7 @@ func (h *handler) Init(cli *client.Client) error {
 	// Logging
 	logrusEntry := cli.NamedLogger("transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
-		grpc_logrus.WithLevels(log.CodeToLevel),
+		grpc_logrus.WithLevels(common.CodeToLevel),
 	}
 	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
 

@@ -286,7 +286,7 @@ func (ts *Server) init(opts ...Options) error {
 
 		// Certificate infrastructure, will make the code panic if unable to work properly.
 		certsLog := ts.NamedLogger("certs", "certificates")
-		ts.certs = certs.NewManager(ts.db.Session(&gorm.Session{}), certsLog, ts.AppDir())
+		ts.certs = certs.NewManager(ts.db.Session(&gorm.Session{}), certsLog, ts.Name(), ts.AppDir())
 	})
 
 	return err

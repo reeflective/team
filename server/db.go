@@ -84,7 +84,7 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 
 func (ts *Server) getDefaultDatabaseConfig() *db.Config {
 	return &db.Config{
-		Database:     filepath.Join(ts.AppDir(), fmt.Sprintf("%s.db", ts.name)),
+		Database:     filepath.Join(ts.AppDir(), fmt.Sprintf("%s.teamserver.db", ts.name)),
 		Dialect:      db.Sqlite,
 		MaxIdleConns: 10,
 		MaxOpenConns: 100,
