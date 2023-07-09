@@ -12,8 +12,7 @@ const (
 	UserManagementGroup = "user management"    // UserManagementGroup is the group to manage teamserver users.
 )
 
-// Colors // effects
-
+// Colors / effects
 const (
 	// ANSI Colors
 	Normal    = "\033[0m"

@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/systemd"
 	"github.com/reeflective/team/server"
 	"github.com/spf13/cobra"
@@ -15,11 +16,11 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 	return func(cmd *cobra.Command, _ []string) error {
 		lhost, err := cmd.Flags().GetString("host")
 		if err != nil {
-			return fmt.Errorf("Failed to get --host flag: %w", err)
+			return fmt.Errorf("Failed to get --host flag: %s", err)
 		}
 		lport, err := cmd.Flags().GetUint16("port")
 		if err != nil {
-			return fmt.Errorf("Failed to get --port (%d) flag: %w", lport, err)
+			return fmt.Errorf("Failed to get --port (%d) flag: %s", lport, err)
 		}
 
 		defer func() {
@@ -43,12 +44,12 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 
 		_, err := serv.ServeAddr(lhost, lport)
 		if err == nil {
-			fmt.Printf(info+"Teamserver listener started on %s:%d\n", lhost, lport)
+			fmt.Printf(command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
 			if persistent {
 				serv.AddListener(lhost, lport)
 			}
 		} else {
-			fmt.Printf(warn+"Failed to start job %v\n", err)
+			fmt.Printf(command.Warn+"Failed to start job %v\n", err)
 		}
 	}
 }
@@ -72,7 +73,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		// should be attached the daemon command.
 		daemonCmd, _, err := cmd.Parent().Find([]string{"daemon"})
 		if err != nil {
-			fmt.Printf(warn+"Failed to find teamserver daemon command in tree: %w", err)
+			fmt.Printf(command.Warn+"Failed to find teamserver daemon command in tree: %s", err)
 		}
 
 		config.Args = append(callerArgs(cmd.Parent()), daemonCmd.Name())
