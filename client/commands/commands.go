@@ -60,7 +60,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 			// Server
 			serverVer, err := cli.ServerVersion()
 			if err != nil {
-				fmt.Printf(command.Warn+"Server error: %s\n", err)
+				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Server error: %s\n", err)
 			}
 
 			dirty := ""
@@ -68,10 +68,10 @@ func clientCommands(cli *client.Client) *cobra.Command {
 				dirty = fmt.Sprintf(" - %sDirty%s", command.Bold, command.Normal)
 			}
 			serverSemVer := fmt.Sprintf("%d.%d.%d", serverVer.Major, serverVer.Minor, serverVer.Patch)
-			fmt.Printf(command.Info+"Server v%s - %s%s\n", serverSemVer, serverVer.Commit, dirty)
+			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Server v%s - %s%s\n", serverSemVer, serverVer.Commit, dirty)
 
 			// Client
-			fmt.Printf(command.Info+"Client %s\n", version.Full())
+			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Client %s\n", version.Full())
 
 			return nil
 		},
@@ -87,15 +87,15 @@ func clientCommands(cli *client.Client) *cobra.Command {
 				for _, arg := range args {
 					conf, err := cli.ReadConfig(arg)
 					if jsonErr, ok := err.(*json.SyntaxError); ok {
-						fmt.Printf(command.Warn+"%s\n", jsonErr.Error())
+						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", jsonErr.Error())
 					} else if err != nil {
-						fmt.Printf(command.Warn+"%s\n", err.Error())
+						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err.Error())
 						continue
 					}
 					cli.SaveConfig(conf)
 				}
 			} else {
-				fmt.Printf("Missing config file path, see --help")
+				fmt.Fprintf(cmd.OutOrStdout(), "Missing config file path, see --help")
 			}
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

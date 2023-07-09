@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"log"
 	"runtime/debug"
 
 	"github.com/spf13/cobra"
@@ -23,10 +22,10 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 			return fmt.Errorf("Failed to get --port (%d) flag: %s", lport, err)
 		}
 
+		// Also written to logs in the teamserver code.
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("panic:\n%s", debug.Stack())
-				fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
+				fmt.Fprintf(cmd.OutOrStdout(), "stacktrace from panic: \n"+string(debug.Stack()))
 			}
 		}()
 
@@ -43,13 +42,18 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 
 		_, err := serv.ServeAddr(lhost, lport)
 		if err == nil {
-			fmt.Printf(command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
+			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
 			if persistent {
 				serv.AddListener(lhost, lport)
 			}
 		} else {
-			fmt.Printf(command.Warn+"Failed to start job %v\n", err)
+			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to start job %v\n", err)
 		}
+	}
+}
+
+func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
+	return func(cmd *cobra.Command, _ []string) {
 	}
 }
 
@@ -72,7 +76,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		// should be attached the daemon command.
 		daemonCmd, _, err := cmd.Parent().Find([]string{"daemon"})
 		if err != nil {
-			fmt.Printf(command.Warn+"Failed to find teamserver daemon command in tree: %s", err)
+			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to find teamserver daemon command in tree: %s", err)
 		}
 
 		config.Args = append(callerArgs(cmd.Parent()), daemonCmd.Name())
@@ -81,7 +85,12 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		}
 
 		systemdConfig := systemd.NewFrom(serv.Name(), config)
-		fmt.Printf(systemdConfig)
+		fmt.Fprintf(cmd.OutOrStdout(), systemdConfig)
+	}
+}
+
+func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
+	return func(cmd *cobra.Command, _ []string) {
 	}
 }
 

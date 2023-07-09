@@ -94,6 +94,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// [ Listeners and servers control commands ] ------------------------------------------
 
+	// Start a listener
 	listenCmd := &cobra.Command{
 		Use:     "listen",
 		Short:   "Start a teamserver gRPC listener job (non-blocking)",
@@ -108,6 +109,18 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	listenCmd.Flags().AddFlagSet(lnFlags)
 
 	teamCmd.AddCommand(listenCmd)
+
+	// Close a listener
+	closeCmd := &cobra.Command{
+		Use:     "close",
+		Short:   "Close a listener and remove it from persistent ones if it's one",
+		GroupID: command.TeamServerGroup,
+		Run:     closeCmd(server),
+	}
+	// TODO: Add interfaces completion.
+
+	// TODO: complete listeners
+	teamCmd.AddCommand(closeCmd)
 
 	// systemd
 	daemonCmd := &cobra.Command{
@@ -142,6 +155,15 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	carapace.Gen(systemdCmd).FlagCompletion(sComps)
 
 	teamCmd.AddCommand(systemdCmd)
+
+	statusCmd := &cobra.Command{
+		Use:     "status",
+		Short:   "Show the status of the teamserver (listeners, configurations, health...)",
+		GroupID: command.TeamServerGroup,
+		Run:     statusCmd(server),
+	}
+
+	teamCmd.AddCommand(statusCmd)
 
 	// [ Users and data control commands ] -------------------------------------------------
 

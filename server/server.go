@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -200,6 +201,12 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 		port = uint16(ts.opts.config.DaemonMode.Port)
 		log.Infof("No port specified, using config file default: %d", port)
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("panic:\n%s", debug.Stack())
+		}
+	}()
 
 	// Start the listener.
 	log.Infof("Starting %s teamserver daemon on %s:%d ...", ts.Name(), host, port)

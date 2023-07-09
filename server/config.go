@@ -17,8 +17,8 @@ import (
 
 const (
 	configFileExt = "teamserver.json"
-	blankHost           = "-"
-	blankPort           = uint16(0)
+	blankHost     = "-"
+	blankPort     = uint16(0)
 )
 
 type Config struct {
