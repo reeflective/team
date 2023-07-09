@@ -1,16 +1,13 @@
-package grpc
+package server
 
 import (
 	"context"
-	"runtime"
-	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/reeflective/team/internal/proto"
-	"github.com/reeflective/team/internal/version"
 	"github.com/reeflective/team/server"
+	"github.com/reeflective/team/transports/grpc/proto"
 )
 
 type rpcServer struct {
@@ -27,24 +24,32 @@ func newServer(server *server.Server) *rpcServer {
 
 // GetVersion returns the teamserver version.
 func (ts *rpcServer) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
-	dirty := version.GitDirty != ""
-	semVer := version.Semantic()
-	compiled, _ := version.Compiled()
+	ver := ts.server.GetVersion()
+
 	return &proto.Version{
-		Major:      int32(semVer[0]),
-		Minor:      int32(semVer[1]),
-		Patch:      int32(semVer[2]),
-		Commit:     strings.TrimSuffix(version.GitCommit, "\n"),
-		Dirty:      dirty,
-		CompiledAt: compiled.Unix(),
-		OS:         runtime.GOOS,
-		Arch:       runtime.GOARCH,
+		Major:      ver.Major,
+		Minor:      ver.Minor,
+		Patch:      ver.Patch,
+		Commit:     ver.Commit,
+		Dirty:      ver.Dirty,
+		CompiledAt: ver.CompiledAt,
+		OS:         ver.OS,
+		Arch:       ver.Arch,
 	}, nil
 }
 
 // GetUsers returns the list of teamserver users and their status.
 func (ts *rpcServer) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
-	userspb, err := ts.server.GetUsers()
+	users, err := ts.server.GetUsers()
+
+	var userspb []*proto.User
+	for _, user := range users {
+		userspb = append(userspb, &proto.User{
+			Name:   user.Name,
+			Online: user.Online,
+		})
+	}
+
 	return &proto.Users{Users: userspb}, err
 }
 

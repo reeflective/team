@@ -32,6 +32,14 @@ func (tc *Client) apply(options ...Options) {
 	}
 }
 
+// WithInMemory deactivates all interactions of the client with the filesystem.
+// This applies to logging, but will also to any forward feature using files.
+func WithInMemory() Options {
+	return func(opts *opts) {
+		opts.noLogs = true
+	}
+}
+
 // WithNoLogs deactivates all logging normally done by the teamclient
 // if noLogs is set to true, or keeps/reestablishes them if false.
 func WithNoLogs(noLogs bool) Options {

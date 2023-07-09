@@ -8,7 +8,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/reeflective/team/server/db"
+	"github.com/reeflective/team/internal/db"
 )
 
 const (

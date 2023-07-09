@@ -1,15 +1,15 @@
-package server
+package commands
 
 import (
 	"fmt"
 	"log"
-	"os"
 	"runtime/debug"
+
+	"github.com/spf13/cobra"
 
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/systemd"
 	"github.com/reeflective/team/server"
-	"github.com/spf13/cobra"
 )
 
 func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) error {
@@ -27,7 +27,6 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 			if r := recover(); r != nil {
 				log.Printf("panic:\n%s", debug.Stack())
 				fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
-				os.Exit(99)
 			}
 		}()
 

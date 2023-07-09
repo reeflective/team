@@ -15,9 +15,8 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
+	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/log"
-	"github.com/reeflective/team/internal/proto"
-	"github.com/reeflective/team/server/db"
 )
 
 // Server is a team server.
@@ -38,7 +37,6 @@ type Server struct {
 
 	// Services
 	initOnce *sync.Once
-	*proto.UnimplementedTeamServer
 }
 
 // Handler represents a teamserver listener stack.
@@ -69,13 +67,12 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 	var err error
 
 	server := &Server{
-		name:                    application,
-		rootDirEnv:              fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
-		userTokens:              &sync.Map{},
-		opts:                    newDefaultOpts(),
-		ln:                      ln,
-		initOnce:                &sync.Once{},
-		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
+		name:       application,
+		rootDirEnv: fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
+		userTokens: &sync.Map{},
+		opts:       newDefaultOpts(),
+		ln:         ln,
+		initOnce:   &sync.Once{},
 	}
 
 	server.apply(options...)
@@ -279,7 +276,6 @@ func (ts *Server) init(opts ...Options) error {
 // 		certs:                   ts.certs,
 // 		userTokens:              ts.userTokens,
 // 		init:                    &sync.Once{},
-// 		UnimplementedTeamServer: &proto.UnimplementedTeamServer{},
 // 	}
 //
 // 	// One session per listener should be enough for now.

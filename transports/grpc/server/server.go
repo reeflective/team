@@ -1,4 +1,4 @@
-package grpc
+package server
 
 import (
 	"context"
@@ -10,10 +10,11 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
-	clientConn "github.com/reeflective/team/client/transports/grpc"
-	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/server"
+	clientConn "github.com/reeflective/team/transports/grpc/client"
+	"github.com/reeflective/team/transports/grpc/proto"
 )
 
 const (
@@ -36,7 +37,7 @@ type handler struct {
 	mutex   *sync.RWMutex
 }
 
-func NewServer(opts ...grpc.ServerOption) *handler {
+func NewTeamServer(opts ...grpc.ServerOption) *handler {
 	h := &handler{
 		mutex: &sync.RWMutex{},
 	}
@@ -50,7 +51,7 @@ func NewServer(opts ...grpc.ServerOption) *handler {
 }
 
 // DialerFrom generates an in-memory, unauthenticated client dialer and server
-func DialerFrom(server *handler) (teamclient client.Teamclient[any]) {
+func DialerFrom(server *handler) (teamclient team.Client, dialer client.Dialer[any]) {
 	conn := bufconn.Listen(bufSize)
 
 	ctxDialer := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
@@ -68,6 +69,15 @@ func DialerFrom(server *handler) (teamclient client.Teamclient[any]) {
 
 	// Call the grpc client package for a dialer.
 	return clientConn.NewTeamClient(dialOpts...)
+}
+
+// TeamClientFrom builds a complete teamclient from a server.
+// It first generates the dialer and the teamclient with DialerFrom(server),
+// then directly creates a new teamclient from the team/client package.
+func TeamClientFrom(server *handler) (*client.Client, error) {
+	teamclient, dialer := DialerFrom(server)
+
+	return client.New(server.Name(), teamclient, client.WithDialer(dialer))
 }
 
 // Init implements server.Handler.Init(), and is used to initialize

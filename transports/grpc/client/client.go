@@ -13,10 +13,11 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
+	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/log"
-	"github.com/reeflective/team/internal/proto"
 	"github.com/reeflective/team/internal/transport"
+	"github.com/reeflective/team/transports/grpc/proto"
 )
 
 const (
@@ -37,12 +38,12 @@ type handler struct {
 	options []grpc.DialOption
 }
 
-func NewTeamClient(opts ...grpc.DialOption) client.Teamclient[any] {
+func NewTeamClient(opts ...grpc.DialOption) (tc team.Client, dialer client.Dialer[any]) {
 	h := &handler{
 		options: opts,
 	}
 
-	return h
+	return h, h
 }
 
 func (h *handler) Init(cli *client.Client) error {
@@ -105,7 +106,7 @@ func (h *handler) Close() error {
 }
 
 // Users returns a list of all users registered to the application server.
-func (h *handler) Users() (users []*proto.User, err error) {
+func (h *handler) Users() (users []team.User, err error) {
 	if h.rpc == nil {
 		return nil, errors.New("No working RPC attached to client")
 	}
@@ -116,7 +117,10 @@ func (h *handler) Users() (users []*proto.User, err error) {
 	}
 
 	for _, user := range res.GetUsers() {
-		users = append(users, user)
+		users = append(users, team.User{
+			Name:   user.Name,
+			Online: user.Online,
+		})
 	}
 
 	return
@@ -124,17 +128,26 @@ func (h *handler) Users() (users []*proto.User, err error) {
 
 // ServerVersion returns the version information of the server to which
 // the client is connected, or nil and an error if it could not retrieve it.
-func (h *handler) Version() (*proto.Version, error) {
+func (h *handler) Version() (version team.Version, err error) {
 	if h.rpc == nil {
-		return nil, errors.New("No working RPC attached to client")
+		return version, errors.New("No working RPC attached to client")
 	}
 
-	version, err := h.rpc.GetVersion(context.Background(), &proto.Empty{})
+	ver, err := h.rpc.GetVersion(context.Background(), &proto.Empty{})
 	if err != nil {
-		return nil, errors.New(status.Convert(err).Message())
+		return version, errors.New(status.Convert(err).Message())
 	}
 
-	return version, nil
+	return team.Version{
+		Major:      ver.Major,
+		Minor:      ver.Minor,
+		Patch:      ver.Patch,
+		Commit:     ver.Commit,
+		Dirty:      ver.Dirty,
+		CompiledAt: ver.CompiledAt,
+		OS:         ver.OS,
+		Arch:       ver.Arch,
+	}, nil
 }
 
 func (h *handler) loggingInterceptor(log *logrus.Entry) grpc.UnaryClientInterceptor {

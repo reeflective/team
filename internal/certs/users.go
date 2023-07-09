@@ -21,7 +21,7 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/reeflective/team/server/db"
+	"github.com/reeflective/team/internal/db"
 )
 
 const (

@@ -10,13 +10,16 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"runtime"
+	"strings"
 	"sync"
 
+	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
-	"github.com/reeflective/team/internal/proto"
+	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/transport"
-	"github.com/reeflective/team/server/db"
+	"github.com/reeflective/team/internal/version"
 )
 
 const (
@@ -25,21 +28,41 @@ const (
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
 
-// GetUsers returns the list of users saved in the teamserver application database.
-// The error returned only originates, if non-nil, from the database backend,
-// and this function still returns the list of users in which it was parsed.
-func (ts *Server) GetUsers() ([]*proto.User, error) {
-	users := []*db.User{}
-	err := ts.db.Distinct("Name").Find(&users).Error
+func (ts *Server) GetVersion() team.Version {
+	dirty := version.GitDirty != ""
+	semVer := version.Semantic()
+	compiled, _ := version.Compiled()
 
-	var userspb []*proto.User
+	return team.Version{
+		Major:      int32(semVer[0]),
+		Minor:      int32(semVer[1]),
+		Patch:      int32(semVer[2]),
+		Commit:     strings.TrimSuffix(version.GitCommit, "\n"),
+		Dirty:      dirty,
+		CompiledAt: compiled.Unix(),
+		OS:         runtime.GOOS,
+		Arch:       runtime.GOARCH,
+	}
+}
+
+func (ts *Server) GetUsers() ([]team.User, error) {
+	var users []team.User
+
+	usersDB := []*db.User{}
+	err := ts.db.Distinct("Name").Find(&usersDB).Error
+
+	if err != nil && len(usersDB) == 0 {
+		return users, err
+	}
+
 	for _, user := range users {
-		userspb = append(userspb, &proto.User{
+		users = append(users, team.User{
 			Name: user.Name,
+			// TODO: online && num clients.
 		})
 	}
 
-	return userspb, err
+	return users, nil
 }
 
 // NewUserConfig generates a new user client connection configuration.

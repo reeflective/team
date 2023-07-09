@@ -36,7 +36,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
-	"github.com/reeflective/team/server/db"
+	"github.com/reeflective/team/internal/db"
 )
 
 const (

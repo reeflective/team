@@ -5,22 +5,24 @@ import (
 
 	"github.com/rsteube/carapace"
 
-	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/client/transports/grpc"
-	cli "github.com/reeflective/team/command/client"
+	teamclient "github.com/reeflective/team/client"
+	"github.com/reeflective/team/client/commands"
+	grpc "github.com/reeflective/team/transports/grpc/client"
 )
 
 func main() {
+	client, dialer := grpc.NewTeamClient()
+
 	// Create a new teamserver client, without any working
 	// gRPC connection at this stage. We could pass some options
 	// to it if we want to customize behavior.
-	client, err := client.New("teamserver", grpc.NewTeamClient())
+	teamclient, err := teamclient.New("teamserver", client, teamclient.WithDialer(dialer))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Let the teamserver client dedicated command tree make use of it.
-	root := cli.Commands(client)
+	root := commands.Generate(teamclient)
 
 	// We are responsible for connecting the client, however this
 	// is on purpose: there are various cases where you don't want

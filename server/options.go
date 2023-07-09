@@ -3,8 +3,9 @@ package server
 import (
 	"gorm.io/gorm"
 
-	"github.com/reeflective/team/server/db"
 	"github.com/sirupsen/logrus"
+
+	"github.com/reeflective/team/internal/db"
 )
 
 // Options are server options.

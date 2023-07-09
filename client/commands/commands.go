@@ -1,4 +1,4 @@
-package client
+package commands
 
 import (
 	"encoding/json"
@@ -17,9 +17,9 @@ import (
 	"github.com/reeflective/team/internal/version"
 )
 
-// Commands initliazes and returns a command tree to embed in client applications
+// Generate initliazes and returns a command tree to embed in client applications
 // connecting to a teamserver. It requires only the client to use its functions.
-func Commands(cli *client.Client) *cobra.Command {
+func Generate(cli *client.Client) *cobra.Command {
 	clientCmds := clientCommands(cli)
 	return clientCmds
 }

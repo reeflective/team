@@ -1,4 +1,4 @@
-package server
+package commands
 
 import (
 	"strings"
@@ -8,15 +8,15 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/reeflective/team/client"
-	cli "github.com/reeflective/team/command/client"
+	cli "github.com/reeflective/team/client/commands"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/server"
 )
 
-// Commands returns a "teamserver" command root and its tree for teamserver (server-side) management.
+// Generate returns a "teamserver" command root and its tree for teamserver (server-side) management.
 // It requires a teamclient so as to bind its "teamclient" tree as a subcommand of the server root.
 // This is so that all CLI applications which can be a teamserver can also be a client of their own.
-func Commands(teamserver *server.Server, teamclient *client.Client) *cobra.Command {
+func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Command {
 	serveAndConnect := func(cmd *cobra.Command, args []string) error {
 		// If the server is already serving us with an in-memory con, return.
 		// Also, the daemon command does not need a teamclient connection.
@@ -38,7 +38,7 @@ func Commands(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 	}
 
 	// We bind the same runners to the client-side commands.
-	cliCmds := cli.Commands(teamclient)
+	cliCmds := cli.Generate(teamclient)
 	cliCmds.Use = "client"
 
 	for _, cmd := range cliCmds.Commands() {

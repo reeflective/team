@@ -8,9 +8,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/log"
-	"github.com/reeflective/team/internal/proto"
 )
+
+var ErrNoTeamclient = errors.New("This teamclient has no client implementation")
 
 // Client is a team client wrapper.
 // It offers the core functionality of any team client.
@@ -22,31 +24,26 @@ type Client struct {
 	logFile    *os.File
 	connectedT *sync.Once
 	dialer     Dialer[any]
-	core       Teamclient[any]
+	client     team.Client
 }
 
-type Teamclient[rpcClient any] interface {
-	Dialer[rpcClient]
-
-	Users() ([]*proto.User, error)
-	Version() (*proto.Version, error)
-}
-
-type Dialer[rpcClient any] interface {
+type Dialer[clientConn any] interface {
 	Init(c *Client) error
-	Dial() (conn rpcClient, err error)
+	Dial() (conn clientConn, err error)
 	Close() error
 }
 
-func New(application string, client Teamclient[any], options ...Options) (*Client, error) {
+func New(application string, client team.Client, options ...Options) (*Client, error) {
 	var err error
 
 	teamclient := &Client{
 		name:       application,
 		opts:       defaultOpts(),
-		core:       client,
 		connectedT: &sync.Once{},
+		client:     client,
 	}
+
+	teamclient.apply(options...)
 
 	// Loggers
 	teamclient.log, err = log.NewClient(teamclient.AppDir(), application, logrus.DebugLevel)
@@ -57,20 +54,22 @@ func New(application string, client Teamclient[any], options ...Options) (*Clien
 	return teamclient, nil
 }
 
-// Name returns the name of the client application.
-func (tc *Client) Name() string {
-	return tc.name
-}
-
 // Connect uses the default client configurations to connect to the team server.
 // Note that this call might be blocking and expect user input, in the case where more
 // than one server configuration is found in the application directory: the application
 // will prompt the user to choose one of them.
-// TODO: Run with once.
+//
+// It only connects the teamclient if it has an available dialer.
+// If none is available, this function returns no error, as it is
+// possible that this client has a teamclient implementation ready.
 func (tc *Client) Connect(options ...Options) (err error) {
-	tc.connectedT.Do(func() {
-		tc.apply(options...)
+	tc.apply(options...)
 
+	if tc.dialer == nil {
+		return
+	}
+
+	tc.connectedT.Do(func() {
 		cfg := tc.opts.config
 
 		if !tc.opts.local {
@@ -86,12 +85,6 @@ func (tc *Client) Connect(options ...Options) (err error) {
 			err = errors.New("no application was selected or parsed")
 		}
 		tc.opts.config = cfg
-
-		// Our teamclient must be a dialer, only use
-		// it if we don't have a custom dialer to use
-		if tc.dialer == nil {
-			tc.dialer = tc.core
-		}
 
 		// Initialize the dialer with our client.
 		err = tc.dialer.Init(tc)
@@ -116,6 +109,40 @@ func (tc *Client) Connect(options ...Options) (err error) {
 	})
 
 	return
+}
+
+// Users returns a list of all users registered to the application server.
+func (tc *Client) Users() (users []team.User) {
+	if tc.client == nil {
+		return nil
+	}
+
+	res, err := tc.client.Users()
+	if err != nil && len(res) == 0 {
+		return nil
+	}
+
+	return res
+}
+
+// ServerVersion returns the version information of the server to which
+// the client is connected, or nil and an error if it could not retrieve it.
+func (tc *Client) ServerVersion() (ver team.Version, err error) {
+	if tc.client == nil {
+		return ver, ErrNoTeamclient
+	}
+
+	version, err := tc.client.Version()
+	if err != nil {
+		return
+	}
+
+	return version, nil
+}
+
+// Name returns the name of the client application.
+func (tc *Client) Name() string {
+	return tc.name
 }
 
 // Disconnect disconnects the client from the server, closing the connection
@@ -148,35 +175,6 @@ func (tc *Client) Disconnect() {
 // can't however reconnect to/with a different connection/stream.
 func (tc *Client) IsConnected() bool {
 	return tc.connected
-}
-
-// Users returns a list of all users registered to the application server.
-func (tc *Client) Users() (users []*proto.User) {
-	if tc.core == nil {
-		return nil
-	}
-
-	res, err := tc.core.Users()
-	if err != nil {
-		return nil
-	}
-
-	return res
-}
-
-// ServerVersion returns the version information of the server to which
-// the client is connected, or nil and an error if it could not retrieve it.
-func (tc *Client) ServerVersion() (ver proto.Version, err error) {
-	if tc.core == nil {
-		return ver, errors.New("No working RPC")
-	}
-
-	version, err := tc.core.Version()
-	if err != nil || version == nil {
-		return ver, err
-	}
-
-	return *version, nil
 }
 
 // NamedLogger returns a new logging "thread" which should grossly
