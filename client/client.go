@@ -42,7 +42,7 @@ func New(application string, client team.Client, options ...Options) (*Client, e
 	teamclient.apply(options...)
 
 	// Loggers
-	teamclient.log, err = log.NewClient(teamclient.AppDir(), application, logrus.DebugLevel)
+	teamclient.log, err = log.NewClient(teamclient.LogsDir(), application, logrus.DebugLevel)
 	if err != nil {
 		return nil, err
 	}

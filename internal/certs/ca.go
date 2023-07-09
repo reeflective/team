@@ -43,6 +43,10 @@ func (c *Manager) getCertDir() string {
 	return certDir
 }
 
+const (
+	certFileExt = "teamserver.pem"
+)
+
 // GetUsersCA returns the certificate authority for teamserver users.
 func (c *Manager) GetUsersCA() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	return c.getCA(userCA)
@@ -61,7 +65,7 @@ func (c *Manager) SaveUsersCA(cert, key []byte) {
 // generateCA - Creates a new CA cert for a given type, or die trying.
 func (c *Manager) generateCA(caType string, commonName string) (*x509.Certificate, *ecdsa.PrivateKey) {
 	storageDir := c.getCertDir()
-	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s-ca-cert.pem", caType))
+	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s_%s-ca-cert.%s", "", c.appName, caType, certFileExt))
 	if _, err := os.Stat(certFilePath); os.IsNotExist(err) {
 		c.log.Infof("Generating certificate authority for '%s'", caType)
 		cert, key := c.GenerateECCCertificate(caType, commonName, true, false)
@@ -109,8 +113,8 @@ func (c *Manager) getCA(caType string) (*x509.Certificate, *ecdsa.PrivateKey, er
 // getCAPEM - Get PEM encoded CA cert/key
 func (c *Manager) getCAPEM(caType string) ([]byte, []byte, error) {
 	caType = filepath.Base(caType)
-	caCertPath := filepath.Join(c.getCertDir(), fmt.Sprintf("%s-ca-cert.pem", caType))
-	caKeyPath := filepath.Join(c.getCertDir(), fmt.Sprintf("%s-ca-key.pem", caType))
+	caCertPath := filepath.Join(c.getCertDir(), fmt.Sprintf("%s_%s-ca-cert.%s", c.appName, caType, certFileExt))
+	caKeyPath := filepath.Join(c.getCertDir(), fmt.Sprintf("%s_%s-ca-key.%s", c.appName, caType, certFileExt))
 
 	certPEM, err := ioutil.ReadFile(caCertPath)
 	if err != nil {
@@ -137,8 +141,8 @@ func (c *Manager) saveCA(caType string, cert []byte, key []byte) {
 
 	// CAs get written to the filesystem since we control the names and makes them
 	// easier to move around/backup
-	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s-ca-cert.pem", caType))
-	keyFilePath := filepath.Join(storageDir, fmt.Sprintf("%s-ca-key.pem", caType))
+	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s_%s-ca-cert.%s", c.appName, caType, certFileExt))
+	keyFilePath := filepath.Join(storageDir, fmt.Sprintf("%s_%s-ca-key.%s", c.appName, caType, certFileExt))
 
 	err := ioutil.WriteFile(certFilePath, cert, 0o600)
 	if err != nil {

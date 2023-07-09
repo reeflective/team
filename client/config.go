@@ -14,6 +14,10 @@ import (
 	"gopkg.in/AlecAivazis/survey.v1"
 )
 
+const (
+	configFileExt = "teamclient"
+)
+
 // Config is a JSON client connection configuration.
 // It contains the addresses of a team server, the name of the user
 // allowed to connect to it, and cryptographic material to secure and
@@ -101,7 +105,7 @@ func (tc *Client) SaveConfig(config *Config) error {
 
 	configDir := tc.ConfigsDir()
 
-	filename := fmt.Sprintf("%s_%s.cfg", filepath.Base(config.User), filepath.Base(config.Host))
+	filename := fmt.Sprintf("%s_%s.%s", filepath.Base(config.User), filepath.Base(config.Host), configFileExt)
 	saveTo, _ := filepath.Abs(filepath.Join(configDir, filename))
 	configJSON, err := json.Marshal(config)
 	if err != nil {

@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	serverConfigFileName = "server.json"
-	blankHost            = "-"
-	blankPort            = uint16(0)
+	configFileExt = "teamserver.json"
+	blankHost           = "-"
+	blankPort           = uint16(0)
 )
 
 type Config struct {
@@ -45,7 +45,7 @@ type Config struct {
 func (ts *Server) ConfigPath() string {
 	appDir := ts.AppDir()
 
-	serverConfigPath := filepath.Join(appDir, "configs", serverConfigFileName)
+	serverConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name(), configFileExt))
 	return serverConfigPath
 }
 

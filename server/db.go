@@ -11,15 +11,11 @@ import (
 	"github.com/reeflective/team/internal/db"
 )
 
-const (
-	databaseConfigFileName = "database.json"
-)
-
 // GetDatabaseConfigPath - File path to config.json
 func (ts *Server) dbConfigPath() string {
 	appDir := ts.AppDir()
 	log := ts.NamedLogger("config", "database")
-	databaseConfigPath := filepath.Join(appDir, "configs", databaseConfigFileName)
+	databaseConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name()+"_database", configFileExt))
 	log.Debugf("Loading config from %s", databaseConfigPath)
 	return databaseConfigPath
 }

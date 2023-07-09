@@ -85,7 +85,9 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		if err := server.checkWritableFiles(); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrDirectory, err)
 		}
-		server.log, err = log.NewClient(server.LogsDir(), server.Name(), level)
+
+		logFileName := fmt.Sprintf("%s.teamserver", server.Name())
+		server.log, err = log.NewClient(server.LogsDir(), logFileName, level)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrLogging, err)
 		}

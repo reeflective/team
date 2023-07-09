@@ -10,8 +10,7 @@ const (
 	// configsDirName - Directory name containing config files
 	teamserverClientDir = "teamclient"
 	configsDirName      = "configs"
-	versionFileName     = "version"
-	logFileName         = "client.log"
+	logFileExt          = "teamclient"
 )
 
 // AppDir returns the teamclient directory of the app (named ~/.<app>/teamserver/client/),

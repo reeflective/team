@@ -52,9 +52,10 @@ var ErrCertDoesNotExist = errors.New("Certificate does not exist")
 
 // Manager is used to manage the certificate infrastructure for a given teamserver.
 type Manager struct {
-	appDir string
-	log    *logrus.Entry
-	db     *gorm.DB
+	appName string
+	appDir  string
+	log     *logrus.Entry
+	db      *gorm.DB
 }
 
 // NewManager initializes and returns a certificate manager for a given teamserver.
@@ -63,11 +64,12 @@ type Manager struct {
 // Any critical error happening at initialization time will send a log.Fatal event to the
 // provided logger. If the latter has no modified log.ExitFunc, this will make the server
 // panic and exit.
-func NewManager(db *gorm.DB, log *logrus.Entry, appDir string) *Manager {
+func NewManager(db *gorm.DB, log *logrus.Entry, appName, appDir string) *Manager {
 	certs := &Manager{
-		appDir: appDir,
-		log:    log,
-		db:     db,
+		appName: appName,
+		appDir:  appDir,
+		log:     log,
+		db:      db,
 	}
 
 	// Ensure CAs are initialized.
