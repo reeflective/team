@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/rsteube/carapace"
@@ -92,12 +93,16 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		&cobra.Group{ID: command.UserManagementGroup, Title: command.UserManagementGroup},
 	)
 
+	teamFlags := pflag.NewFlagSet("teamserver", pflag.ContinueOnError)
+	teamFlags.CountP("verbosity", "v", "Counter flag (-vvv) to increase log verbosity on stdout (1:info-> 3:trace)")
+	teamCmd.PersistentFlags().AddFlagSet(teamFlags)
+
 	// [ Listeners and servers control commands ] ------------------------------------------
 
 	// Start a listener
 	listenCmd := &cobra.Command{
 		Use:     "listen",
-		Short:   "Start a teamserver gRPC listener job (non-blocking)",
+		Short:   "Start a teamserver listener (non-blocking)",
 		GroupID: command.TeamServerGroup,
 		Run:     startListenerCmd(server),
 	}
@@ -122,7 +127,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	// TODO: complete listeners
 	teamCmd.AddCommand(closeCmd)
 
-	// systemd
+	// Daemon (blocking listener and persistent jobs)
 	daemonCmd := &cobra.Command{
 		Use:     "daemon",
 		Short:   "Start the teamserver in daemon mode (blocking)",
@@ -134,6 +139,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	teamCmd.AddCommand(daemonCmd)
 
+	// Systemd configuration output
 	systemdCmd := &cobra.Command{
 		Use:     "systemd",
 		Short:   "Print a systemd unit file for the application teamserver, with options",
@@ -200,7 +206,9 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	teamCmd.AddCommand(rmUserCmd)
 
-	carapace.Gen(rmUserCmd).PositionalCompletion(
+	rmUserComps := carapace.Gen(rmUserCmd)
+
+	rmUserComps.PositionalCompletion(
 		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
 			users, err := client.Users()
 			if err != nil {
@@ -213,11 +221,15 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 			}
 
 			if len(results) == 0 {
-				return carapace.ActionMessage("teamserver has no users")
+				return carapace.ActionMessage(fmt.Sprintf("%s teamserver has no users", server.Name()))
 			}
 
-			return carapace.ActionValues(results...).Tag("teamserver users")
+			return carapace.ActionValues(results...).Tag(fmt.Sprintf("%s teamserver users", server.Name()))
 		}))
+
+	rmUserComps.PreRun(func(cmd *cobra.Command, args []string) {
+		cmd.PersistentPreRunE(cmd, args)
+	})
 
 	// Import a list of users and their credentials.
 	cmdImportCA := &cobra.Command{

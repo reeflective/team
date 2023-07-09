@@ -27,6 +27,7 @@ type Server struct {
 	rootDirEnv string
 	listening  bool
 	log        *logrus.Logger
+	stdoutLog  *logrus.Logger
 	userTokens *sync.Map
 
 	// Configurations
@@ -88,7 +89,7 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		}
 
 		logFileName := fmt.Sprintf("%s.teamserver", server.Name())
-		server.log, err = log.NewClient(server.LogsDir(), logFileName, level)
+		server.log, server.stdoutLog, err = log.NewClient(server.LogsDir(), logFileName, level)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrLogging, err)
 		}
@@ -96,18 +97,8 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		server.log = log.NewStdout(server.Name(), level)
 	}
 
-	// Ensure we have a working database configuration, whether
-	// this config is an in-memory one or some fetched/provided.
-	// In any case, even an in-memory one should be valid.
-	dbConfig, err := server.getDatabaseConfig()
-	if err != nil {
-		dbErr := fmt.Errorf("%w: %w", ErrLogging, err)
-		server.log.Error(err)
-
-		return nil, dbErr
-	}
-
-	server.opts.dbConfig = dbConfig
+	// Ensure we have a working database configuration.
+	server.opts.dbConfig = server.getDefaultDatabaseConfig()
 
 	return server, nil
 }
@@ -195,11 +186,11 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	// cli args take president over config
 	if host == blankHost {
 		host = ts.opts.config.DaemonMode.Host
-		log.Infof("No host specified, using config file default: %s", host)
+		log.Debugf("No host specified, using config file default: %s", host)
 	}
 	if port == blankPort {
 		port = uint16(ts.opts.config.DaemonMode.Port)
-		log.Infof("No port specified, using config file default: %d", port)
+		log.Debugf("No port specified, using config file default: %d", port)
 	}
 
 	defer func() {
@@ -232,7 +223,6 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	signal.Notify(signals, syscall.SIGTERM)
 	go func() {
 		<-signals
-		println("HERE")
 		log.Infof("Received SIGTERM, exiting ...")
 		ln.Close()
 		done <- true
@@ -258,6 +248,19 @@ func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
 	})
 }
 
+// SetLogLevel is a utility to change the logging level of the stdout logger.
+func (ts *Server) SetLogLevel(level int) {
+	if ts.stdoutLog == nil {
+		return
+	}
+
+	if uint32(level) > uint32(logrus.TraceLevel) {
+		level = int(logrus.TraceLevel)
+	}
+
+	ts.stdoutLog.SetLevel(logrus.Level(uint32(level)))
+}
+
 // init a function that must not be ran when the teamserver
 // is instantiated, but when it starts serving its users.
 // This starts database connections, certificates setup, applies last-minute options, etc.
@@ -274,6 +277,7 @@ func (ts *Server) init(opts ...Options) error {
 		// have been modified with options to Serve().
 		ts.opts.dbConfig, err = ts.getDatabaseConfig()
 		if err != nil {
+			err = fmt.Errorf("%w: %w", ErrDatabase, err)
 			return
 		}
 

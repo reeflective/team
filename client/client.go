@@ -17,6 +17,7 @@ type Client struct {
 	connected  bool
 	opts       *opts
 	log        *logrus.Logger
+	stdoutLog  *logrus.Logger
 	logFile    *os.File
 	connectedT *sync.Once
 	dialer     Dialer[any]
@@ -29,25 +30,25 @@ type Dialer[clientConn any] interface {
 	Close() error
 }
 
-func New(application string, client team.Client, options ...Options) (*Client, error) {
+func New(application string, teamclient team.Client, options ...Options) (*Client, error) {
 	var err error
 
-	teamclient := &Client{
+	client := &Client{
 		name:       application,
 		opts:       defaultOpts(),
 		connectedT: &sync.Once{},
-		client:     client,
+		client:     teamclient,
 	}
 
-	teamclient.apply(options...)
+	client.apply(options...)
 
 	// Loggers
-	teamclient.log, err = log.NewClient(teamclient.LogsDir(), application, logrus.DebugLevel)
+	client.log, client.stdoutLog, err = log.NewClient(client.LogsDir(), application, logrus.InfoLevel)
 	if err != nil {
 		return nil, err
 	}
 
-	return teamclient, nil
+	return client, nil
 }
 
 // Connect uses the default client configurations to connect to the team server.
@@ -169,4 +170,17 @@ func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
 		log.PackageFieldKey: pkg,
 		"stream":            stream,
 	})
+}
+
+// SetLogLevel is a utility to change the logging level of the stdout logger.
+func (tc *Client) SetLogLevel(level int) {
+	if tc.stdoutLog == nil {
+		return
+	}
+
+	if uint32(level) > uint32(logrus.TraceLevel) {
+		level = int(logrus.TraceLevel)
+	}
+
+	tc.stdoutLog.SetLevel(logrus.Level(uint32(level)))
 }

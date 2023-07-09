@@ -119,7 +119,7 @@ func (tc *Client) SaveConfig(config *Config) error {
 		tc.log.Error(err)
 		return err
 	}
-	tc.log.Infof("Saved new client config to: %w", saveTo)
+	tc.log.Infof("Saved new client config to: %s", saveTo)
 
 	return nil
 }

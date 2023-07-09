@@ -3,6 +3,7 @@ package log
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/rsteube/carapace/pkg/style"
@@ -27,7 +28,27 @@ const (
 	MinimumPackagePad = 11
 )
 
-type textFormatter struct {
+func newScreenLogger(app string) *screenLoggerHook {
+	stdLogger := logrus.New()
+	stdLogger.SetLevel(logrus.WarnLevel)
+	stdLogger.SetReportCaller(true)
+	stdLogger.Out = os.Stdout
+
+	stdLogger.Formatter = &screenLoggerHook{
+		DisableColors: false,
+		ShowTimestamp: false,
+		Colors:        defaultFieldsFormat(),
+	}
+
+	hook := &screenLoggerHook{
+		name:   app,
+		logger: stdLogger,
+	}
+
+	return hook
+}
+
+type screenLoggerHook struct {
 	name            string
 	DisableColors   bool
 	ShowTimestamp   bool
@@ -36,8 +57,42 @@ type textFormatter struct {
 	logger          *logrus.Logger
 }
 
+// Levels - Hook all levels
+func (hook *screenLoggerHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+	// return []logrus.Level{
+	// 	logrus.InfoLevel,
+	// 	logrus.WarnLevel,
+	// 	logrus.ErrorLevel,
+	// 	logrus.FatalLevel,
+	// 	logrus.PanicLevel,
+	// }
+}
+
+// Fire - Implements the fire method of the Logrus hook
+func (hook *screenLoggerHook) Fire(entry *logrus.Entry) error {
+	switch entry.Level {
+	case logrus.PanicLevel:
+		hook.logger.Panic(entry.Message)
+	case logrus.FatalLevel:
+		hook.logger.Fatal(entry.Message)
+	case logrus.ErrorLevel:
+		hook.logger.Error(entry.Message)
+	case logrus.WarnLevel:
+		hook.logger.Warn(entry.Message)
+	case logrus.InfoLevel:
+		hook.logger.Info(entry.Message)
+	case logrus.DebugLevel:
+		hook.logger.Debug(entry.Message)
+	case logrus.TraceLevel:
+		hook.logger.Trace(entry.Message)
+	}
+
+	return nil
+}
+
 // Format is a custom formatter for all stdout/text logs, with better format and coloring.
-func (f *textFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+func (f *screenLoggerHook) Format(entry *logrus.Entry) ([]byte, error) {
 	// Basic information.
 	sign, signColor := f.getLevelFieldColor(entry.Level)
 	levelLog := fmt.Sprintf("%s%s%s", color(signColor), sign, color(style.Default))
@@ -76,7 +131,7 @@ func (f *textFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return []byte(logMessage), nil
 }
 
-func (f *textFormatter) getLevelFieldColor(level logrus.Level) (string, string) {
+func (f *screenLoggerHook) getLevelFieldColor(level logrus.Level) (string, string) {
 	// Builtin configurations.
 	signs := defaultLevelFields()
 	colors := defaultLevelFieldsColored(signs)

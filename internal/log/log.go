@@ -13,7 +13,7 @@ import (
 // Default logging level: error (no output when things work)
 func NewStdout(app string, level logrus.Level) *logrus.Logger {
 	stdLogger := logrus.New()
-	stdLogger.Formatter = &textFormatter{
+	stdLogger.Formatter = &screenLoggerHook{
 		DisableColors: false,
 		ShowTimestamp: false,
 		Colors:        defaultFieldsFormat(),
@@ -29,22 +29,26 @@ func NewStdout(app string, level logrus.Level) *logrus.Logger {
 // NewClient creates a default in-memory logger which prints everything out (with formatting)
 // to os.Stdout, and a side-hook writing the log event in a slightly different format to a file.
 // Logging levels as independent between stdout and text file.
-func NewClient(path string, app string, level logrus.Level) (*logrus.Logger, error) {
+func NewClient(path string, app string, level logrus.Level) (file, stdout *logrus.Logger, err error) {
 	txtLogger := logrus.New()
-	txtLogger.Formatter = &textFormatter{
+	txtLogger.Formatter = &screenLoggerHook{
 		DisableColors: false,
 		ShowTimestamp: false,
 		Colors:        defaultFieldsFormat(),
 	}
+	txtLogger.Out = io.Discard
 
 	txtLogger.SetLevel(logrus.InfoLevel)
 	txtLogger.SetReportCaller(true)
 
 	// Output both to the screen and to a file.
-	txtLogger.Out = io.Discard
 	txtLogger.AddHook(newTxtHook(path, app, level, txtLogger))
 
-	return txtLogger, nil
+	// Stdout
+	stdoutHook := newScreenLogger(app)
+	txtLogger.AddHook(stdoutHook)
+
+	return txtLogger, stdoutHook.logger, nil
 }
 
 // NewRoot returns a logger writing to the central log file of the teamserver, JSON-encoded.
@@ -57,7 +61,7 @@ func NewRoot(app, logDir string, level logrus.Level) (*logrus.Logger, error) {
 		return nil, fmt.Errorf("Failed to open log file %v", err)
 	}
 	rootLogger.Out = jsonFile
-	rootLogger.SetLevel(logrus.WarnLevel)
+	rootLogger.SetLevel(logrus.InfoLevel)
 	rootLogger.SetReportCaller(true)
 	rootLogger.AddHook(newTxtHook(logDir, app, level, rootLogger))
 	return rootLogger, nil
@@ -77,8 +81,8 @@ func NewAudit(logDir string) (*logrus.Logger, error) {
 	return auditLogger, nil
 }
 
-// newText returns a new logger writing to a given file.
-func newText(path, name string) (*logrus.Logger, error) {
+// NewText returns a new logger writing to a given file.
+func NewText(path, name string) (*logrus.Logger, error) {
 	txtLogger := logrus.New()
 	txtLogger.Formatter = &logrus.TextFormatter{
 		ForceColors:   true,
@@ -89,8 +93,10 @@ func newText(path, name string) (*logrus.Logger, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open log file %v", err)
 	}
+
 	txtLogger.Out = txtFile
-	txtLogger.SetLevel(logrus.ErrorLevel)
+	txtLogger.SetLevel(logrus.InfoLevel)
+
 	return txtLogger, nil
 }
 

@@ -22,7 +22,7 @@ func newTxtHook(path, app string, level logrus.Level, log *logrus.Logger) *txtHo
 		app:  app,
 	}
 
-	logger, err := newText(path, app)
+	logger, err := NewText(path, app)
 	if err != nil {
 		log.Error(err)
 	}

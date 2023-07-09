@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/reeflective/team/internal/command"
@@ -13,6 +14,13 @@ import (
 
 func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
+
 		lhost, err := cmd.Flags().GetString("host")
 		if err != nil {
 			return fmt.Errorf("Failed to get --host flag: %s", err)
@@ -36,6 +44,13 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 
 func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, _ []string) {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
+
 		lhost, _ := cmd.Flags().GetString("host")
 		lport, _ := cmd.Flags().GetUint16("port")
 		persistent, _ := cmd.Flags().GetBool("persistent")
@@ -54,11 +69,24 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 
 func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, _ []string) {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
 	}
 }
 
 func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, _ []string) {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
+
 		config := systemd.NewDefaultConfig()
 
 		userf, _ := cmd.Flags().GetString("user")
@@ -91,6 +119,12 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 
 func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, _ []string) {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
 	}
 }
 

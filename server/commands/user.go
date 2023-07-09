@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/reeflective/team/client"
@@ -18,6 +19,13 @@ import (
 
 func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, _ []string) {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
+
 		name, _ := cmd.Flags().GetString("name")
 		lhost, _ := cmd.Flags().GetString("host")
 		lport, _ := cmd.Flags().GetUint16("port")
@@ -60,7 +68,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 			return
 		}
 
-		saveTo = filepath.Join(saveTo, filename+".cfg")
+		saveTo = filepath.Join(saveTo, filename+".teamclient.cfg")
 		err = ioutil.WriteFile(saveTo, configJSON, 0o600)
 		if err != nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to write config to %s: %s\n", saveTo, err)
@@ -73,6 +81,13 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
+
 		user := args[0]
 
 		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Removing client certificate(s)/token(s) for %s, please wait ... \n", user)
@@ -89,6 +104,13 @@ func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
+
 		load := args[0]
 
 		fi, err := os.Stat(load)
@@ -120,6 +142,13 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
+		if cmd.Flags().Changed("verbosity") {
+			logLevel, err := cmd.Flags().GetCount("verbosity")
+			if err == nil {
+				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
+
 		var save string
 		if len(args) == 1 {
 			save = args[0]

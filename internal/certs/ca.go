@@ -65,7 +65,7 @@ func (c *Manager) SaveUsersCA(cert, key []byte) {
 // generateCA - Creates a new CA cert for a given type, or die trying.
 func (c *Manager) generateCA(caType string, commonName string) (*x509.Certificate, *ecdsa.PrivateKey) {
 	storageDir := c.getCertDir()
-	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s_%s-ca-cert.%s", "", c.appName, caType, certFileExt))
+	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s_%s-ca-cert.%s", c.appName, caType, certFileExt))
 	if _, err := os.Stat(certFilePath); os.IsNotExist(err) {
 		c.log.Infof("Generating certificate authority for '%s'", caType)
 		cert, key := c.GenerateECCCertificate(caType, commonName, true, false)

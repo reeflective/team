@@ -9,6 +9,7 @@ import (
 
 	"github.com/rsteube/carapace"
 	"github.com/rsteube/carapace/pkg/style"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -49,10 +50,21 @@ func clientCommands(cli *client.Client) *cobra.Command {
 		GroupID: command.TeamServerGroup,
 	}
 
+	teamFlags := pflag.NewFlagSet("teamserver", pflag.ContinueOnError)
+	teamFlags.CountP("verbosity", "v", "Counter flag (-vvv) to increase log verbosity on stdout (1:panic -> 7:debug)")
+	teamCmd.PersistentFlags().AddFlagSet(teamFlags)
+
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print teamserver client version",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("verbosity") {
+				logLevel, err := cmd.Flags().GetCount("verbosity")
+				if err == nil {
+					cli.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				}
+			}
+
 			if err := cli.Connect(); err != nil {
 				return err
 			}
@@ -83,6 +95,13 @@ func clientCommands(cli *client.Client) *cobra.Command {
 		Use:   "import",
 		Short: fmt.Sprintf("Import a teamserver client configuration file for %s", cli.Name()),
 		Run: func(cmd *cobra.Command, args []string) {
+			if cmd.Flags().Changed("verbosity") {
+				logLevel, err := cmd.Flags().GetCount("verbosity")
+				if err == nil {
+					cli.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				}
+			}
+
 			if 0 < len(args) {
 				for _, arg := range args {
 					conf, err := cli.ReadConfig(arg)
@@ -120,6 +139,16 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	usersCmd := &cobra.Command{
 		Use:   "users",
 		Short: "Display a table of teamserver users and their status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("verbosity") {
+				logLevel, err := cmd.Flags().GetCount("verbosity")
+				if err == nil {
+					cli.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				}
+			}
+
+			return nil
+		},
 	}
 
 	teamCmd.AddCommand(usersCmd)
