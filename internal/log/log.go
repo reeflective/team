@@ -9,6 +9,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// NewStdio returns a logger configured to output its events to the system stdio:
+// - Info/Debug/Trace logs are written to os.Stdout.
+// - Warn/Error/Fatal/Panic are written to os.Stderr.
 func NewStdio(level logrus.Level) *logrus.Logger {
 	stdLogger := logrus.New()
 	stdLogger.Formatter = &stdoutHook{
@@ -32,9 +35,10 @@ func NewStdio(level logrus.Level) *logrus.Logger {
 	return stdLogger
 }
 
-// NewClient creates a default in-memory logger which prints everything out (with formatting)
-// to os.Stdout, and a side-hook writing the log event in a slightly different format to a file.
-// Logging levels as independent between stdout and text file.
+// NewClient returns two distinct but partially overlapping loggers:
+//   - A logger writing to a given log file, with the level provided (config default/setting)
+//   - A stdio logger writing to stdout/err, but with a log level to warn and controlable from
+//     the client/server and the external API. Useful for changing log level in commands.
 func NewClient(logfile string, level logrus.Level) (file, stdout *logrus.Logger, err error) {
 	txtLogger := logrus.New()
 	txtLogger.Formatter = &stdoutHook{
