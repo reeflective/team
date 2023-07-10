@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/rsteube/carapace"
@@ -63,16 +64,7 @@ func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraR
 		}
 
 		// And connect the client locally, only needed.
-		_ = teamserver.ServeLocal(teamclient)
-		// _, err := teamserver.Serve(teamclient)
-
-		// And connect the client locally, only needed.
-		// err = teamclient.Connect()
-		// if err != nil {
-		// 	return err
-		// }
-
-		return nil
+		return teamserver.ServeLocal(teamclient)
 	}
 }
 
@@ -83,8 +75,9 @@ func PostRun(server *server.Server, client *client.Client) command.CobraRunnerE 
 
 func serverCommands(server *server.Server, client *client.Client) *cobra.Command {
 	teamCmd := &cobra.Command{
-		Use:   "teamserver",
-		Short: "Manage the application server-side teamserver and users",
+		Use:          "teamserver",
+		Short:        "Manage the application server-side teamserver and users",
+		SilenceUsage: true,
 	}
 
 	// Groups
@@ -104,7 +97,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		Use:     "listen",
 		Short:   "Start a teamserver listener (non-blocking)",
 		GroupID: command.TeamServerGroup,
-		Run:     startListenerCmd(server),
+		RunE:    startListenerCmd(server),
 	}
 
 	lnFlags := pflag.NewFlagSet("listener", pflag.ContinueOnError)
@@ -112,6 +105,10 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	lnFlags.Uint16P("port", "l", 31337, "tcp listen port")
 	lnFlags.BoolP("persistent", "p", false, "make listener persistent across restarts")
 	listenCmd.Flags().AddFlagSet(lnFlags)
+
+	listenComps := make(carapace.ActionMap)
+	listenComps["host"] = interfacesCompleter()
+	carapace.Gen(listenCmd).FlagCompletion(listenComps)
 
 	teamCmd.AddCommand(listenCmd)
 
@@ -122,7 +119,6 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		GroupID: command.TeamServerGroup,
 		Run:     closeCmd(server),
 	}
-	// TODO: Add interfaces completion.
 
 	// TODO: complete listeners
 	teamCmd.AddCommand(closeCmd)
@@ -137,6 +133,10 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	daemonCmd.Flags().StringP("host", "l", "-", "multiplayer listener host")
 	daemonCmd.Flags().Uint16P("port", "p", uint16(0), "multiplayer listener port")
 
+	daemonComps := make(carapace.ActionMap)
+	daemonComps["host"] = interfacesCompleter()
+	carapace.Gen(daemonCmd).FlagCompletion(daemonComps)
+
 	teamCmd.AddCommand(daemonCmd)
 
 	// Systemd configuration output
@@ -144,7 +144,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		Use:     "systemd",
 		Short:   "Print a systemd unit file for the application teamserver, with options",
 		GroupID: command.TeamServerGroup,
-		Run:     systemdConfigCmd(server),
+		RunE:    systemdConfigCmd(server),
 	}
 
 	sFlags := pflag.NewFlagSet("systemd", pflag.ContinueOnError)
@@ -158,6 +158,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	sComps := make(carapace.ActionMap)
 	sComps["save"] = carapace.ActionFiles()
 	sComps["binpath"] = carapace.ActionFiles()
+	sComps["host"] = interfacesCompleter()
 	carapace.Gen(systemdCmd).FlagCompletion(sComps)
 
 	teamCmd.AddCommand(systemdCmd)
@@ -193,6 +194,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	userComps := make(carapace.ActionMap)
 	userComps["save"] = carapace.ActionDirectories()
+	userComps["host"] = interfacesCompleter()
 	carapace.Gen(userCmd).FlagCompletion(userComps)
 
 	// Delete and kick user
@@ -240,7 +242,14 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		Run:     importCACmd(server),
 	}
 
-	carapace.Gen(cmdImportCA).PositionalCompletion(carapace.ActionFiles())
+	iComps := carapace.Gen(cmdImportCA)
+	iComps.PositionalCompletion(
+		carapace.Batch(
+			carapace.ActionCallback(cli.ConfigsCompleter(client, "teamserver/certs", ".teamserver.pem", "other teamservers user CAs")),
+			carapace.ActionFiles().Tag("teamserver user CAs"),
+		).ToA(),
+	)
+
 	teamCmd.AddCommand(cmdImportCA)
 
 	// Export the list of users and their credentials.
@@ -256,4 +265,36 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	teamCmd.AddCommand(cmdExportCA)
 
 	return teamCmd
+}
+
+// interfacesCompleter completes interface addresses on the client host.
+func interfacesCompleter() carapace.Action {
+	return carapace.ActionCallback(func(_ carapace.Context) carapace.Action {
+		ifaces, err := net.Interfaces()
+		if err != nil {
+			return carapace.ActionMessage("failed to get net interfaces: %s", err.Error())
+		}
+
+		results := make([]string, 0)
+
+		for _, i := range ifaces {
+			addrs, err := i.Addrs()
+			if err != nil {
+				continue
+			}
+
+			for _, a := range addrs {
+				switch v := a.(type) {
+				case *net.IPAddr:
+					results = append(results, v.IP.String())
+				case *net.IPNet:
+					results = append(results, v.IP.String())
+				default:
+					results = append(results, v.String())
+				}
+			}
+		}
+
+		return carapace.ActionValues(results...).Tag("client interfaces").NoSpace(':')
+	})
 }

@@ -3,6 +3,8 @@ package commands
 import (
 	"fmt"
 	"runtime/debug"
+	"strconv"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -42,8 +44,8 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 	}
 }
 
-func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
-	return func(cmd *cobra.Command, _ []string) {
+func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, _ []string) error {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
@@ -62,8 +64,10 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 				serv.AddListener(lhost, lport)
 			}
 		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to start job %v\n", err)
+			return fmt.Errorf(command.Warn+"Failed to start job %v\n", err)
 		}
+
+		return nil
 	}
 }
 
@@ -78,8 +82,8 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 	}
 }
 
-func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
-	return func(cmd *cobra.Command, _ []string) {
+func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, _ []string) error {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
@@ -99,12 +103,22 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 			config.Binpath = binPath
 		}
 
+		host, hErr := cmd.Flags().GetString("host")
+		if hErr != nil {
+			return hErr
+		}
+
+		port, pErr := cmd.Flags().GetUint16("port")
+		if pErr != nil {
+			return pErr
+		}
+
 		// The last argument is the systemd command:
 		// its parent is the teamserver one, to which
 		// should be attached the daemon command.
 		daemonCmd, _, err := cmd.Parent().Find([]string{"daemon"})
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to find teamserver daemon command in tree: %s", err)
+			return fmt.Errorf("Failed to find teamserver daemon command in tree: %s", err)
 		}
 
 		config.Args = append(callerArgs(cmd.Parent()), daemonCmd.Name())
@@ -112,8 +126,18 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 			config.Args[0] = binPath
 		}
 
+		if host != "" {
+			config.Args = append(config.Args, strings.Join([]string{"--host", host}, " "))
+		}
+
+		if port != 0 {
+			config.Args = append(config.Args, strings.Join([]string{"--port", strconv.Itoa(int(port))}, " "))
+		}
+
 		systemdConfig := systemd.NewFrom(serv.Name(), config)
 		fmt.Fprintf(cmd.OutOrStdout(), systemdConfig)
+
+		return nil
 	}
 }
 

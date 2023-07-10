@@ -129,7 +129,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	iComps := carapace.Gen(importCmd)
 	iComps.PositionalCompletion(
 		carapace.Batch(
-			carapace.ActionCallback(teamserversCompleter(cli)),
+			carapace.ActionCallback(ConfigsCompleter(cli, "teamclient/configs", ".teamclient", "teamserver applications")),
 			carapace.ActionFiles().Tag("server configuration"),
 		).ToA(),
 	)
@@ -156,8 +156,10 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	return teamCmd
 }
 
-// teamserversCompleter completes file paths to other teamserver application configs
-func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
+// ConfigsCompleter completes file paths to other teamserver application configs (clients/users CA, etc)
+// The filepath is the directory  between .app/ and the target directory where config files of a certain
+// type should be found, ext is the normal/default extension for those target files, and tag is used in comps.
+func ConfigsCompleter(cli *client.Client, filePath, ext, tag string) carapace.CompletionCallback {
 	return func(ctx carapace.Context) carapace.Action {
 		var compErrors []carapace.Action
 		homeDir, err := os.UserHomeDir()
@@ -183,7 +185,7 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 				continue
 			}
 
-			configPath := filepath.Join(homeDir, dir.Name(), "teamserver/client/configs")
+			configPath := filepath.Join(homeDir, dir.Name(), filePath)
 
 			if configs, err := os.Stat(configPath); err == nil {
 				if !configs.IsDir() {
@@ -192,7 +194,7 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 
 				files, _ := os.ReadDir(configPath)
 				for _, file := range files {
-					if !strings.HasSuffix(file.Name(), ".cfg") {
+					if !strings.HasSuffix(file.Name(), ext) {
 						continue
 					}
 
@@ -209,7 +211,14 @@ func teamserversCompleter(cli *client.Client) carapace.CompletionCallback {
 			}
 		}
 
-		return carapace.ActionValuesDescribed(results...).StyleF(style.ForPathExt).Tag("teamserver applications")
+		configsAction := carapace.ActionValuesDescribed(results...).StyleF(func(s string, sc style.Context) string {
+			if strings.HasSuffix(s, ext) {
+				return style.Red
+			}
+			return s
+		})
+
+		return configsAction.Tag(tag)
 	}
 }
 

@@ -52,7 +52,8 @@ func Semantic() []int {
 
 // Compiled - Get time this binary was compiled
 func Compiled() (time.Time, error) {
-	compiled, err := strconv.ParseInt(CompiledAt, 10, 64)
+	compiledAt := strings.TrimSuffix(CompiledAt, "\n")
+	compiled, err := strconv.ParseInt(compiledAt, 10, 64)
 	if err != nil {
 		return time.Unix(0, 0), err
 	}
@@ -66,7 +67,7 @@ func Full() string {
 		ver += fmt.Sprintf(" - %s", GitCommit)
 	}
 	compiled, err := Compiled()
-	if err != nil {
+	if err == nil {
 		ver += fmt.Sprintf(" - Compiled %s", compiled.String())
 	}
 	return ver
