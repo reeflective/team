@@ -1,6 +1,9 @@
 package server
 
 import (
+	"fmt"
+	"path/filepath"
+
 	"gorm.io/gorm"
 
 	"github.com/sirupsen/logrus"
@@ -28,10 +31,11 @@ type opts[server any] struct {
 }
 
 // default in-memory configuration, ready to run.
-func newDefaultOpts() *opts[any] {
+func (ts *Server) newDefaultOpts() *opts[any] {
 	options := &opts[any]{
-		config: getDefaultServerConfig(),
-		local:  false,
+		config:  getDefaultServerConfig(),
+		logFile: filepath.Join(ts.LogsDir(), fmt.Sprintf("%s.teamserver.log", ts.Name())),
+		local:   false,
 	}
 
 	return options

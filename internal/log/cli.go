@@ -28,7 +28,7 @@ const (
 	MinimumPackagePad = 11
 )
 
-func newScreenLogger(app string) *screenLoggerHook {
+func newScreenLogger() *screenLoggerHook {
 	stdLogger := logrus.New()
 	stdLogger.SetLevel(logrus.WarnLevel)
 	stdLogger.SetReportCaller(true)
@@ -41,7 +41,6 @@ func newScreenLogger(app string) *screenLoggerHook {
 	}
 
 	hook := &screenLoggerHook{
-		name:   app,
 		logger: stdLogger,
 	}
 

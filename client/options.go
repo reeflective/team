@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ type opts struct {
 func (tc *Client) defaultOpts() *opts {
 	return &opts{
 		config:  &Config{},
-		logFile: filepath.Join(tc.LogsDir(), tc.Name()),
+		logFile: filepath.Join(tc.LogsDir(), fmt.Sprintf("%s.teamclient.log", tc.Name())),
 	}
 }
 

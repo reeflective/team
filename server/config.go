@@ -77,7 +77,7 @@ func (ts *Server) GetConfig() *Config {
 	if 6 < ts.opts.config.Log.Level {
 		ts.opts.config.Log.Level = 6
 	}
-	ts.log.SetLevel(log.LevelFrom(ts.opts.config.Log.Level))
+	ts.fileLogger.SetLevel(log.LevelFrom(ts.opts.config.Log.Level))
 
 	// This updates the config with any missing fields
 	err := ts.SaveConfig(ts.opts.config)

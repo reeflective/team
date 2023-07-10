@@ -2,7 +2,6 @@ package client
 
 import (
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -199,8 +198,7 @@ func (tc *Client) initLogging() (err error) {
 	}
 
 	// Either use default logfile or user-specified one.
-	logDir, logFile := tc.opts.logFile, filepath.Base(tc.opts.logFile)
-	tc.fileLogger, tc.stdoutLogger, err = log.NewClient(logDir, logFile, logrus.InfoLevel)
+	tc.fileLogger, tc.stdoutLogger, err = log.NewClient(tc.opts.logFile, logrus.InfoLevel)
 	if err != nil {
 		return err
 	}

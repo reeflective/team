@@ -29,7 +29,7 @@ func NewStdout(app string, level logrus.Level) *logrus.Logger {
 // NewClient creates a default in-memory logger which prints everything out (with formatting)
 // to os.Stdout, and a side-hook writing the log event in a slightly different format to a file.
 // Logging levels as independent between stdout and text file.
-func NewClient(path string, app string, level logrus.Level) (file, stdout *logrus.Logger, err error) {
+func NewClient(logfile string, level logrus.Level) (file, stdout *logrus.Logger, err error) {
 	txtLogger := logrus.New()
 	txtLogger.Formatter = &screenLoggerHook{
 		DisableColors: false,
@@ -42,10 +42,10 @@ func NewClient(path string, app string, level logrus.Level) (file, stdout *logru
 	txtLogger.SetReportCaller(true)
 
 	// Output both to the screen and to a file.
-	txtLogger.AddHook(newTxtHook(path, app, level, txtLogger))
+	txtLogger.AddHook(newTxtHook(logfile, level, txtLogger))
 
 	// Stdout
-	stdoutHook := newScreenLogger(app)
+	stdoutHook := newScreenLogger()
 	txtLogger.AddHook(stdoutHook)
 
 	return txtLogger, stdoutHook.logger, nil
@@ -63,7 +63,7 @@ func NewRoot(app, logDir string, level logrus.Level) (*logrus.Logger, error) {
 	rootLogger.Out = jsonFile
 	rootLogger.SetLevel(logrus.InfoLevel)
 	rootLogger.SetReportCaller(true)
-	rootLogger.AddHook(newTxtHook(logDir, app, level, rootLogger))
+	rootLogger.AddHook(newTxtHook(logDir, level, rootLogger))
 	return rootLogger, nil
 }
 
@@ -82,14 +82,13 @@ func NewAudit(logDir string) (*logrus.Logger, error) {
 }
 
 // NewText returns a new logger writing to a given file.
-func NewText(path, name string) (*logrus.Logger, error) {
+func NewText(logFile string) (*logrus.Logger, error) {
 	txtLogger := logrus.New()
 	txtLogger.Formatter = &logrus.TextFormatter{
 		ForceColors:   true,
 		FullTimestamp: true,
 	}
-	txtFilePath := filepath.Join(path, fmt.Sprintf("%s.log", name))
-	txtFile, err := os.OpenFile(txtFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	txtFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open log file %v", err)
 	}

@@ -16,13 +16,10 @@ type txtHook struct {
 }
 
 // newTxtHook - returns a new txt hook
-func newTxtHook(path, app string, level logrus.Level, log *logrus.Logger) *txtHook {
-	hook := &txtHook{
-		Name: app,
-		app:  app,
-	}
+func newTxtHook(logFile string, level logrus.Level, log *logrus.Logger) *txtHook {
+	hook := &txtHook{}
 
-	logger, err := NewText(path, app)
+	logger, err := NewText(logFile)
 	if err != nil {
 		log.Error(err)
 	}

@@ -17,18 +17,17 @@ import (
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
-	"github.com/reeflective/team/internal/log"
 )
 
 // Server is a team server.
 type Server struct {
 	// Core
-	name       string
-	rootDirEnv string
-	listening  bool
-	log        *logrus.Logger
-	stdoutLog  *logrus.Logger
-	userTokens *sync.Map
+	name         string
+	rootDirEnv   string
+	listening    bool
+	fileLogger   *logrus.Logger
+	stdoutLogger *logrus.Logger
+	userTokens   *sync.Map
 
 	// Configurations
 	opts  *opts[any]
@@ -66,35 +65,21 @@ type Handler[server any] interface {
 // This call to create the server only creates the application default directory.
 // No files, logs, connections or any interaction with the os/filesystem are made.
 func New(application string, ln Handler[any], options ...Options) (*Server, error) {
-	var err error
-
 	server := &Server{
 		name:       application,
 		rootDirEnv: fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
 		userTokens: &sync.Map{},
-		opts:       newDefaultOpts(),
 		ln:         ln,
 		initOnce:   &sync.Once{},
 	}
 
+	server.opts = server.newDefaultOpts()
+
 	server.apply(options...)
 
-	// Logging
-	level := logrus.Level(server.opts.config.Log.Level)
-
-	// Ensure all teamserver-specific directories are writable.
-	if !server.opts.noLogs || !server.opts.noFiles {
-		if err := server.checkWritableFiles(); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrDirectory, err)
-		}
-
-		logFileName := fmt.Sprintf("%s.teamserver", server.Name())
-		server.log, server.stdoutLog, err = log.NewClient(server.LogsDir(), logFileName, level)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrLogging, err)
-		}
-	} else {
-		server.log = log.NewStdout(server.Name(), level)
+	// Logging (if allowed)
+	if err := server.initLogging(); err != nil {
+		return nil, err
 	}
 
 	// Ensure we have a working database configuration.
@@ -235,31 +220,9 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 // Close gracefully stops all components of the server,
 // letting pending connections to it to finish first.
 // func (ts *Server) Close() {
-// 	defer ts.log.Writer().Close()
+// 	defer ts.log().Writer().Close()
 // 	// defer ts.audit.Writer().Close()
 // }
-
-// NamedLogger returns a new logging "thread" which should grossly
-// indicate the package/general domain, and a more precise flow/stream.
-func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
-	return ts.log.WithFields(logrus.Fields{
-		log.PackageFieldKey: pkg,
-		"stream":            stream,
-	})
-}
-
-// SetLogLevel is a utility to change the logging level of the stdout logger.
-func (ts *Server) SetLogLevel(level int) {
-	if ts.stdoutLog == nil {
-		return
-	}
-
-	if uint32(level) > uint32(logrus.TraceLevel) {
-		level = int(logrus.TraceLevel)
-	}
-
-	ts.stdoutLog.SetLevel(logrus.Level(uint32(level)))
-}
 
 // init a function that must not be ran when the teamserver
 // is instantiated, but when it starts serving its users.
