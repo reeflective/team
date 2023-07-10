@@ -75,11 +75,28 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 }
 
 func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
-	return func(cmd *cobra.Command, _ []string) {
+	return func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
 				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+			}
+		}
+
+		for _, arg := range args {
+			if arg == "" {
+				continue
+			}
+
+			for _, ln := range serv.Listeners() {
+				if strings.HasPrefix(ln.ID, arg) {
+					err := serv.CloseListener(arg)
+					if err != nil {
+						fmt.Fprintln(cmd.ErrOrStderr(), command.Warn, err)
+					} else {
+						fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Closed %s listener () [%s]", ln.Name, ln.ID, ln.Description)
+					}
+				}
 			}
 		}
 	}

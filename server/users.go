@@ -49,7 +49,7 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 	err := ts.db.Distinct("Name").Find(&usersDB).Error
 
 	if err != nil && len(usersDB) == 0 {
-		return users, fmt.Errorf("%w: %w", ErrDatabase, err)
+		return users, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
 	for _, user := range users {
@@ -65,13 +65,13 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 // NewUserConfig generates a new user client connection configuration.
 func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]byte, error) {
 	if !namePattern.MatchString(userName) {
-		return nil, fmt.Errorf("%w: invalid user name (alphanumerics only)", ErrUserConfig)
+		return nil, ts.errorf("%w: invalid user name (alphanumerics only)", ErrUserConfig)
 	}
 	if userName == "" {
-		return nil, fmt.Errorf("%w: user name required ", ErrUserConfig)
+		return nil, ts.errorf("%w: user name required ", ErrUserConfig)
 	}
 	if lhost == "" {
-		return nil, fmt.Errorf("%w: invalid team server host (empty)", ErrUserConfig)
+		return nil, ts.errorf("%w: invalid team server host (empty)", ErrUserConfig)
 	}
 
 	if lport == blankPort {
@@ -80,7 +80,7 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 
 	rawToken, err := ts.newUserToken()
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUserConfig, err)
+		return nil, ts.errorf("%w: %w", ErrUserConfig, err)
 	}
 
 	digest := sha256.Sum256([]byte(rawToken))
@@ -90,12 +90,12 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 	}
 	err = ts.db.Save(dbuser).Error
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrDatabase, err)
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
 	publicKey, privateKey, err := ts.certs.UserClientGenerateCertificate(userName)
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to generate certificate %w", ErrCertificate, err)
+		return nil, ts.errorf("%w: failed to generate certificate %w", ErrCertificate, err)
 	}
 
 	caCertPEM, _, _ := ts.certs.GetUsersCAPEM()
@@ -142,9 +142,7 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 
 	user, err := ts.userByToken(token)
 	if err != nil || user == nil {
-		authErr := fmt.Errorf("Authentication failure: %s", err)
-		log.Error(authErr)
-		return "", false, ErrUnauthenticated
+		return "", false, ts.errorf("%w: %w", ErrUnauthenticated, err)
 	}
 
 	log.Debugf("Valid user token for %s", user.Name)
@@ -195,9 +193,7 @@ func (ts *Server) GetUserTLSConfig() (*tls.Config, error) {
 	log := ts.NamedLogger("certs", "mtls")
 	caCertPtr, _, err := ts.certs.GetUsersCA()
 	if err != nil {
-		userCAErr := fmt.Errorf("%w: failed to get users certificate authority: %w", ErrCertificate, err)
-		log.Error(userCAErr)
-		return nil, userCAErr
+		return nil, ts.errorWith(log, "%w: failed to get users certificate authority: %w", ErrCertificate, err)
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AddCert(caCertPtr)
@@ -209,16 +205,12 @@ func (ts *Server) GetUserTLSConfig() (*tls.Config, error) {
 
 	certPEM, keyPEM, err := ts.certs.UserServerGetCertificate()
 	if err != nil {
-		userCertErr := fmt.Errorf("%w: failed to generated or fetch user certificate: %w", ErrCertificate, err)
-		log.Error(userCertErr)
-		return nil, userCertErr
+		return nil, ts.errorWith(log, "%w: failed to generated or fetch user certificate: %w", ErrCertificate, err)
 	}
 
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		userCertErr := fmt.Errorf("%w: failed to load server certificate: %w", ErrCertificate, err)
-		log.Error(userCertErr)
-		return nil, userCertErr
+		return nil, ts.errorWith(log, "%w: failed to load server certificate: %w", ErrCertificate, err)
 	}
 
 	tlsConfig := &tls.Config{

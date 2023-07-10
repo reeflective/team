@@ -34,4 +34,7 @@ var (
 
 	// ErrListenerNotFound indicates that for a given ID, no running or persistent listener could be found.
 	ErrListenerNotFound = errors.New("no listener exists with ID")
+
+	// ErrListener indicates an error raised by a listener stack/implementation.
+	ErrListener = errors.New("teamserver listener")
 )

@@ -99,7 +99,7 @@ func (ts *Server) SaveConfig(c *Config) error {
 		log.Debugf("Creating config dir %s", configDir)
 		err := os.MkdirAll(configDir, 0o700)
 		if err != nil {
-			return fmt.Errorf("%w: %w", ErrConfig, err)
+			return ts.errorf("%w: %w", ErrConfig, err)
 		}
 	}
 
@@ -111,7 +111,7 @@ func (ts *Server) SaveConfig(c *Config) error {
 	log.Debugf("Saving config to %s", configPath)
 	err = os.WriteFile(configPath, data, 0o600)
 	if err != nil {
-		return fmt.Errorf("%w: failed to write config: %s", ErrConfig, err)
+		return ts.errorf("%w: failed to write config: %s", ErrConfig, err)
 	}
 	return nil
 }

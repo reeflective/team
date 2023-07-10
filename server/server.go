@@ -126,10 +126,10 @@ func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 	}
 
 	// Attempt to connect with the user configuration.
+	// Log the error by default, the client might not.
 	err = cli.Connect(client.WithLocalDialer())
 	if err != nil {
-		// Client error fromm client package
-		return err
+		return ts.errorf(err.Error())
 	}
 
 	return nil
@@ -173,7 +173,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 
 	err = ts.StartPersistentListeners(ts.opts.continueOnError)
 	if err != nil && hostPort.MatchString(err.Error()) {
-		log.Warnf("Error starting persistent listeners: %s", err)
+		log.Errorf("Error starting persistent listeners: %s", err)
 	}
 
 	done := make(chan bool)
@@ -208,30 +208,31 @@ func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jo
 }
 
 func (ts *Server) ServeHandler(handler Handler[any], id, host string, port uint16, options ...Options) error {
-	// log := ts.NamedLogger("teamserver", "handler")
+	log := ts.NamedLogger("teamserver", "handler")
 
 	// If server was not initialized yet, do it.
 	err := ts.init(options...)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrTeamServer, err)
+		return ts.errorf("%w: %w", ErrTeamServer, err)
 	}
 
+	// Let the handler initialize itself: load everything it needs from
+	// the server, configuration, fetch certificates, log stuff, etc.
 	err = handler.Init(ts)
 	if err != nil {
-		// Listener config error
-		return err
+		return ts.errorWith(log, "%w: %w", ErrListener, err)
 	}
 
+	// Now let the handler start listening a network interface.
 	listener, err := handler.Listen(fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		// Listener config error
-		return err
+		return ts.errorWith(log, "%s: %w", ErrListener, err)
 	}
 
+	// The previous is not blocking, serve the listener immediately.
 	serverConn, err := handler.Serve(listener)
 	if err != nil {
-		// Listener/server error
-		return err
+		return ts.errorWith(log, "%w: %w", ErrListener, err)
 	}
 
 	// The server is running, so add a job anyway.
@@ -242,7 +243,7 @@ func (ts *Server) ServeHandler(handler Handler[any], id, host string, port uint1
 	// users can directly compare it with their own errors.
 	for _, hook := range ts.opts.hooks[handler.Name()] {
 		if err := hook(serverConn); err != nil {
-			return err
+			return ts.errorWith(log, "%w: %w", ErrTeamServer, err)
 		}
 	}
 
@@ -269,7 +270,7 @@ func (ts *Server) init(opts ...Options) error {
 		// have been modified with options to Serve().
 		ts.opts.dbConfig, err = ts.getDatabaseConfig()
 		if err != nil {
-			err = fmt.Errorf("%w: %w", ErrDatabase, err)
+			err = ts.errorf("%w: %w", ErrDatabase, err)
 			return
 		}
 
@@ -278,7 +279,7 @@ func (ts *Server) init(opts ...Options) error {
 			dbLogger := ts.NamedLogger("database", "database")
 			ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
 			if err != nil {
-				err = fmt.Errorf("%w: %w", ErrDatabase, err)
+				err = ts.errorf("%w: %w", ErrDatabase, err)
 				return
 			}
 		}

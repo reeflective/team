@@ -67,6 +67,11 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 // makes this runner able to be ran in closed-loop consoles.
 func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
+		// Server specific settings.
+		teamserver.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
+
+		// TODO: use the client pre-runners ?
+
 		// If the server is already serving us with an in-memory con, return.
 		// Also, the daemon command does not need a teamclient connection.
 		if teamclient.IsConnected() {
@@ -128,12 +133,13 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	closeCmd := &cobra.Command{
 		Use:     "close",
 		Short:   "Close a listener and remove it from persistent ones if it's one",
+		Args:    cobra.MinimumNArgs(1),
 		GroupID: command.TeamServerGroup,
 		Run:     closeCmd(server),
 	}
 
 	closeComps := carapace.Gen(closeCmd)
-	closeComps.PositionalCompletion(carapace.ActionCallback(listenerIDCompleter(client, server)))
+	closeComps.PositionalAnyCompletion(carapace.ActionCallback(listenerIDCompleter(client, server)))
 
 	closeComps.PreRun(func(cmd *cobra.Command, args []string) {
 		cmd.PersistentPreRunE(cmd, args)

@@ -103,7 +103,7 @@ func (ts *Server) RemoveListener(id string) {
 func (ts *Server) CloseListener(id string) error {
 	listener := ts.jobs.Get(id)
 	if listener == nil {
-		return fmt.Errorf("%w: %s", ErrListenerNotFound, id)
+		return ts.errorf("%w: %s", ErrListenerNotFound, id)
 	}
 
 	listener.kill <- true
@@ -128,9 +128,7 @@ func (ts *Server) StartPersistentListeners(continueOnError bool) error {
 
 		if handler == nil {
 			if !continueOnError {
-				err := fmt.Errorf("Failed to find handler for `%s` listener (%s:%d)", j.Name, j.Host, j.Port)
-				log.Error(err)
-				return err
+				return ts.errorf("Failed to find handler for `%s` listener (%s:%d)", j.Name, j.Host, j.Port)
 			}
 
 			continue
