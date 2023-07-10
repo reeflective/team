@@ -1,6 +1,10 @@
 package client
 
-import "github.com/sirupsen/logrus"
+import (
+	"path/filepath"
+
+	"github.com/sirupsen/logrus"
+)
 
 // Options are client options.
 type Options func(opts *opts)
@@ -16,9 +20,10 @@ type opts struct {
 	hooks   []func(s any) error
 }
 
-func defaultOpts() *opts {
+func (tc *Client) defaultOpts() *opts {
 	return &opts{
-		config: &Config{},
+		config:  &Config{},
+		logFile: filepath.Join(tc.LogsDir(), tc.Name()),
 	}
 }
 
@@ -49,6 +54,7 @@ func WithNoLogs(noLogs bool) Options {
 }
 
 // WithLogFile sets the path to the file where teamclient logging should be done.
+// If not specified, the client log file is ~/.app/teamclient/logs/app.teamclient.log
 func WithLogFile(filePath string) Options {
 	return func(opts *opts) {
 		opts.logFile = filePath

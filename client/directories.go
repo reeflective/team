@@ -21,7 +21,7 @@ func (tc *Client) AppDir() string {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {
-			tc.log.Errorf("cannot write to %s root dir: %w", dir, err)
+			tc.log().Errorf("cannot write to %s root dir: %w", dir, err)
 		}
 	}
 	return dir
@@ -34,7 +34,7 @@ func (tc *Client) LogsDir() string {
 	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
 		err = os.MkdirAll(logsDir, 0o700)
 		if err != nil {
-			tc.log.Errorf("cannot write to %s root dir: %w", logsDir, err)
+			tc.log().Errorf("cannot write to %s root dir: %w", logsDir, err)
 		}
 	}
 	return logsDir
@@ -47,7 +47,7 @@ func (tc *Client) ConfigsDir() string {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {
-			tc.log.Errorf("cannot write to %s configs dir: %w", dir, err)
+			tc.log().Errorf("cannot write to %s configs dir: %w", dir, err)
 		}
 	}
 	return dir

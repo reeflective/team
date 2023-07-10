@@ -2,6 +2,7 @@ package client
 
 import (
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -13,15 +14,15 @@ import (
 // Client is a team client wrapper.
 // It offers the core functionality of any team client.
 type Client struct {
-	name       string
-	connected  bool
-	opts       *opts
-	log        *logrus.Logger
-	stdoutLog  *logrus.Logger
-	logFile    *os.File
-	connectedT *sync.Once
-	dialer     Dialer[any]
-	client     team.Client
+	name         string
+	connected    bool
+	opts         *opts
+	fileLogger   *logrus.Logger
+	stdoutLogger *logrus.Logger
+	logFile      *os.File
+	connect      *sync.Once
+	dialer       Dialer[any]
+	client       team.Client
 }
 
 type Dialer[clientConn any] interface {
@@ -31,20 +32,18 @@ type Dialer[clientConn any] interface {
 }
 
 func New(application string, teamclient team.Client, options ...Options) (*Client, error) {
-	var err error
-
+	// Client has default logfile path, logging options.
 	client := &Client{
-		name:       application,
-		opts:       defaultOpts(),
-		connectedT: &sync.Once{},
-		client:     teamclient,
+		name:    application,
+		connect: &sync.Once{},
+		client:  teamclient,
 	}
+	client.opts = client.defaultOpts()
 
 	client.apply(options...)
 
-	// Loggers
-	client.log, client.stdoutLog, err = log.NewClient(client.LogsDir(), application, logrus.InfoLevel)
-	if err != nil {
+	// Logging (if allowed)
+	if err := client.initLogging(); err != nil {
 		return nil, err
 	}
 
@@ -66,7 +65,7 @@ func (tc *Client) Connect(options ...Options) (err error) {
 		return
 	}
 
-	tc.connectedT.Do(func() {
+	tc.connect.Do(func() {
 		_, err = tc.initConfig()
 		if err != nil {
 			return
@@ -166,7 +165,7 @@ func (tc *Client) IsConnected() bool {
 // NamedLogger returns a new logging "thread" which should grossly
 // indicate the package/general domain, and a more precise flow/stream.
 func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
-	return tc.log.WithFields(logrus.Fields{
+	return tc.log().WithFields(logrus.Fields{
 		log.PackageFieldKey: pkg,
 		"stream":            stream,
 	})
@@ -174,7 +173,7 @@ func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
 
 // SetLogLevel is a utility to change the logging level of the stdout logger.
 func (tc *Client) SetLogLevel(level int) {
-	if tc.stdoutLog == nil {
+	if tc.stdoutLogger == nil {
 		return
 	}
 
@@ -182,5 +181,40 @@ func (tc *Client) SetLogLevel(level int) {
 		level = int(logrus.TraceLevel)
 	}
 
-	tc.stdoutLog.SetLevel(logrus.Level(uint32(level)))
+	tc.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
+}
+
+// Initialize loggers in files/stdout according to options.
+func (tc *Client) initLogging() (err error) {
+	// No logging means only stdout with warn level
+	if tc.opts.noLogs {
+		tc.stdoutLogger = log.NewStdout(tc.Name(), logrus.WarnLevel)
+		return nil
+	}
+
+	// If user supplied a logger, use it in place of the
+	// stdout logger, since the file logger is optional.
+	if tc.opts.logger != nil {
+		tc.stdoutLogger = tc.opts.logger
+	}
+
+	// Either use default logfile or user-specified one.
+	logDir, logFile := tc.opts.logFile, filepath.Base(tc.opts.logFile)
+	tc.fileLogger, tc.stdoutLogger, err = log.NewClient(logDir, logFile, logrus.InfoLevel)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// log returns a non-nil logger for the client:
+// if file logging is disabled, it returns the stdout-only logger,
+// otherwise returns the file logger equipped with a stdout hook.
+func (tc *Client) log() *logrus.Logger {
+	if tc.fileLogger == nil {
+		return tc.stdoutLogger
+	}
+
+	return tc.fileLogger
 }
