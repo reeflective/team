@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 
 	"github.com/sirupsen/logrus"
@@ -15,6 +16,7 @@ type opts struct {
 	logFile string
 	console bool
 	local   bool
+	stdout  io.Writer
 	config  *Config
 	logger  *logrus.Logger
 	dialer  Dialer[any]
@@ -36,6 +38,22 @@ func (tc *Client) apply(options ...Options) {
 	if tc.opts.dialer != nil {
 		tc.dialer = tc.opts.dialer
 	}
+
+	if tc.opts.stdout != nil {
+		tc.stdoutLogger.Out = tc.opts.stdout
+	}
+}
+
+//
+// *** General options ***
+//
+
+// WithConfig sets the client to use a given teamserver configuration for
+// connection, instead of using default user/application configurations.
+func WithConfig(config *Config) Options {
+	return func(opts *opts) {
+		opts.config = config
+	}
 }
 
 // WithInMemory deactivates all interactions of the client with the filesystem.
@@ -45,6 +63,10 @@ func WithInMemory() Options {
 		opts.noLogs = true
 	}
 }
+
+//
+// *** Logging options ***
+//
 
 // WithNoLogs deactivates all logging normally done by the teamclient
 // if noLogs is set to true, or keeps/reestablishes them if false.
@@ -69,13 +91,9 @@ func WithLogger(logger *logrus.Logger) Options {
 	}
 }
 
-// WithConfig sets the client to use a given teamserver configuration for
-// connection, instead of using default user/application configurations.
-func WithConfig(config *Config) Options {
-	return func(opts *opts) {
-		opts.config = config
-	}
-}
+//
+// *** Client network/RPC options ***
+//
 
 // WithNoDisconnect is meant to be used when the teamclient commands are used
 // in your application and that you happen to ALSO have a readline/console style

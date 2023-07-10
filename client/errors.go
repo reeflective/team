@@ -14,4 +14,9 @@ var (
 	// ErrConfigNoUser says that the configuration has no user,
 	// which is not possible even if the client is an in-memory one.
 	ErrConfigNoUser = errors.New("client config with empty user")
+
+	// ErrClient indicates an error raised by the client when igniting or connecting.
+	// Most errors are raised by the underlying transport stack, which can be user-specific,
+	// so users of this library should unwrap ErrClient errors to check against their owns.
+	ErrClient = errors.New("teamclient dialer")
 )

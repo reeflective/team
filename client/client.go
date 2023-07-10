@@ -1,6 +1,8 @@
 package client
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -67,18 +69,20 @@ func (tc *Client) Connect(options ...Options) (err error) {
 	tc.connect.Do(func() {
 		_, err = tc.initConfig()
 		if err != nil {
-			return
+			err = tc.logErrorf("%w: %w", ErrConfig, err)
 		}
 
 		// Initialize the dialer with our client.
 		err = tc.dialer.Init(tc)
 		if err != nil {
+			err = tc.logErrorf("%w: %w", ErrConfig, err)
 			return
 		}
 
 		// Connect to the teamserver.
 		client, err := tc.dialer.Dial()
 		if err != nil {
+			err = tc.logErrorf("%w: %w", ErrClient, err)
 			return
 		}
 
@@ -87,6 +91,7 @@ func (tc *Client) Connect(options ...Options) (err error) {
 		// of RPCs, this client is generally used to register them.
 		for _, hook := range tc.opts.hooks {
 			if err = hook(client); err != nil {
+				err = tc.logErrorf("%w: %w", ErrClient, err)
 				return
 			}
 		}
@@ -170,6 +175,13 @@ func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
 	})
 }
 
+// WithLoggerStdout sets the source to which the stdout logger (not any file logger) should write to.
+// This option is used by the teamserver/teamclient cobra command tree to coordinate its basic I/O/err.
+func (tc *Client) SetLogWriter(stdout, stderr io.Writer) {
+	tc.stdoutLogger.Out = stdout
+	// TODO: Pass stderr to log internals.
+}
+
 // SetLogLevel is a utility to change the logging level of the stdout logger.
 func (tc *Client) SetLogLevel(level int) {
 	if tc.stdoutLogger == nil {
@@ -181,6 +193,10 @@ func (tc *Client) SetLogLevel(level int) {
 	}
 
 	tc.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
+
+	if tc.fileLogger != nil {
+		tc.fileLogger.SetLevel(logrus.Level(uint32(level)))
+	}
 }
 
 // Initialize loggers in files/stdout according to options.
@@ -192,9 +208,9 @@ func (tc *Client) initLogging() (err error) {
 	}
 
 	// If user supplied a logger, use it in place of the
-	// stdout logger, since the file logger is optional.
+	// file-based logger, since the file logger is optional.
 	if tc.opts.logger != nil {
-		tc.stdoutLogger = tc.opts.logger
+		tc.fileLogger = tc.opts.logger
 	}
 
 	// Either use default logfile or user-specified one.
@@ -210,9 +226,25 @@ func (tc *Client) initLogging() (err error) {
 // if file logging is disabled, it returns the stdout-only logger,
 // otherwise returns the file logger equipped with a stdout hook.
 func (tc *Client) log() *logrus.Logger {
-	if tc.fileLogger == nil {
-		return tc.stdoutLogger
+	if tc.fileLogger != nil {
+		return tc.fileLogger
 	}
 
-	return tc.fileLogger
+	if tc.stdoutLogger == nil {
+		tc.stdoutLogger = log.NewStdout(tc.Name(), logrus.WarnLevel)
+	}
+
+	return tc.stdoutLogger
+}
+
+func (tc *Client) logErrorf(msg string, format ...any) error {
+	logged := fmt.Errorf(msg, format...)
+	tc.log().Errorf(msg, format...)
+
+	return logged
+}
+
+func (tc *Client) logError(err error) error {
+	tc.log().Error(err)
+	return err
 }

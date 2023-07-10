@@ -30,6 +30,10 @@ func Generate(cli *client.Client) *cobra.Command {
 // makes this runner able to be ran in closed-loop consoles.
 func PreRun(teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
+		// Client settings.
+		teamclient.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
+
+		// Ensure we are connected or do it.
 		return teamclient.Connect()
 	}
 }
@@ -111,7 +115,9 @@ func clientCommands(cli *client.Client) *cobra.Command {
 						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err.Error())
 						continue
 					}
-					cli.SaveConfig(conf)
+					if err = cli.SaveConfig(conf); err == nil {
+						fmt.Fprintln(cmd.OutOrStdout(), command.Info+"Saved new client config in ", cli.ConfigsDir())
+					}
 				}
 			} else {
 				fmt.Fprintf(cmd.OutOrStdout(), "Missing config file path, see --help")

@@ -38,8 +38,7 @@ func (tc *Client) initConfig() (*Config, error) {
 	if !tc.opts.local {
 		configs := tc.GetConfigs()
 		if len(configs) == 0 {
-			err := fmt.Errorf("no config files found at %s", tc.ConfigsDir())
-			return nil, err
+			return nil, tc.logErrorf("no config files found at %s", tc.ConfigsDir())
 		}
 		cfg = tc.SelectConfig()
 	}
@@ -78,6 +77,7 @@ func (tc *Client) GetConfigs() map[string]*Config {
 }
 
 // ReadConfig loads a client config into a struct.
+// Errors are returned as is: users can check directly for JSON/encoding/filesystem errors.
 func (tc *Client) ReadConfig(confFilePath string) (*Config, error) {
 	confFile, err := os.Open(confFilePath)
 	if err != nil {
@@ -114,11 +114,9 @@ func (tc *Client) SaveConfig(config *Config) error {
 
 	err = os.WriteFile(saveTo, configJSON, 0o600)
 	if err != nil {
-		err = fmt.Errorf("Failed to write config to: %s (%w)", saveTo, err)
-
-		tc.log().Error(err)
-		return err
+		return tc.logErrorf("Failed to write config to: %s (%w)", saveTo, err)
 	}
+
 	tc.log().Infof("Saved new client config to: %s", saveTo)
 
 	return nil
@@ -144,8 +142,7 @@ func (tc *Client) SelectConfig() *Config {
 	qs := getPromptForConfigs(configs)
 	err := survey.Ask(qs, &answer)
 	if err != nil {
-		// TODO: Println here should not
-		fmt.Println(err.Error())
+		tc.log().Errorf("config prompt failed: %w", err)
 		return nil
 	}
 
@@ -169,7 +166,7 @@ func (tc *Client) defaultUserConfig() (cfg *Config) {
 	filename := fmt.Sprintf("%s_%s_default", tc.Name(), user.Username)
 	saveTo := tc.ConfigsDir()
 
-	configPath := filepath.Join(saveTo, filename+".cfg")
+	configPath := filepath.Join(saveTo, filename+".teamclient.cfg")
 	if _, err := os.Stat(configPath); err == nil {
 		cfg, _ = tc.ReadConfig(configPath)
 	}
