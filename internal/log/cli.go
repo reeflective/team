@@ -28,26 +28,67 @@ const (
 	MinimumPackagePad = 11
 )
 
-func newScreenLogger() *screenLoggerHook {
+func newStdioHook() *stdioHook {
+	hook := &stdioHook{
+		logger: NewStdio(logrus.WarnLevel),
+	}
+
+	return hook
+}
+
+// stdioHook combines a stdout hook (info/debug/trace),
+// and a stderr hook (warn/error/fatal/panic).
+type stdioHook struct {
+	name   string
+	logger *logrus.Logger
+}
+
+// The stdout hooks only outputs info, debug and trace.
+func (hook *stdioHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+// Fire - Implements the fire method of the Logrus hook
+func (hook *stdioHook) Fire(entry *logrus.Entry) error {
+	switch entry.Level {
+	case logrus.PanicLevel:
+		hook.logger.Panic(entry.Message)
+	case logrus.FatalLevel:
+		hook.logger.Fatal(entry.Message)
+	case logrus.ErrorLevel:
+		hook.logger.Error(entry.Message)
+	case logrus.WarnLevel:
+		hook.logger.Warn(entry.Message)
+	case logrus.InfoLevel:
+		hook.logger.Info(entry.Message)
+	case logrus.DebugLevel:
+		hook.logger.Debug(entry.Message)
+	case logrus.TraceLevel:
+		hook.logger.Trace(entry.Message)
+	}
+
+	return nil
+}
+
+func newLoggerStdout() *stdoutHook {
 	stdLogger := logrus.New()
-	stdLogger.SetLevel(logrus.WarnLevel)
 	stdLogger.SetReportCaller(true)
 	stdLogger.Out = os.Stdout
 
-	stdLogger.Formatter = &screenLoggerHook{
+	stdLogger.Formatter = &stdoutHook{
 		DisableColors: false,
 		ShowTimestamp: false,
 		Colors:        defaultFieldsFormat(),
 	}
 
-	hook := &screenLoggerHook{
+	hook := &stdoutHook{
 		logger: stdLogger,
 	}
 
 	return hook
 }
 
-type screenLoggerHook struct {
+type stdoutHook struct {
 	name            string
 	DisableColors   bool
 	ShowTimestamp   bool
@@ -56,20 +97,17 @@ type screenLoggerHook struct {
 	logger          *logrus.Logger
 }
 
-// Levels - Hook all levels
-func (hook *screenLoggerHook) Levels() []logrus.Level {
-	return logrus.AllLevels
-	// return []logrus.Level{
-	// 	logrus.InfoLevel,
-	// 	logrus.WarnLevel,
-	// 	logrus.ErrorLevel,
-	// 	logrus.FatalLevel,
-	// 	logrus.PanicLevel,
-	// }
+// The stdout hooks only outputs info, debug and trace.
+func (hook *stdoutHook) Levels() []logrus.Level {
+	return []logrus.Level{
+		logrus.InfoLevel,
+		logrus.DebugLevel,
+		logrus.TraceLevel,
+	}
 }
 
 // Fire - Implements the fire method of the Logrus hook
-func (hook *screenLoggerHook) Fire(entry *logrus.Entry) error {
+func (hook *stdoutHook) Fire(entry *logrus.Entry) error {
 	switch entry.Level {
 	case logrus.PanicLevel:
 		hook.logger.Panic(entry.Message)
@@ -91,7 +129,7 @@ func (hook *screenLoggerHook) Fire(entry *logrus.Entry) error {
 }
 
 // Format is a custom formatter for all stdout/text logs, with better format and coloring.
-func (f *screenLoggerHook) Format(entry *logrus.Entry) ([]byte, error) {
+func (f *stdoutHook) Format(entry *logrus.Entry) ([]byte, error) {
 	// Basic information.
 	sign, signColor := f.getLevelFieldColor(entry.Level)
 	levelLog := fmt.Sprintf("%s%s%s", color(signColor), sign, color(style.Default))
@@ -130,7 +168,7 @@ func (f *screenLoggerHook) Format(entry *logrus.Entry) ([]byte, error) {
 	return []byte(logMessage), nil
 }
 
-func (f *screenLoggerHook) getLevelFieldColor(level logrus.Level) (string, string) {
+func (f *stdoutHook) getLevelFieldColor(level logrus.Level) (string, string) {
 	// Builtin configurations.
 	signs := defaultLevelFields()
 	colors := defaultLevelFieldsColored(signs)
@@ -144,6 +182,66 @@ func (f *screenLoggerHook) getLevelFieldColor(level logrus.Level) (string, strin
 	}
 
 	return signs[logrus.InfoLevel], style.Default
+}
+
+type stderrHook struct {
+	name            string
+	DisableColors   bool
+	ShowTimestamp   bool
+	TimestampFormat string
+	Colors          map[string]string
+	logger          *logrus.Logger
+}
+
+func newLoggerStderr() *stdoutHook {
+	stdLogger := logrus.New()
+	stdLogger.SetLevel(logrus.WarnLevel)
+	stdLogger.SetReportCaller(true)
+	stdLogger.Out = os.Stderr
+
+	stdLogger.Formatter = &stdoutHook{
+		DisableColors: false,
+		ShowTimestamp: false,
+		Colors:        defaultFieldsFormat(),
+	}
+
+	hook := &stdoutHook{
+		logger: stdLogger,
+	}
+
+	return hook
+}
+
+// Fire - Implements the fire method of the Logrus hook
+func (hook *stderrHook) Fire(entry *logrus.Entry) error {
+	switch entry.Level {
+	case logrus.PanicLevel:
+		hook.logger.Panic(entry.Message)
+	case logrus.FatalLevel:
+		hook.logger.Fatal(entry.Message)
+	case logrus.ErrorLevel:
+		hook.logger.Error(entry.Message)
+	case logrus.WarnLevel:
+		hook.logger.Warn(entry.Message)
+	case logrus.InfoLevel:
+		hook.logger.Info(entry.Message)
+	case logrus.DebugLevel:
+		hook.logger.Debug(entry.Message)
+	case logrus.TraceLevel:
+		hook.logger.Trace(entry.Message)
+	}
+
+	return nil
+}
+
+// The stderr hooks only outputs errors and worst.
+func (hook *stderrHook) Levels() []logrus.Level {
+	return []logrus.Level{
+		logrus.WarnLevel,
+		logrus.ErrorLevel,
+		logrus.FatalLevel,
+		logrus.PanicLevel,
+	}
 }
 
 func defaultFieldsFormat() map[string]string {

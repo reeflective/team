@@ -42,7 +42,7 @@ func (ts *Server) SetLogWriter(stdout, stderr io.Writer) {
 func (ts *Server) initLogging() (err error) {
 	// No logging means only stdout with warn level
 	if ts.opts.noLogs || ts.opts.noFiles {
-		ts.stdoutLogger = log.NewStdout(ts.Name(), logrus.WarnLevel)
+		ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
 		return nil
 	}
 

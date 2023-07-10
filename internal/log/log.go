@@ -9,11 +9,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// NewStdout returns a logger printing its results to stdout.
-// Default logging level: error (no output when things work)
-func NewStdout(app string, level logrus.Level) *logrus.Logger {
+func NewStdio(level logrus.Level) *logrus.Logger {
 	stdLogger := logrus.New()
-	stdLogger.Formatter = &screenLoggerHook{
+	stdLogger.Formatter = &stdoutHook{
 		DisableColors: false,
 		ShowTimestamp: false,
 		Colors:        defaultFieldsFormat(),
@@ -21,7 +19,15 @@ func NewStdout(app string, level logrus.Level) *logrus.Logger {
 
 	stdLogger.SetLevel(logrus.WarnLevel)
 	stdLogger.SetReportCaller(true)
-	stdLogger.Out = os.Stdout
+	stdLogger.Out = io.Discard
+
+	// Info/debug/trace is given to a stdout logger.
+	stdoutHook := newLoggerStdout()
+	stdLogger.AddHook(stdoutHook)
+
+	// Warn/error/panics/fatals are given to stderr.
+	stderrHook := newLoggerStderr()
+	stdLogger.AddHook(stderrHook)
 
 	return stdLogger
 }
@@ -31,7 +37,7 @@ func NewStdout(app string, level logrus.Level) *logrus.Logger {
 // Logging levels as independent between stdout and text file.
 func NewClient(logfile string, level logrus.Level) (file, stdout *logrus.Logger, err error) {
 	txtLogger := logrus.New()
-	txtLogger.Formatter = &screenLoggerHook{
+	txtLogger.Formatter = &stdoutHook{
 		DisableColors: false,
 		ShowTimestamp: false,
 		Colors:        defaultFieldsFormat(),
@@ -41,14 +47,14 @@ func NewClient(logfile string, level logrus.Level) (file, stdout *logrus.Logger,
 	txtLogger.SetLevel(logrus.InfoLevel)
 	txtLogger.SetReportCaller(true)
 
-	// Output both to the screen and to a file.
+	// File output
 	txtLogger.AddHook(newTxtHook(logfile, level, txtLogger))
 
-	// Stdout
-	stdoutHook := newScreenLogger()
-	txtLogger.AddHook(stdoutHook)
+	// Stdio
+	stdioHook := newStdioHook()
+	txtLogger.AddHook(stdioHook)
 
-	return txtLogger, stdoutHook.logger, nil
+	return txtLogger, stdioHook.logger, nil
 }
 
 // NewRoot returns a logger writing to the central log file of the teamserver, JSON-encoded.
