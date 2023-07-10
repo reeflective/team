@@ -245,7 +245,7 @@ func (ts *Server) init(opts ...Options) error {
 		}
 
 		// Connect to database if not connected already.
-		if ts.opts.db == nil {
+		if ts.db == nil {
 			dbLogger := ts.NamedLogger("database", "database")
 			ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
 			if err != nil {

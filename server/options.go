@@ -45,6 +45,10 @@ func (ts *Server) apply(options ...Options) {
 	for _, optFunc := range options {
 		optFunc(ts.opts)
 	}
+
+	if ts.opts.db != nil {
+		ts.db = ts.opts.db
+	}
 }
 
 // WithDefaultPort sets the default port on which the teamserver should start listeners.

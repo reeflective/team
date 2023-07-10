@@ -59,7 +59,7 @@ func (ts *Server) initLogging() (err error) {
 	return nil
 }
 
-// log returns a non-nil logger for the client:
+// log returns a non-nil logger for the server:
 // if file logging is disabled, it returns the stdout-only logger,
 // otherwise returns the file logger equipped with a stdout hook.
 func (ts *Server) log() *logrus.Logger {
