@@ -38,7 +38,7 @@ func (tc *Client) initConfig() (*Config, error) {
 	if !tc.opts.local {
 		configs := tc.GetConfigs()
 		if len(configs) == 0 {
-			return nil, tc.logErrorf("no config files found at %s", tc.ConfigsDir())
+			return nil, tc.errorf("no config files found at %s", tc.ConfigsDir())
 		}
 		cfg = tc.SelectConfig()
 	}
@@ -114,7 +114,7 @@ func (tc *Client) SaveConfig(config *Config) error {
 
 	err = os.WriteFile(saveTo, configJSON, 0o600)
 	if err != nil {
-		return tc.logErrorf("Failed to write config to: %s (%w)", saveTo, err)
+		return tc.errorf("Failed to write config to: %s (%w)", saveTo, err)
 	}
 
 	tc.log().Infof("Saved new client config to: %s", saveTo)

@@ -69,20 +69,20 @@ func (tc *Client) Connect(options ...Options) (err error) {
 	tc.connect.Do(func() {
 		_, err = tc.initConfig()
 		if err != nil {
-			err = tc.logErrorf("%w: %w", ErrConfig, err)
+			err = tc.errorf("%w: %w", ErrConfig, err)
 		}
 
 		// Initialize the dialer with our client.
 		err = tc.dialer.Init(tc)
 		if err != nil {
-			err = tc.logErrorf("%w: %w", ErrConfig, err)
+			err = tc.errorf("%w: %w", ErrConfig, err)
 			return
 		}
 
 		// Connect to the teamserver.
 		client, err := tc.dialer.Dial()
 		if err != nil {
-			err = tc.logErrorf("%w: %w", ErrClient, err)
+			err = tc.errorf("%w: %w", ErrClient, err)
 			return
 		}
 
@@ -91,7 +91,7 @@ func (tc *Client) Connect(options ...Options) (err error) {
 		// of RPCs, this client is generally used to register them.
 		for _, hook := range tc.opts.hooks {
 			if err = hook(client); err != nil {
-				err = tc.logErrorf("%w: %w", ErrClient, err)
+				err = tc.errorf("%w: %w", ErrClient, err)
 				return
 			}
 		}
@@ -237,14 +237,9 @@ func (tc *Client) log() *logrus.Logger {
 	return tc.stdoutLogger
 }
 
-func (tc *Client) logErrorf(msg string, format ...any) error {
+func (tc *Client) errorf(msg string, format ...any) error {
 	logged := fmt.Errorf(msg, format...)
-	tc.log().Errorf(msg, format...)
+	tc.log().Error(logged)
 
 	return logged
-}
-
-func (tc *Client) logError(err error) error {
-	tc.log().Error(err)
-	return err
 }
