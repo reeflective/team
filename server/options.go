@@ -28,7 +28,7 @@ type opts[server any] struct {
 	db       *gorm.DB
 	logger   *logrus.Logger
 
-	hooks []func(serv server) error
+	hooks map[string][]func(serv server) error
 }
 
 // default in-memory configuration, ready to run.
@@ -36,6 +36,7 @@ func (ts *Server) newDefaultOpts() *opts[any] {
 	options := &opts[any]{
 		config:  getDefaultServerConfig(),
 		logFile: filepath.Join(ts.LogsDir(), fmt.Sprintf("%s.teamserver.log", ts.Name())),
+		hooks:   map[string][]func(serv any) error{},
 		local:   false,
 	}
 
@@ -134,9 +135,9 @@ func WithDatabase(db *gorm.DB) Options {
 // you to further manipulate the server connection after start, it is useful for persistent jobs
 // that restarted on server start: in order to bind your application functionality to them, you
 // need to use register hooks here.
-func WithPreServeHooks(hooks ...func(server any) error) Options {
+func WithPreServeHooks(handlerName string, hooks ...func(server any) error) Options {
 	return func(opts *opts[any]) {
-		opts.hooks = append(opts.hooks, hooks...)
+		opts.hooks[handlerName] = append(opts.hooks[handlerName], hooks...)
 	}
 }
 

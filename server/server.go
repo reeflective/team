@@ -28,19 +28,16 @@ type Server struct {
 	fileLogger   *logrus.Logger
 	stdoutLogger *logrus.Logger
 	userTokens   *sync.Map
+	initOnce     *sync.Once
+	opts         *opts[any]
+	db           *gorm.DB
+	certs        *certs.Manager
 
-	// Configurations
-	opts  *opts[any]
-	db    *gorm.DB
-	certs *certs.Manager
-
+	// Listeners and job control
+	self     Handler[any]
 	handlers map[string]Handler[any]
 
-	ln   Handler[any]
 	jobs *jobs
-
-	// Services
-	initOnce *sync.Once
 }
 
 // Handler represents a teamserver listener stack.
@@ -76,7 +73,7 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		initOnce:   &sync.Once{},
 		jobs:       newJobs(),
 		handlers:   make(map[string]Handler[any]),
-		ln:         ln,
+		self:       ln,
 	}
 
 	server.opts = server.newDefaultOpts()
@@ -92,7 +89,7 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 	server.opts.dbConfig = server.getDefaultDatabaseConfig()
 
 	// Store given handlers.
-	server.handlers[ln.Name()] = ln
+	// server.handlers[ln.Name()] = ln
 
 	return server, nil
 }
@@ -105,6 +102,17 @@ func (ts *Server) Name() string {
 	return ts.name
 }
 
+// Handlers returns a copy of its teamserver handlers map.
+func (ts *Server) Handlers() map[string]Handler[any] {
+	handlers := make(map[string]Handler[any], len(ts.handlers))
+
+	for name, handler := range ts.handlers {
+		handlers[name] = handler
+	}
+
+	return handlers
+}
+
 func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 	host := cli.Config().Host
 	port := uint16(cli.Config().Port)
@@ -112,7 +120,7 @@ func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 	// Some errors might come from user-provided hooks,
 	// so we don't wrap errors again, our own errors
 	// have been prepared accordingly in this call.
-	err := ts.ServeHandler(ts.ln, "", host, port, opts...)
+	err := ts.ServeHandler(ts.self, "", host, port, opts...)
 	if err != nil {
 		return err
 	}
@@ -152,7 +160,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 
 	// Start the listener.
 	log.Infof("Starting %s teamserver daemon on %s:%d ...", ts.Name(), host, port)
-	listenerID, err := ts.ServeAddr(ts.ln.Name(), host, port, opts...)
+	listenerID, err := ts.ServeAddr(ts.self.Name(), host, port, opts...)
 	if err != nil {
 		return err
 	}
@@ -183,14 +191,12 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 }
 
 func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jobID string, err error) {
-	log := ts.NamedLogger("teamserver", "handler")
-
 	handler := ts.handlers[name]
-	if handler == nil {
-		notFoundErr := fmt.Errorf("%w: %w", ErrTeamServer, fmt.Errorf("could not find handler `%s`", name))
-		log.Error(notFoundErr)
 
-		return "", notFoundErr
+	// The default handler can never be nil, as even the
+	// default one is a pure fake in-memory teamclient.
+	if handler == nil {
+		handler = ts.self
 	}
 
 	// Generate the listener ID now so we can return it.
@@ -222,20 +228,20 @@ func (ts *Server) ServeHandler(handler Handler[any], id, host string, port uint1
 		return err
 	}
 
-	serv, err := handler.Serve(listener)
+	serverConn, err := handler.Serve(listener)
 	if err != nil {
 		// Listener/server error
 		return err
 	}
 
 	// The server is running, so add a job anyway.
-	ts.addListener(id, host, int(port), handler)
+	ts.addListenerJob(id, host, int(port), handler)
 
 	// Run provided server hooks on the server interface.
 	// Any error arising from this is returned as is, for
 	// users can directly compare it with their own errors.
-	for _, hook := range ts.opts.hooks {
-		if err := hook(serv); err != nil {
+	for _, hook := range ts.opts.hooks[handler.Name()] {
+		if err := hook(serverConn); err != nil {
 			return err
 		}
 	}

@@ -31,4 +31,7 @@ var (
 	// ErrUnauthenticated indicates that a client user could not authenticate itself,
 	// whether at connection time, or when requesting server-side features/info.
 	ErrUnauthenticated = errors.New("User authentication failure")
+
+	// ErrListenerNotFound indicates that for a given ID, no running or persistent listener could be found.
+	ErrListenerNotFound = errors.New("no listener exists with ID")
 )
