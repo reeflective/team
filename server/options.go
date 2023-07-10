@@ -15,12 +15,13 @@ import (
 type Options func(opts *opts[any])
 
 type opts[server any] struct {
-	logFile     string
-	local       bool
-	userDefault bool
-	noLogs      bool
-	noFiles     bool
-	inMemory    bool
+	logFile         string
+	local           bool
+	userDefault     bool
+	noLogs          bool
+	noFiles         bool
+	inMemory        bool
+	continueOnError bool
 
 	config   *Config
 	dbConfig *db.Config
@@ -136,6 +137,18 @@ func WithDatabase(db *gorm.DB) Options {
 func WithPreServeHooks(hooks ...func(server any) error) Options {
 	return func(opts *opts[any]) {
 		opts.hooks = append(opts.hooks, hooks...)
+	}
+}
+
+// WithContinueOnError sets the teamserver behavior when starting persistent listeners
+// (either automatically when calling teamserver.ServeDaemon(), or when using
+// teamserver.StartPersistentListeners()).
+// If true, an error raised by a listener will not prevent others to try starting, and
+// errors will be joined into a single one, separated with newlines and logged by default.
+// The teamserver has this set to false by default.
+func WithContinueOnError(continueOnError bool) Options {
+	return func(opts *opts[any]) {
+		opts.continueOnError = continueOnError
 	}
 }
 

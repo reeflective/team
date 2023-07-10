@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	insecureRand "math/rand"
 	"os"
@@ -35,6 +36,7 @@ type Config struct {
 	} `json:"log"`
 
 	Listeners []struct {
+		Name string `json:"name"`
 		Host string `json:"host"`
 		Port uint16 `json:"port"`
 		ID   string `json:"id"`
@@ -116,12 +118,14 @@ func (ts *Server) SaveConfig(c *Config) error {
 }
 
 // AddListenerJob adds a teamserver listener job to the config and saves it.
-func (ts *Server) AddListener(host string, port uint16) error {
+func (ts *Server) AddListener(name, host string, port uint16) error {
 	listener := struct {
+		Name string `json:"name"`
 		Host string `json:"host"`
 		Port uint16 `json:"port"`
 		ID   string `json:"id"`
 	}{
+		Name: name,
 		Host: host,
 		Port: port,
 		ID:   getRandomID(),
@@ -141,6 +145,7 @@ func (ts *Server) RemoveListener(id string) {
 	defer ts.SaveConfig(ts.opts.config)
 
 	var listeners []struct {
+		Name string `json:"name"`
 		Host string `json:"host"`
 		Port uint16 `json:"port"`
 		ID   string `json:"id"`
@@ -155,18 +160,35 @@ func (ts *Server) RemoveListener(id string) {
 	ts.opts.config.Listeners = listeners
 }
 
-// startPersistentListeners starts all teamserver listeners,
-// aborting and returning an error if one of those raise one.
-func (ts *Server) startPersistentListeners() error {
+func (ts *Server) StartPersistentListeners(continueOnError bool) error {
+	var listenerErrors error
+
+	log := ts.NamedLogger("teamserver", "listeners")
+
 	if ts.opts.config.Listeners == nil {
 		return nil
 	}
 
 	for _, j := range ts.opts.config.Listeners {
-		_, err := ts.ServeAddr(j.Host, j.Port)
-		if err != nil {
+		handler := ts.handlers[j.Name]
+		if handler == nil {
+			log.Errorf("Failed to find handler for %s listener (%s:%d)", j.Name, j.Host, j.Port)
+			continue
+		}
+
+		err := ts.ServeHandler(handler, j.ID, j.Host, j.Port)
+
+		if err == nil {
+			continue
+		}
+
+		log.Errorf("Failed to start %s listener (%s:%d): %s", j.Name, j.Host, j.Port, err)
+
+		if !continueOnError {
 			return err
 		}
+
+		listenerErrors = errors.Join(listenerErrors, err)
 	}
 
 	return nil
@@ -189,6 +211,7 @@ func getDefaultServerConfig() *Config {
 			Level: int(logrus.InfoLevel),
 		},
 		Listeners: []struct {
+			Name string `json:"name"`
 			Host string `json:"host"`
 			Port uint16 `json:"port"`
 			ID   string `json:"id"`

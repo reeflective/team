@@ -57,11 +57,11 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		lport, _ := cmd.Flags().GetUint16("port")
 		persistent, _ := cmd.Flags().GetBool("persistent")
 
-		_, err := serv.ServeAddr(lhost, lport)
+		_, err := serv.ServeAddr("", lhost, lport)
 		if err == nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
 			if persistent {
-				serv.AddListener(lhost, lport)
+				serv.AddListener("", lhost, lport)
 			}
 		} else {
 			return fmt.Errorf(command.Warn+"Failed to start job %v\n", err)

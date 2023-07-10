@@ -80,6 +80,11 @@ func TeamClientFrom(server *handler) (*client.Client, error) {
 	return client.New(server.Name(), teamclient, client.WithDialer(dialer))
 }
 
+// Name immplements server.Handler.Name(), and indicates the transport/rpc stack.
+func (h *handler) Name() string {
+	return "gRPC"
+}
+
 // Init implements server.Handler.Init(), and is used to initialize
 // the server handler. Logging, connection options, anything can be
 // done as long as it's for ensuring that the rest will work.

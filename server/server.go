@@ -34,7 +34,10 @@ type Server struct {
 	db    *gorm.DB
 	certs *certs.Manager
 
-	ln Handler[any]
+	handlers map[string]Handler[any]
+
+	ln   Handler[any]
+	jobs *jobs
 
 	// Services
 	initOnce *sync.Once
@@ -49,6 +52,7 @@ type Server struct {
 // RPC services to the client yet. Implementations are free to decide.
 // TODO: Write about the Options(hooks) to use with this generic type.
 type Handler[server any] interface {
+	Name() string
 	Init(s *Server) error
 	Listen(addr string) (ln net.Listener, err error)
 	Serve(net.Listener) (serv server, err error)
@@ -69,8 +73,10 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		name:       application,
 		rootDirEnv: fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
 		userTokens: &sync.Map{},
-		ln:         ln,
 		initOnce:   &sync.Once{},
+		jobs:       newJobs(),
+		handlers:   make(map[string]Handler[any]),
+		ln:         ln,
 	}
 
 	server.opts = server.newDefaultOpts()
@@ -85,6 +91,9 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 	// Ensure we have a working database configuration.
 	server.opts.dbConfig = server.getDefaultDatabaseConfig()
 
+	// Store given handlers.
+	server.handlers[ln.Name()] = ln
+
 	return server, nil
 }
 
@@ -96,7 +105,6 @@ func (ts *Server) Name() string {
 	return ts.name
 }
 
-// TODO: Rewrite doc comment.
 func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 	host := cli.Config().Host
 	port := uint16(cli.Config().Port)
@@ -104,7 +112,7 @@ func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 	// Some errors might come from user-provided hooks,
 	// so we don't wrap errors again, our own errors
 	// have been prepared accordingly in this call.
-	_, err := ts.ServeAddr(host, port, opts...)
+	err := ts.ServeHandler(ts.ln, "", host, port, opts...)
 	if err != nil {
 		return err
 	}
@@ -117,48 +125,6 @@ func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
 	}
 
 	return nil
-}
-
-// TODO: Rewrite doc comment.
-// ServeAddr sets and start a gRPC teamserver listener (on MutualTLS) with registered
-// teamserver services onto it.
-// Starting listeners from application code (not from teamserver' commands) should most
-// of the time be done with this function, as it will return you the gRPC server to which
-// you can attach any application-specific APIs.
-func (ts *Server) ServeAddr(host string, port uint16, opts ...Options) (net.Listener, error) {
-	err := ts.init(opts...)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrTeamServer, err)
-	}
-
-	err = ts.ln.Init(ts)
-	if err != nil {
-		// Listener config error
-		return nil, err
-	}
-
-	listener, err := ts.ln.Listen(fmt.Sprintf("%s:%d", host, port))
-	if err != nil {
-		// Listener config error
-		return listener, err
-	}
-
-	serv, err := ts.ln.Serve(listener)
-	if err != nil {
-		// Listener/server error
-		return listener, err
-	}
-
-	// Run provided server hooks on the server interface.
-	// Any error arising from this is returned as is, for
-	// users can directly compare it with their own errors.
-	for _, hook := range ts.opts.hooks {
-		if err := hook(serv); err != nil {
-			return listener, err
-		}
-	}
-
-	return listener, nil
 }
 
 // ServeDaemon is a blocking call which starts the server as daemon process, using
@@ -186,7 +152,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 
 	// Start the listener.
 	log.Infof("Starting %s teamserver daemon on %s:%d ...", ts.Name(), host, port)
-	ln, err := ts.ServeAddr(host, port, opts...)
+	listenerID, err := ts.ServeAddr(ts.ln.Name(), host, port, opts...)
 	if err != nil {
 		return err
 	}
@@ -197,22 +163,82 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	// we just serve it for him
 	hostPort := regexp.MustCompile(fmt.Sprintf("%s:%d", host, port))
 
-	err = ts.startPersistentListeners()
+	err = ts.StartPersistentListeners(ts.opts.continueOnError)
 	if err != nil && hostPort.MatchString(err.Error()) {
 		log.Warnf("Error starting persistent listeners: %s", err)
 	}
 
-	// TODO: Close server ? When ?
 	done := make(chan bool)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
 	go func() {
 		<-signals
 		log.Infof("Received SIGTERM, exiting ...")
-		ln.Close()
+		ts.CloseListener(listenerID)
 		done <- true
 	}()
 	<-done
+
+	return nil
+}
+
+func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jobID string, err error) {
+	log := ts.NamedLogger("teamserver", "handler")
+
+	handler := ts.handlers[name]
+	if handler == nil {
+		notFoundErr := fmt.Errorf("%w: %w", ErrTeamServer, fmt.Errorf("could not find handler `%s`", name))
+		log.Error(notFoundErr)
+
+		return "", notFoundErr
+	}
+
+	// Generate the listener ID now so we can return it.
+	listenerID := getRandomID()
+
+	err = ts.ServeHandler(handler, listenerID, host, port, opts...)
+
+	return listenerID, err
+}
+
+func (ts *Server) ServeHandler(handler Handler[any], id, host string, port uint16, options ...Options) error {
+	// log := ts.NamedLogger("teamserver", "handler")
+
+	// If server was not initialized yet, do it.
+	err := ts.init(options...)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrTeamServer, err)
+	}
+
+	err = handler.Init(ts)
+	if err != nil {
+		// Listener config error
+		return err
+	}
+
+	listener, err := handler.Listen(fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		// Listener config error
+		return err
+	}
+
+	serv, err := handler.Serve(listener)
+	if err != nil {
+		// Listener/server error
+		return err
+	}
+
+	// The server is running, so add a job anyway.
+	ts.addListener(id, host, int(port), handler)
+
+	// Run provided server hooks on the server interface.
+	// Any error arising from this is returned as is, for
+	// users can directly compare it with their own errors.
+	for _, hook := range ts.opts.hooks {
+		if err := hook(serv); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -224,16 +250,13 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 // 	// defer ts.audit.Writer().Close()
 // }
 
-// init a function that must not be ran when the teamserver
-// is instantiated, but when it starts serving its users.
-// This starts database connections, certificates setup, applies last-minute options, etc.
 func (ts *Server) init(opts ...Options) error {
 	var err error
 
-	ts.initOnce.Do(func() {
-		// Last time for setting options.
-		ts.apply(opts...)
+	// Always reaply options, since it could be used by different listeners.
+	ts.apply(opts...)
 
+	ts.initOnce.Do(func() {
 		// Database configuration.
 		// At creation time, we ensured that server had
 		// a valid database configuration, but we might
