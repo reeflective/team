@@ -129,7 +129,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	iComps := carapace.Gen(importCmd)
 	iComps.PositionalCompletion(
 		carapace.Batch(
-			carapace.ActionCallback(ConfigsCompleter(cli, "teamclient/configs", ".teamclient", "teamserver applications")),
+			carapace.ActionCallback(ConfigsCompleter(cli, "teamclient/configs", ".teamclient", "other teamserver apps", true)),
 			carapace.ActionFiles().Tag("server configuration"),
 		).ToA(),
 	)
@@ -159,7 +159,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 // ConfigsCompleter completes file paths to other teamserver application configs (clients/users CA, etc)
 // The filepath is the directory  between .app/ and the target directory where config files of a certain
 // type should be found, ext is the normal/default extension for those target files, and tag is used in comps.
-func ConfigsCompleter(cli *client.Client, filePath, ext, tag string) carapace.CompletionCallback {
+func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool) carapace.CompletionCallback {
 	return func(ctx carapace.Context) carapace.Action {
 		var compErrors []carapace.Action
 		homeDir, err := os.UserHomeDir()
@@ -182,6 +182,10 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string) carapace.Co
 				continue
 			}
 			if strings.TrimPrefix(dir.Name(), ".") != cli.Name() {
+				continue
+			}
+
+			if noSelf {
 				continue
 			}
 

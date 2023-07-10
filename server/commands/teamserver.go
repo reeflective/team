@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -56,8 +58,9 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		lhost, _ := cmd.Flags().GetString("host")
 		lport, _ := cmd.Flags().GetUint16("port")
 		persistent, _ := cmd.Flags().GetBool("persistent")
+		ltype, _ := cmd.Flags().GetString("listener")
 
-		_, err := serv.ServeAddr("", lhost, lport)
+		_, err := serv.ServeAddr(ltype, lhost, lport)
 		if err == nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
 			if persistent {
@@ -149,6 +152,50 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
 			}
 		}
+
+		// General options, available listeners, etc
+		fmt.Fprintln(cmd.OutOrStdout(), formatSection("General"))
+
+		// Logging files/level/status
+		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Logging"))
+
+		// Listeners (excluding in-memory ones, BUT INCLUDING PERSISTENT NON-RUNNING ONES)
+		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Listeners"))
+
+		listeners := serv.Listeners()
+		cfg := serv.GetConfig()
+
+		tb := &table.Table{}
+		tb.SetStyle(teamserverTableStyle)
+
+		tb.AppendHeader(table.Row{
+			"ID",
+			"Name",
+			"Description",
+			"State",
+			"Persistent",
+		})
+
+		for _, ln := range listeners {
+			persist := false
+			for _, saved := range cfg.Listeners {
+				if saved.ID == ln.ID {
+					persist = true
+				}
+			}
+
+			tb.AppendRow(table.Row{
+				formatSmallID(ln.ID),
+				ln.Name,
+				ln.Description,
+				command.Green + command.Bold + "Up" + command.Normal,
+				persist,
+			})
+		}
+
+		if len(listeners) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), tb.Render())
+		}
 	}
 }
 
@@ -162,4 +209,58 @@ func callerArgs(cmd *cobra.Command) []string {
 	args = append(args, cmd.Name())
 
 	return args
+}
+
+var teamserverTableStyle = table.Style{
+	Name: "TeamServerDefault",
+	Box: table.BoxStyle{
+		BottomLeft:       " ",
+		BottomRight:      " ",
+		BottomSeparator:  " ",
+		Left:             " ",
+		LeftSeparator:    " ",
+		MiddleHorizontal: "=",
+		MiddleSeparator:  " ",
+		MiddleVertical:   " ",
+		PaddingLeft:      " ",
+		PaddingRight:     " ",
+		Right:            " ",
+		RightSeparator:   " ",
+		TopLeft:          " ",
+		TopRight:         " ",
+		TopSeparator:     " ",
+		UnfinishedRow:    "~~",
+	},
+	Color: table.ColorOptions{
+		IndexColumn:  text.Colors{},
+		Footer:       text.Colors{},
+		Header:       text.Colors{},
+		Row:          text.Colors{},
+		RowAlternate: text.Colors{},
+	},
+	Format: table.FormatOptions{
+		Footer: text.FormatDefault,
+		Header: text.FormatTitle,
+		Row:    text.FormatDefault,
+	},
+	Options: table.Options{
+		DrawBorder:      false,
+		SeparateColumns: true,
+		SeparateFooter:  false,
+		SeparateHeader:  true,
+		SeparateRows:    false,
+	},
+}
+
+func formatSection(msg string, args ...any) string {
+	return "\n" + command.Bold + command.Orange + fmt.Sprintf(msg, args...) + command.Normal
+}
+
+// formatSmallID returns a smallened ID for table/completion display.
+func formatSmallID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+
+	return id[:8]
 }

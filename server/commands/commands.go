@@ -1,10 +1,6 @@
 package commands
 
 import (
-	"fmt"
-	"net"
-	"strings"
-
 	"github.com/rsteube/carapace"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -18,6 +14,20 @@ import (
 // Generate returns a "teamserver" command root and its tree for teamserver (server-side) management.
 // It requires a teamclient so as to bind its "teamclient" tree as a subcommand of the server root.
 // This is so that all CLI applications which can be a teamserver can also be a client of their own.
+//
+// ** Commands do:
+//   - Ensure they are connected to a server instance (in memory).
+//   - Work even if the teamserver/client returns errors: those are returned &| printed &| logged.
+//   - Use the cobra utilties OutOrStdout(), ErrOrStdErr(), etc. for all and every command output.
+//   - Have attached completions for users/listeners/config files of all sorts, and other things.
+//   - Have the ability to be ran in closed-loop console applications ("single runtime shell").
+//
+// ** Commands do NOT:
+//   - Call os.Exit() anywhere, thus will not exit the program embedding them.
+//   - Ignite/start the teamserver only before they absolutely need to.
+//     Consequently, do not touch the filesystem until they absolutely need to.
+//   - Connect the client more than once to the teamserver.
+//   - Start persistent listeners, excluding the daemon command.
 func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Command {
 	serveAndConnect := func(cmd *cobra.Command, args []string) error {
 		// If the server is already serving us with an in-memory con, return.
@@ -101,13 +111,15 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	}
 
 	lnFlags := pflag.NewFlagSet("listener", pflag.ContinueOnError)
-	lnFlags.StringP("host", "L", "", "interface to bind server to")
-	lnFlags.Uint16P("port", "l", 31337, "tcp listen port")
+	lnFlags.StringP("host", "H", "", "interface to bind server to")
+	lnFlags.StringP("listener", "l", "", "listener stack to use instead of default (completed)")
+	lnFlags.Uint16P("port", "P", 31337, "tcp listen port")
 	lnFlags.BoolP("persistent", "p", false, "make listener persistent across restarts")
 	listenCmd.Flags().AddFlagSet(lnFlags)
 
 	listenComps := make(carapace.ActionMap)
 	listenComps["host"] = interfacesCompleter()
+	listenComps["listener"] = carapace.ActionCallback(listenerTypeCompleter(client, server))
 	carapace.Gen(listenCmd).FlagCompletion(listenComps)
 
 	teamCmd.AddCommand(listenCmd)
@@ -120,7 +132,13 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		Run:     closeCmd(server),
 	}
 
-	// TODO: complete listeners
+	closeComps := carapace.Gen(closeCmd)
+	closeComps.PositionalCompletion(carapace.ActionCallback(listenerIDCompleter(client, server)))
+
+	closeComps.PreRun(func(cmd *cobra.Command, args []string) {
+		cmd.PersistentPreRunE(cmd, args)
+	})
+
 	teamCmd.AddCommand(closeCmd)
 
 	// Daemon (blocking listener and persistent jobs)
@@ -210,24 +228,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	rmUserComps := carapace.Gen(rmUserCmd)
 
-	rmUserComps.PositionalCompletion(
-		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-			users, err := client.Users()
-			if err != nil {
-				return carapace.ActionMessage("Failed to get users: %s", err)
-			}
-
-			results := make([]string, len(users))
-			for _, user := range users {
-				results = append(results, strings.TrimSpace(user.Name))
-			}
-
-			if len(results) == 0 {
-				return carapace.ActionMessage(fmt.Sprintf("%s teamserver has no users", server.Name()))
-			}
-
-			return carapace.ActionValues(results...).Tag(fmt.Sprintf("%s teamserver users", server.Name()))
-		}))
+	rmUserComps.PositionalCompletion(carapace.ActionCallback(userCompleter(client, server)))
 
 	rmUserComps.PreRun(func(cmd *cobra.Command, args []string) {
 		cmd.PersistentPreRunE(cmd, args)
@@ -245,7 +246,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	iComps := carapace.Gen(cmdImportCA)
 	iComps.PositionalCompletion(
 		carapace.Batch(
-			carapace.ActionCallback(cli.ConfigsCompleter(client, "teamserver/certs", ".teamserver.pem", "other teamservers user CAs")),
+			carapace.ActionCallback(cli.ConfigsCompleter(client, "teamserver/certs", ".teamserver.pem", "other teamservers user CAs", true)),
 			carapace.ActionFiles().Tag("teamserver user CAs"),
 		).ToA(),
 	)
@@ -265,36 +266,4 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	teamCmd.AddCommand(cmdExportCA)
 
 	return teamCmd
-}
-
-// interfacesCompleter completes interface addresses on the client host.
-func interfacesCompleter() carapace.Action {
-	return carapace.ActionCallback(func(_ carapace.Context) carapace.Action {
-		ifaces, err := net.Interfaces()
-		if err != nil {
-			return carapace.ActionMessage("failed to get net interfaces: %s", err.Error())
-		}
-
-		results := make([]string, 0)
-
-		for _, i := range ifaces {
-			addrs, err := i.Addrs()
-			if err != nil {
-				continue
-			}
-
-			for _, a := range addrs {
-				switch v := a.(type) {
-				case *net.IPAddr:
-					results = append(results, v.IP.String())
-				case *net.IPNet:
-					results = append(results, v.IP.String())
-				default:
-					results = append(results, v.String())
-				}
-			}
-		}
-
-		return carapace.ActionValues(results...).Tag("client interfaces").NoSpace(':')
-	})
 }
