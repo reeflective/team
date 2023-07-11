@@ -1,6 +1,4 @@
 
-# Repository README Template
-
 <!-- This is a README template used as a basis for most repositories hosted here. -->
 <!-- This repository has two branches: -->
 <!-- main       - Contains the README and other default files -->
@@ -22,33 +20,47 @@
 <!-- Push your changes to the wiki -->
 <!-- `git subtree push --prefix docs/ https://github.com/:user/:repo.git :branch` -->
 
+<div align="center">
+  <br> <h1> Team </h1>
+</div>
+
+
 <!-- Badges -->
-<!-- ----------------------------------------- -->
-
 <!-- Assuming the majority of them being written in Go, most of the badges below -->
-<!-- are dedicated to Go things. However, several words MUST BE REPLACED in the lines below:  -->
-<!-- - :user         => The user or organization owning the repository (here, reeflective) -->
-<!-- - :repo         => The name of the repository created from this template -->
-<!-- - :branch       => Some badges use a specific branch (such codecov tools) -->
-<!-- - :path/:file   => Some badges require paths to a specific file (replace all nodes starting with : ) -->
-![Github Actions (workflows)](https://github.com/:user/:repo/workflows/:workflow-name/badge.svg?branch=:branch-name)
-[![Go module version](https://img.shields.io/github/go-mod/go-version/:user/:repo.svg)](https://github.com/:user/:repo)
-[![GoDoc reference](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/:user/go/:repo)
-[![GoReportCard](https://goreportcard.com/badge/github.com/:user/:repo)](https://goreportcard.com/report/github.com/:user/:repo)
-[![codecov](https://codecov.io/gh/:user/:repo/branch/master/graph/badge.svg)](https://codecov.io/gh/:user/:repo)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+<!-- Replace the repo name: :%s/reeflective\/template/reeflective\/repo/g -->
 
-## DELETE ME (TODO)
+<p align="center">
+  <a href="https://github.com/reeflective/team/actions/workflows/go.yml">
+    <img src="https://github.com/reeflective/team/actions/workflows/go.yml/badge.svg?branch=master"
+      alt="Github Actions (workflows)" />
+  </a>
 
-### Initial remote setup
+  <a href="https://github.com/reeflective/team">
+    <img src="https://img.shields.io/github/go-mod/go-version/reeflective/team.svg"
+      alt="Go module version" />
+  </a>
 
-This template is tied to github.com/reeflective/template, therefore it has this path
-set as git origin ('git remote show origin'). When using this template, please do:
+  <a href="https://pkg.go.dev/github.com/reeflective/team">
+    <img src="https://img.shields.io/badge/godoc-reference-blue.svg"
+      alt="GoDoc reference" />
+  </a>
 
-```bash
-git remote remove origin
-git remote add https://github.com/:user/:repo
-```
+  <a href="https://goreportcard.com/report/github.com/reeflective/team">
+    <img src="https://goreportcard.com/badge/github.com/reeflective/team"
+      alt="Go Report Card" />
+  </a>
+
+  <a href="https://codecov.io/gh/reeflective/team">
+    <img src="https://codecov.io/gh/reeflective/team/branch/master/graph/badge.svg"
+      alt="codecov" />
+  </a>
+
+  <a href="https://opensource.org/licenses/BSD-3-Clause">
+    <img src="https://img.shields.io/badge/License-BSD_3--Clause-blue.svg"
+      alt="License: BSD-3" />
+  </a>
+</p>
+
 
 -----
 
