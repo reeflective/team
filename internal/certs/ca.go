@@ -37,7 +37,7 @@ func (c *Manager) getCertDir() string {
 	if _, err := os.Stat(certDir); os.IsNotExist(err) {
 		err := os.MkdirAll(certDir, 0o700)
 		if err != nil {
-			c.log.Fatalf("Failed to create cert dir: %w", err)
+			c.log.Fatalf("Failed to create cert dir: %s", err)
 		}
 	}
 	return certDir
@@ -73,12 +73,12 @@ func (c *Manager) generateCA(caType string, commonName string) (*x509.Certificat
 	}
 	cert, key, err := c.getCA(caType)
 	if err != nil {
-		c.log.Fatalf("Failed to load CA: %w", err)
+		c.log.Fatalf("Failed to load CA: %s", err)
 	}
 	return cert, key
 }
 
-// getCA - Get the current CA certificate
+// getCA - Get the current CA certificate.
 func (c *Manager) getCA(caType string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	certPEM, keyPEM, err := c.getCAPEM(caType)
 	if err != nil {
@@ -110,7 +110,7 @@ func (c *Manager) getCA(caType string) (*x509.Certificate, *ecdsa.PrivateKey, er
 	return cert, key, nil
 }
 
-// getCAPEM - Get PEM encoded CA cert/key
+// getCAPEM - Get PEM encoded CA cert/key.
 func (c *Manager) getCAPEM(caType string) ([]byte, []byte, error) {
 	caType = filepath.Base(caType)
 	caCertPath := filepath.Join(c.getCertDir(), fmt.Sprintf("%s_%s-ca-cert.%s", c.appName, caType, certFileExt))
@@ -146,11 +146,11 @@ func (c *Manager) saveCA(caType string, cert []byte, key []byte) {
 
 	err := ioutil.WriteFile(certFilePath, cert, 0o600)
 	if err != nil {
-		c.log.Fatalf("Failed write certificate data to %s, %w", certFilePath, err)
+		c.log.Fatalf("Failed write certificate data to %s, %s", certFilePath, err)
 	}
 
 	err = ioutil.WriteFile(keyFilePath, key, 0o600)
 	if err != nil {
-		c.log.Fatalf("Failed write certificate data to %s: %w", keyFilePath, err)
+		c.log.Fatalf("Failed write certificate data to %s: %s", keyFilePath, err)
 	}
 }

@@ -32,7 +32,7 @@ func (ts *Server) AppDir() string {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0o700)
 		if err != nil {
-			ts.log().Errorf("Cannot write to %s root dir: %w", dir)
+			ts.log().Errorf("Cannot write to %s root dir: %s", dir, err)
 		}
 	}
 	return dir
@@ -45,14 +45,14 @@ func (ts *Server) LogsDir() string {
 	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
 		err = os.MkdirAll(rootDir, 0o700)
 		if err != nil {
-			ts.log().Errorf("Cannot write to %s root dir: %w", err)
+			ts.log().Errorf("Cannot write to %s root dir: %s", err)
 		}
 	}
 	logDir := path.Join(rootDir, "logs")
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		err = os.MkdirAll(logDir, 0o700)
 		if err != nil {
-			ts.log().Errorf("Cannot write logs dir %s: %w", logDir, err)
+			ts.log().Errorf("Cannot write logs dir %s: %s", logDir, err)
 		}
 	}
 	return logDir

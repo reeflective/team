@@ -33,21 +33,20 @@ import (
 	"net"
 	"time"
 
+	"github.com/reeflective/team/internal/db"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
-
-	"github.com/reeflective/team/internal/db"
 )
 
 const (
-	// ECCKey - Namespace for ECC keys
+	// ECCKey - Namespace for ECC keys.
 	ECCKey = "ecc"
 
-	// RSAKey - Namespace for RSA keys
+	// RSAKey - Namespace for RSA keys.
 	RSAKey = "rsa"
 )
 
-// ErrCertDoesNotExist - Returned if a GetCertificate() is called for a cert/cn that does not exist
+// ErrCertDoesNotExist - Returned if a GetCertificate() is called for a cert/cn that does not exist.
 var ErrCertDoesNotExist = errors.New("Certificate does not exist")
 
 // Manager is used to manage the certificate infrastructure for a given teamserver.
@@ -79,7 +78,7 @@ func NewManager(db *gorm.DB, log *logrus.Entry, appName, appDir string) *Manager
 	return certs
 }
 
-// saveCertificate - Save the certificate and the key to the filesystem
+// saveCertificate - Save the certificate and the key to the filesystem.
 func (c *Manager) saveCertificate(caType string, keyType string, commonName string, cert []byte, key []byte) error {
 	if keyType != ECCKey && keyType != RSAKey {
 		return fmt.Errorf("Invalid key type '%s'", keyType)
@@ -100,24 +99,24 @@ func (c *Manager) saveCertificate(caType string, keyType string, commonName stri
 	return result.Error
 }
 
-// TeamServerGenerateECCCertificate - Generate a server certificate signed with a given CA
+// TeamServerGenerateECCCertificate - Generate a server certificate signed with a given CA.
 func (c *Manager) TeamServerGenerateECCCertificate(host string) ([]byte, []byte, error) {
 	cert, key := c.GenerateECCCertificate(mtlsCA, host, false, false)
 	err := c.saveCertificate(mtlsCA, ECCKey, host, cert, key)
 	return cert, key, err
 }
 
-// GetECCCertificate - Get an ECC certificate
+// GetECCCertificate - Get an ECC certificate.
 func (c *Manager) GetECCCertificate(caType string, commonName string) ([]byte, []byte, error) {
 	return c.GetCertificate(caType, ECCKey, commonName)
 }
 
-// GetRSACertificate - Get an RSA certificate
+// GetRSACertificate - Get an RSA certificate.
 func (c *Manager) GetRSACertificate(caType string, commonName string) ([]byte, []byte, error) {
 	return c.GetCertificate(caType, RSAKey, commonName)
 }
 
-// GetCertificate - Get the PEM encoded certificate & key for a host
+// GetCertificate - Get the PEM encoded certificate & key for a host.
 func (c *Manager) GetCertificate(caType string, keyType string, commonName string) ([]byte, []byte, error) {
 	if keyType != ECCKey && keyType != RSAKey {
 		return nil, nil, fmt.Errorf("Invalid key type '%s'", keyType)
@@ -141,7 +140,7 @@ func (c *Manager) GetCertificate(caType string, keyType string, commonName strin
 	return []byte(certModel.CertificatePEM), []byte(certModel.PrivateKeyPEM), nil
 }
 
-// RemoveCertificate - Remove a certificate from the cert store
+// RemoveCertificate - Remove a certificate from the cert store.
 func (c *Manager) RemoveCertificate(caType string, keyType string, commonName string) error {
 	if keyType != ECCKey && keyType != RSAKey {
 		return fmt.Errorf("Invalid key type '%s'", keyType)
@@ -172,7 +171,7 @@ func (c *Manager) GenerateECCCertificate(caType string, commonName string, isCA 
 	curve := curves[randomInt(len(curves))]
 	privateKey, err = ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
-		c.log.Fatalf("Failed to generate private key: %w", err)
+		c.log.Fatalf("Failed to generate private key: %s", err)
 	}
 	subject := pkix.Name{
 		CommonName: commonName,
@@ -180,7 +179,7 @@ func (c *Manager) GenerateECCCertificate(caType string, commonName string, isCA 
 	return c.generateCertificate(caType, subject, isCA, isClient, privateKey)
 }
 
-// GenerateRSACertificate - Generates an RSA Certificate
+// GenerateRSACertificate - Generates an RSA Certificate.
 func (c *Manager) GenerateRSACertificate(caType string, commonName string, isCA bool, isClient bool) ([]byte, []byte) {
 	c.log.Debugf("Generating TLS certificate (RSA) for '%s' ...", commonName)
 
@@ -190,7 +189,7 @@ func (c *Manager) GenerateRSACertificate(caType string, commonName string, isCA 
 	// Generate private key
 	privateKey, err = rsa.GenerateKey(rand.Reader, rsaKeySize())
 	if err != nil {
-		c.log.Fatalf("Failed to generate private key: %w", err)
+		c.log.Fatalf("Failed to generate private key: %s", err)
 	}
 	subject := pkix.Name{
 		CommonName: commonName,
@@ -265,13 +264,13 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 	} else {
 		caCert, caKey, err := c.getCA(caType) // Sign the new certificate with our CA
 		if err != nil {
-			c.log.Fatalf("Invalid ca type (%s): %w", caType, err)
+			c.log.Fatalf("Invalid ca type (%s): %s", caType, err)
 		}
 		derBytes, certErr = x509.CreateCertificate(rand.Reader, &template, caCert, publicKey(privateKey), caKey)
 	}
 	if certErr != nil {
 		// We maybe don't want this to be fatal, but it should basically never happen afaik
-		c.log.Fatalf("Failed to create certificate: %w", certErr)
+		c.log.Fatalf("Failed to create certificate: %s", certErr)
 	}
 
 	// Encode certificate and key

@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	// userCA - Directory containing user certificates
+	// userCA - Directory containing user certificates.
 	userCA = "user"
 
 	clientNamespace  = "client"    // User clients
@@ -33,36 +33,36 @@ const (
 	userCertHostname = "teamusers" // Hostname used on certificate
 )
 
-// UserClientGenerateCertificate - Generate a certificate signed with a given CA
+// UserClientGenerateCertificate - Generate a certificate signed with a given CA.
 func (c *Manager) UserClientGenerateCertificate(user string) ([]byte, []byte, error) {
 	cert, key := c.GenerateECCCertificate(userCA, user, false, true)
 	err := c.saveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", clientNamespace, user), cert, key)
 	return cert, key, err
 }
 
-// UserClientGetCertificate - Helper function to fetch a client cert
+// UserClientGetCertificate - Helper function to fetch a client cert.
 func (c *Manager) UserClientGetCertificate(user string) ([]byte, []byte, error) {
 	return c.GetECCCertificate(userCA, fmt.Sprintf("%s.%s", clientNamespace, user))
 }
 
-// UserClientRemoveCertificate - Helper function to remove a client cert
+// UserClientRemoveCertificate - Helper function to remove a client cert.
 func (c *Manager) UserClientRemoveCertificate(user string) error {
 	return c.RemoveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", clientNamespace, user))
 }
 
-// UserServerGetCertificate - Helper function to fetch a server cert
+// UserServerGetCertificate - Helper function to fetch a server cert.
 func (c *Manager) UserServerGetCertificate() ([]byte, []byte, error) {
 	return c.GetECCCertificate(userCA, fmt.Sprintf("%s.%s", serverNamespace, userCertHostname))
 }
 
-// UserServerGenerateCertificate - Generate a certificate signed with a given CA
+// UserServerGenerateCertificate - Generate a certificate signed with a given CA.
 func (c *Manager) UserServerGenerateCertificate() ([]byte, []byte, error) {
 	cert, key := c.GenerateECCCertificate(userCA, userCertHostname, false, false)
 	err := c.saveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", serverNamespace, userCertHostname), cert, key)
 	return cert, key, err
 }
 
-// UserClientListCertificates - Get all client certificates
+// UserClientListCertificates - Get all client certificates.
 func (c *Manager) UserClientListCertificates() []*x509.Certificate {
 	userCerts := []*db.Certificate{}
 	result := c.db.Where(&db.Certificate{CAType: userCA}).Find(&userCerts)
