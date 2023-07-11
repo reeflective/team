@@ -3,166 +3,151 @@ package server
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	insecureRand "math/rand"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/log"
+	"github.com/reeflective/team/internal/transport"
 	"github.com/sirupsen/logrus"
 )
 
-const serverConfigFileName = "server.json"
+const (
+	configFileExt = "teamserver.json"
+	blankHost     = "-"
+	blankPort     = uint16(0)
+)
 
-// LogConfig - Server logging config
-type LogConfig struct {
-	Level              int  `json:"level"`
-	GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
-	GRPCStreamPayloads bool `json:"grpc_stream_payloads"`
-	TLSKeyLogger       bool `json:"tls_key_logger"`
-}
-
-// DaemonConfig - Configure daemon mode
-type DaemonConfig struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-}
-
-// JobConfig - Restart Jobs on Load
-type JobConfig struct {
-	Multiplayer []*ListenerConfig `json:"multiplayer"`
-}
-
-type ListenerConfig struct {
-	Host  string `json:"host"`
-	Port  uint16 `json:"port"`
-	JobID string `json:"job_id"`
-}
-
-// Config - Server config
 type Config struct {
-	DaemonMode   bool          `json:"daemon_mode"`
-	DaemonConfig *DaemonConfig `json:"daemon"`
-	Logs         *LogConfig    `json:"logs"`
-	Jobs         *JobConfig    `json:"jobs,omitempty"`
-	GoProxy      string        `json:"go_proxy"`
+	DaemonMode struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"daemon_mode"`
+
+	Log struct {
+		Level              int  `json:"level"`
+		GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
+		GRPCStreamPayloads bool `json:"grpc_stream_payloads"`
+		TLSKeyLogger       bool `json:"tls_key_logger"`
+	} `json:"log"`
+
+	Listeners []struct {
+		Name string `json:"name"`
+		Host string `json:"host"`
+		Port uint16 `json:"port"`
+		ID   string `json:"id"`
+	} `json:"listeners"`
 }
 
 // GetServerConfigPath - File path to the server config.json file.
-func (s *Server) ConfigPath() string {
-	appDir := s.AppDir()
+func (ts *Server) ConfigPath() string {
+	appDir := ts.AppDir()
 
-	serverConfigLog := s.NamedLogger("config", "server")
-	serverConfigPath := filepath.Join(appDir, "configs", serverConfigFileName)
-	serverConfigLog.Debugf("Loading config from %s", serverConfigPath)
+	serverConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name(), configFileExt))
 	return serverConfigPath
 }
 
 // GetConfig returns the team server configuration struct.
-func (s *Server) GetConfig() *Config {
-	serverConfigLog := s.NamedLogger("config", "server")
+func (ts *Server) GetConfig() *Config {
+	cfgLog := ts.NamedLogger("config", "server")
 
-	configPath := s.ConfigPath()
-	config := s.getDefaultServerConfig()
+	configPath := ts.ConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		cfgLog.Debugf("Loading config from %s", configPath)
+
 		data, err := os.ReadFile(configPath)
 		if err != nil {
-			serverConfigLog.Errorf("Failed to read config file %s", err)
-			return config
+			cfgLog.Errorf("Failed to read config file %s", err)
+			return ts.opts.config
 		}
-		err = json.Unmarshal(data, config)
+		err = json.Unmarshal(data, ts.opts.config)
 		if err != nil {
-			serverConfigLog.Errorf("Failed to parse config file %s", err)
-			return config
+			cfgLog.Errorf("Failed to parse config file %s", err)
+			return ts.opts.config
 		}
 	} else {
-		serverConfigLog.Warnf("Config file does not exist, using defaults")
+		cfgLog.Warnf("Config file does not exist, using defaults")
 	}
 
-	if config.Logs.Level < 0 {
-		config.Logs.Level = 0
+	if ts.opts.config.Log.Level < 0 {
+		ts.opts.config.Log.Level = 0
 	}
-	if 6 < config.Logs.Level {
-		config.Logs.Level = 6
+	if 6 < ts.opts.config.Log.Level {
+		ts.opts.config.Log.Level = 6
 	}
-	s.log.SetLevel(levelFrom(config.Logs.Level))
+	ts.fileLogger.SetLevel(log.LevelFrom(ts.opts.config.Log.Level))
 
 	// This updates the config with any missing fields
-	err := s.SaveConfig(config)
+	err := ts.SaveConfig(ts.opts.config)
 	if err != nil {
-		serverConfigLog.Errorf("Failed to save default config %s", err)
+		cfgLog.Errorf("Failed to save default config %s", err)
 	}
-	return config
+
+	return ts.opts.config
 }
 
 // Save - Save config file to disk
-func (s *Server) SaveConfig(c *Config) error {
-	serverConfigLog := s.NamedLogger("config", "server")
+func (ts *Server) SaveConfig(c *Config) error {
+	log := ts.NamedLogger("config", "server")
 
-	configPath := s.ConfigPath()
+	configPath := ts.ConfigPath()
 	configDir := filepath.Dir(configPath)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		serverConfigLog.Debugf("Creating config dir %s", configDir)
+		log.Debugf("Creating config dir %s", configDir)
 		err := os.MkdirAll(configDir, 0o700)
 		if err != nil {
-			return err
+			return ts.errorf("%w: %w", ErrConfig, err)
 		}
 	}
+
 	data, err := json.MarshalIndent(c, "", "    ")
 	if err != nil {
 		return err
 	}
-	serverConfigLog.Debugf("Saving config to %s", configPath)
+
+	log.Debugf("Saving config to %s", configPath)
 	err = os.WriteFile(configPath, data, 0o600)
 	if err != nil {
-		serverConfigLog.Errorf("Failed to write config %s", err)
+		return ts.errorf("%w: failed to write config: %s", ErrConfig, err)
 	}
 	return nil
 }
 
-// AddListenerJob adds a teamserver listener job to the config and saves it.
-func (s *Server) AddListenerJob(config *ListenerConfig) error {
-	if s.config.Jobs == nil {
-		s.config.Jobs = &JobConfig{}
-	}
-	config.JobID = getRandomID()
-	s.config.Jobs.Multiplayer = append(s.config.Jobs.Multiplayer, config)
-
-	return s.SaveConfig(s.config)
-}
-
-// RemoveListenerJob removes a server listener job from the configuration and saves it.
-func (c *Server) RemoveListenerJob(jobID string) {
-	if c.config.Jobs == nil {
-		return
-	}
-
-	defer c.SaveConfig(c.config)
-}
-
-func (c *Server) getDefaultServerConfig() *Config {
+func getDefaultServerConfig() *Config {
 	return &Config{
-		DaemonMode: false,
-		DaemonConfig: &DaemonConfig{
-			Host: "",
-			Port: int(c.opts.port),
+		DaemonMode: struct {
+			Host string `json:"host"`
+			Port int    `json:"port"`
+		}{
+			Port: transport.DefaultPort, // 31416
 		},
-		Logs: &LogConfig{
-			Level:              int(logrus.InfoLevel),
-			GRPCUnaryPayloads:  false,
-			GRPCStreamPayloads: false,
+		Log: struct {
+			Level              int  `json:"level"`
+			GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
+			GRPCStreamPayloads bool `json:"grpc_stream_payloads"`
+			TLSKeyLogger       bool `json:"tls_key_logger"`
+		}{
+			Level: int(logrus.InfoLevel),
 		},
-		Jobs: &JobConfig{},
+		Listeners: []struct {
+			Name string `json:"name"`
+			Host string `json:"host"`
+			Port uint16 `json:"port"`
+			ID   string `json:"id"`
+		}{},
 	}
 }
 
-func (s *Server) clientServerMatch(config *client.Config) bool {
+func (ts *Server) clientServerMatch(config *client.Config) bool {
 	if config == nil {
 		return false
 	}
 
-	if s.config.Jobs != nil {
-		for _, job := range s.config.Jobs.Multiplayer {
+	if ts.opts.config.Listeners != nil {
+		for _, job := range ts.opts.config.Listeners {
 			if job.Host == config.Host && job.Port == uint16(config.Port) {
 				return true
 			}
@@ -170,7 +155,7 @@ func (s *Server) clientServerMatch(config *client.Config) bool {
 	}
 
 	// If matching our daemon config.
-	if s.config.DaemonConfig.Host == config.Host && s.config.DaemonConfig.Port == config.Port {
+	if ts.opts.config.DaemonMode.Host == config.Host && ts.opts.config.DaemonMode.Port == config.Port {
 		return true
 	}
 

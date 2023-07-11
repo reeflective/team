@@ -1,159 +1,245 @@
 package client
 
 import (
-	"context"
-	"errors"
 	"fmt"
+	"io"
 	"os"
-	"path/filepath"
-	"strings"
+	"sync"
 
-	"golang.org/x/exp/slog"
-	"google.golang.org/grpc"
+	"github.com/sirupsen/logrus"
 
-	"github.com/reeflective/team/internal/proto"
-)
-
-const (
-	// configsDirName - Directory name containing config files
-	configsDirName  = "configs"
-	versionFileName = "version"
-	logFileName     = "client.log"
+	"github.com/reeflective/team"
+	"github.com/reeflective/team/internal/log"
 )
 
 // Client is a team client wrapper.
 // It offers the core functionality of any team client.
 type Client struct {
-	name      string
-	connected bool
-	opts      *opts
-	log       *slog.Logger
-	logFile   *os.File
-	conn      *grpc.ClientConn
-	rpc       proto.TeamClient
+	name         string
+	connected    bool
+	opts         *opts
+	fileLogger   *logrus.Logger
+	stdoutLogger *logrus.Logger
+	logFile      *os.File
+	connect      *sync.Once
+	dialer       Dialer[any]
+	client       team.Client
 }
 
-// New returns an application client ready to work.
-// The application client log file is opened and served to the client builtin logger.
-// The client will panic if it can't open or create this log file as ~/.app/client.log.
-func New(application string, options ...Options) *Client {
-	c := &Client{
-		opts:      &opts{},
-		name:      application,
-		connected: false,
+type Dialer[clientConn any] interface {
+	Init(c *Client) error
+	Dial() (conn clientConn, err error)
+	Close() error
+}
+
+func New(application string, teamclient team.Client, options ...Options) (*Client, error) {
+	// Client has default logfile path, logging options.
+	client := &Client{
+		name:    application,
+		connect: &sync.Once{},
+		client:  teamclient,
+	}
+	client.opts = client.defaultOpts()
+
+	client.apply(options...)
+
+	// Logging (if allowed)
+	if err := client.initLogging(); err != nil {
+		return nil, err
 	}
 
-	c.logFile = c.initLogging(c.AppDir())
-
-	c.apply(options...)
-
-	return c
+	return client, nil
 }
 
 // Connect uses the default client configurations to connect to the team server.
 // Note that this call might be blocking and expect user input, in the case where more
 // than one server configuration is found in the application directory: the application
 // will prompt the user to choose one of them.
-func (c *Client) Connect(options ...Options) (err error) {
-	defer func() {
-		c.rpc = proto.NewTeamClient(c.conn)
-	}()
+//
+// It only connects the teamclient if it has an available dialer.
+// If none is available, this function returns no error, as it is
+// possible that this client has a teamclient implementation ready.
+func (tc *Client) Connect(options ...Options) (err error) {
+	tc.apply(options...)
 
-	c.apply(options...)
-
-	// Our connection is already existing and configured.
-	if c.conn != nil {
+	if tc.dialer == nil {
 		return
 	}
 
-	var cfg *Config
-
-	// Else connect with any available configuration.
-	if c.opts.config != nil {
-		cfg = c.opts.config
-	} else {
-		configs := c.GetConfigs()
-		if len(configs) == 0 {
-			return fmt.Errorf("no config files found at %s", c.ConfigsDir())
+	tc.connect.Do(func() {
+		_, err = tc.initConfig()
+		if err != nil {
+			err = tc.errorf("%w: %w", ErrConfig, err)
 		}
-		cfg = c.SelectConfig()
-	}
 
-	if cfg == nil {
-		return errors.New("no application was selected or parsed")
-	}
+		// Initialize the dialer with our client.
+		err = tc.dialer.Init(tc)
+		if err != nil {
+			err = tc.errorf("%w: %w", ErrConfig, err)
+			return
+		}
 
-	// Establish the connection and bind RPC core.
-	c.conn, err = c.connect(cfg)
+		// Connect to the teamserver.
+		client, err := tc.dialer.Dial()
+		if err != nil {
+			err = tc.errorf("%w: %w", ErrClient, err)
+			return
+		}
 
-	if err == nil && c.conn != nil {
-		c.connected = true
-	}
+		// Post-run hooks are used by consumers to further setup/consume
+		// the connection after the latter was established. In the case
+		// of RPCs, this client is generally used to register them.
+		for _, hook := range tc.opts.hooks {
+			if err = hook(client); err != nil {
+				err = tc.errorf("%w: %w", ErrClient, err)
+				return
+			}
+		}
+	})
 
 	return
+}
+
+// Users returns a list of all users registered to the application server.
+func (tc *Client) Users() (users []team.User, err error) {
+	if tc.client == nil {
+		return nil, ErrNoTeamclient
+	}
+
+	res, err := tc.client.Users()
+	if err != nil && len(res) == 0 {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+// ServerVersion returns the version information of the server to which
+// the client is connected, or nil and an error if it could not retrieve it.
+func (tc *Client) ServerVersion() (ver team.Version, err error) {
+	if tc.client == nil {
+		return ver, ErrNoTeamclient
+	}
+
+	version, err := tc.client.Version()
+	if err != nil {
+		return
+	}
+
+	return version, nil
+}
+
+// Name returns the name of the client application.
+func (tc *Client) Name() string {
+	return tc.name
 }
 
 // Disconnect disconnects the client from the server, closing the connection
 // and the client log file.Any errors are logged to the this file, not returned.
-func (c *Client) Disconnect() {
-	if c.conn != nil {
-		if err := c.conn.Close(); err != nil {
-			c.log.Error(fmt.Sprintf("error closing connection: %v", err))
-		}
+func (tc *Client) Disconnect() {
+	if tc.opts.console {
+		return
 	}
 
-	if c.logFile != nil {
-		c.logFile.Close()
+	// if tc.conn != nil {
+	// 	if err := tc.conn.Close(); err != nil {
+	// 		tc.log.Error(fmt.Sprintf("error closing connection: %v", err))
+	// 	}
+	// }
+	//
+	if tc.logFile != nil {
+		tc.logFile.Close()
 	}
-
-	// Decrement the counter, should be back to 0.
-	c.connected = false
-}
-
-// Connection returns the gRPC client connection it uses.
-func (c *Client) Connection() *grpc.ClientConn {
-	return c.conn
-}
-
-func (c *Client) IsConnected() bool {
-	return c.connected
-}
-
-// Users returns a list of all users registered to the application server.
-func (c *Client) Users() (users []proto.User) {
-	if c.rpc == nil {
-		return nil
-	}
-
-	res, err := c.rpc.GetUsers(context.Background(), &proto.Empty{})
-	if err != nil {
-		return nil
-	}
-
-	for _, user := range res.GetUsers() {
-		users = append(users, *user)
-	}
-
+	//
+	// // Decrement the counter, should be back to 0.
+	// tc.connected = false
+	// tc.conn = nil
+	// tc.connectedT = &sync.Once{}
 	return
 }
 
-// Name returns the name of the client application.
-func (c *Client) Name() string {
-	return c.name
+// IsConnected returns true if a working teamclient to server connection
+// is bound to to this precise client. Given that each client register may
+// register as many other RPC client services to its connection, this client
+// can't however reconnect to/with a different connection/stream.
+func (tc *Client) IsConnected() bool {
+	return tc.connected
 }
 
-func (c *Client) assetVersion() string {
-	appDir := c.AppDir()
-	data, err := os.ReadFile(filepath.Join(appDir, versionFileName))
-	if err != nil {
-		return ""
+// NamedLogger returns a new logging "thread" which should grossly
+// indicate the package/general domain, and a more precise flow/stream.
+func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
+	return tc.log().WithFields(logrus.Fields{
+		log.PackageFieldKey: pkg,
+		"stream":            stream,
+	})
+}
+
+// WithLoggerStdout sets the source to which the stdout logger (not any file logger) should write to.
+// This option is used by the teamserver/teamclient cobra command tree to coordinate its basic I/O/err.
+func (tc *Client) SetLogWriter(stdout, stderr io.Writer) {
+	tc.stdoutLogger.Out = stdout
+	// TODO: Pass stderr to log internals.
+}
+
+// SetLogLevel is a utility to change the logging level of the stdout logger.
+func (tc *Client) SetLogLevel(level int) {
+	if tc.stdoutLogger == nil {
+		return
 	}
-	return strings.TrimSpace(string(data))
+
+	if uint32(level) > uint32(logrus.TraceLevel) {
+		level = int(logrus.TraceLevel)
+	}
+
+	tc.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
+
+	if tc.fileLogger != nil {
+		tc.fileLogger.SetLevel(logrus.Level(uint32(level)))
+	}
 }
 
-func (c *Client) saveAssetVersion(appDir string) {
-	versionFilePath := filepath.Join(appDir, versionFileName)
-	fVer, _ := os.Create(versionFilePath)
-	defer fVer.Close()
-	fVer.Write([]byte(GitCommit))
+// Initialize loggers in files/stdout according to options.
+func (tc *Client) initLogging() (err error) {
+	// No logging means only stdout with warn level
+	if tc.opts.noLogs {
+		tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
+		return nil
+	}
+
+	// If user supplied a logger, use it in place of the
+	// file-based logger, since the file logger is optional.
+	if tc.opts.logger != nil {
+		tc.fileLogger = tc.opts.logger
+	}
+
+	// Either use default logfile or user-specified one.
+	tc.fileLogger, tc.stdoutLogger, err = log.NewClient(tc.opts.logFile, logrus.InfoLevel)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// log returns a non-nil logger for the client:
+// if file logging is disabled, it returns the stdout-only logger,
+// otherwise returns the file logger equipped with a stdout hook.
+func (tc *Client) log() *logrus.Logger {
+	if tc.fileLogger != nil {
+		return tc.fileLogger
+	}
+
+	if tc.stdoutLogger == nil {
+		tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
+	}
+
+	return tc.stdoutLogger
+}
+
+func (tc *Client) errorf(msg string, format ...any) error {
+	logged := fmt.Errorf(msg, format...)
+	tc.log().Error(logged)
+
+	return logged
 }

@@ -1,213 +1,99 @@
 package server
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
+	"io"
 
+	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 )
 
-// NamedLogger - Returns a logger wrapped with pkg/stream fields
-func (s *Server) NamedLogger(pkg, stream string) *logrus.Entry {
-	return s.log.WithFields(logrus.Fields{
-		"pkg":    pkg,
-		"stream": stream,
+// NamedLogger returns a new logging "thread" which should grossly
+// indicate the package/general domain, and a more precise flow/stream.
+func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
+	return ts.log().WithFields(logrus.Fields{
+		log.PackageFieldKey: pkg,
+		"stream":            stream,
 	})
 }
 
-// AuditLogger - Single audit log
-// var AuditLogger = newAuditLogger()
+// SetLogLevel is a utility to change the logging level of the stdout logger.
+func (ts *Server) SetLogLevel(level int) {
+	if ts.stdoutLogger == nil {
+		return
+	}
 
-func (s *Server) newAuditLogger() *logrus.Logger {
-	auditLogger := logrus.New()
-	auditLogger.Formatter = &logrus.JSONFormatter{}
-	jsonFilePath := filepath.Join(s.LogsDir(), "audit.json")
-	jsonFile, err := os.OpenFile(jsonFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if uint32(level) > uint32(logrus.TraceLevel) {
+		level = int(logrus.TraceLevel)
+	}
+
+	ts.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
+}
+
+// WithLoggerStdout sets the source to which the stdout logger (not any file logger) should write to.
+// This option is used by the teamserver/teamclient cobra command tree to coordinate its basic I/O/err.
+func (ts *Server) SetLogWriter(stdout, stderr io.Writer) {
+	// TODO: Maybe if the writer was already set in options, ignore ?
+	ts.stdoutLogger.Out = stdout
+	// TODO: Pass stderr to log internals.
+}
+
+// Initialize loggers in files/stdout according to options.
+func (ts *Server) initLogging() (err error) {
+	// No logging means only stdout with warn level
+	if ts.opts.noLogs || ts.opts.noFiles {
+		ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
+		return nil
+	}
+
+	// Ensure all teamserver-specific directories are writable.
+	if err := ts.checkWritableFiles(); err != nil {
+		return fmt.Errorf("%w: %w", ErrDirectory, err)
+	}
+
+	// If user supplied a logger, use it in place of the
+	// stdout logger, since the file logger is optional.
+	if ts.opts.logger != nil {
+		ts.stdoutLogger = ts.opts.logger
+	}
+
+	level := logrus.Level(ts.opts.config.Log.Level)
+
+	// Either use default logfile or user-specified one.
+	ts.fileLogger, ts.stdoutLogger, err = log.NewClient(ts.opts.logFile, level)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to open log file %v", err))
-	}
-	auditLogger.Out = jsonFile
-	auditLogger.SetLevel(logrus.DebugLevel)
-	return auditLogger
-}
-
-// RootLogger - Returns the root logger
-func (s *Server) rootLogger() *logrus.Logger {
-	rootLogger := logrus.New()
-	rootLogger.Formatter = &logrus.JSONFormatter{}
-	jsonFilePath := filepath.Join(s.LogsDir(), fmt.Sprintf("%s.json", s.name))
-	jsonFile, err := os.OpenFile(jsonFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to open log file %v", err))
-	}
-	rootLogger.Out = jsonFile
-	rootLogger.SetLevel(logrus.DebugLevel)
-	rootLogger.SetReportCaller(true)
-	rootLogger.AddHook(s.NewTxtHook("root"))
-	return rootLogger
-}
-
-// RootLogger - Returns the root logger
-func (s *Server) txtLogger() *logrus.Logger {
-	txtLogger := logrus.New()
-	txtLogger.Formatter = &logrus.TextFormatter{
-		ForceColors:   true,
-		FullTimestamp: true,
-	}
-	txtFilePath := filepath.Join(s.LogsDir(), "server.log")
-	txtFile, err := os.OpenFile(txtFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to open log file %v", err))
-	}
-	txtLogger.Out = txtFile
-	txtLogger.SetLevel(logrus.DebugLevel)
-	return txtLogger
-}
-
-// TxtHook - Hook in a textual version of the logs
-type TxtHook struct {
-	Name   string
-	app    string
-	logger *logrus.Logger
-}
-
-// NewTxtHook - returns a new txt hook
-func (s *Server) NewTxtHook(name string) *TxtHook {
-	hook := &TxtHook{
-		Name:   name,
-		app:    s.name,
-		logger: s.txtLogger(),
-	}
-	return hook
-}
-
-// Fire - Implements the fire method of the Logrus hook
-func (hook *TxtHook) Fire(entry *logrus.Entry) error {
-	if hook.logger == nil {
-		return errors.New("no txt logger")
-	}
-
-	// Determine the caller (filename/line number)
-	srcFile := "<no caller>"
-	if entry.HasCaller() {
-		wiregostIndex := strings.Index(entry.Caller.File, hook.app)
-		srcFile = entry.Caller.File
-		if wiregostIndex != -1 {
-			srcFile = srcFile[wiregostIndex:]
-		}
-	}
-
-	switch entry.Level {
-	case logrus.PanicLevel:
-		hook.logger.Panicf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.FatalLevel:
-		hook.logger.Fatalf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.ErrorLevel:
-		hook.logger.Errorf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.WarnLevel:
-		hook.logger.Warnf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.InfoLevel:
-		hook.logger.Infof("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.DebugLevel, logrus.TraceLevel:
-		hook.logger.Debugf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
+		return err
 	}
 
 	return nil
 }
 
-// Levels - Hook all levels
-func (hook *TxtHook) Levels() []logrus.Level {
-	return logrus.AllLevels
-}
-
-// RootLogger - Returns the root logger
-func (s *Server) stdoutLogger() *logrus.Logger {
-	txtLogger := logrus.New()
-	txtLogger.Formatter = &logrus.TextFormatter{
-		ForceColors:   true,
-		FullTimestamp: true,
-	}
-	txtLogger.Out = os.Stdout
-	txtLogger.SetLevel(logrus.DebugLevel)
-	return txtLogger
-}
-
-// TxtHook - Hook in a textual version of the logs
-type StdoutHook struct {
-	Name   string
-	app    string
-	logger *logrus.Logger
-}
-
-// NewTxtHook - returns a new txt hook
-func (s *Server) newStdoutHook(name string) *StdoutHook {
-	hook := &StdoutHook{
-		Name:   name,
-		app:    s.name,
-		logger: s.stdoutLogger(),
-	}
-	return hook
-}
-
-// Fire - Implements the fire method of the Logrus hook
-func (hook *StdoutHook) Fire(entry *logrus.Entry) error {
-	if hook.logger == nil {
-		return errors.New("no txt logger")
+// log returns a non-nil logger for the server:
+// if file logging is disabled, it returns the stdout-only logger,
+// otherwise returns the file logger equipped with a stdout hook.
+func (ts *Server) log() *logrus.Logger {
+	if ts.fileLogger == nil {
+		return ts.stdoutLogger
 	}
 
-	// Determine the caller (filename/line number)
-	srcFile := "<no caller>"
-	if entry.HasCaller() {
-		wiregostIndex := strings.Index(entry.Caller.File, hook.app)
-		srcFile = entry.Caller.File
-		if wiregostIndex != -1 {
-			srcFile = srcFile[wiregostIndex:]
-		}
-	}
-
-	switch entry.Level {
-	case logrus.PanicLevel:
-		hook.logger.Panicf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.FatalLevel:
-		hook.logger.Fatalf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.ErrorLevel:
-		hook.logger.Errorf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.WarnLevel:
-		hook.logger.Warnf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.InfoLevel:
-		hook.logger.Infof("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	case logrus.DebugLevel, logrus.TraceLevel:
-		hook.logger.Debugf("[%s:%d] %s", srcFile, entry.Caller.Line, entry.Message)
-	}
-
-	return nil
+	return ts.fileLogger
 }
 
-// Levels - Hook all levels
-func (hook *StdoutHook) Levels() []logrus.Level {
-	return logrus.AllLevels
+func (ts *Server) errorf(msg string, format ...any) error {
+	logged := fmt.Errorf(msg, format...)
+	ts.log().Error(logged)
+
+	return logged
 }
 
-// levelFrom - returns level from int
-func levelFrom(level int) logrus.Level {
-	switch level {
-	case 0:
-		return logrus.PanicLevel
-	case 1:
-		return logrus.FatalLevel
-	case 2:
-		return logrus.ErrorLevel
-	case 3:
-		return logrus.WarnLevel
-	case 4:
-		return logrus.InfoLevel
-	case 5:
-		return logrus.DebugLevel
-	case 6:
-		return logrus.TraceLevel
+func (ts *Server) errorWith(log *logrus.Entry, msg string, format ...any) error {
+	logged := fmt.Errorf(msg, format...)
+
+	if log != nil {
+		log.Error(logged)
+	} else {
+		ts.log().Error(logged)
 	}
-	return logrus.DebugLevel
+
+	return logged
 }

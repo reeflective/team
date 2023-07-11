@@ -1,0 +1,10 @@
+# List of PR labels for readline
+
+# Shell core
+# main:
+# - readline.go
+# - shell.go
+# tests:
+# - '*_test.go'
+# terminal:
+# - internal/term/
