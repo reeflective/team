@@ -36,7 +36,7 @@ var (
 	CompiledAt string
 )
 
-// Semantic - Get the structured sematic version
+// Semantic - Get the structured sematic version.
 func Semantic() []int {
 	semVer := []int{}
 	version := strings.TrimSuffix(Version, "\n")
@@ -50,7 +50,7 @@ func Semantic() []int {
 	return semVer
 }
 
-// Compiled - Get time this binary was compiled
+// Compiled - Get time this binary was compiled.
 func Compiled() (time.Time, error) {
 	compiledAt := strings.TrimSuffix(CompiledAt, "\n")
 	compiled, err := strconv.ParseInt(compiledAt, 10, 64)
@@ -60,7 +60,7 @@ func Compiled() (time.Time, error) {
 	return time.Unix(compiled, 0), nil
 }
 
-// Full - Full version string
+// Full - Full version string.
 func Full() string {
 	ver := fmt.Sprintf("%s", strings.TrimSuffix(Version, "\n"))
 	if GitCommit != "" {
