@@ -28,6 +28,22 @@ jobs:
     - name: Build
       run: go build -v ./...
 
+    - name: Teamclient example
+      working-directory: example/client
+      run: go build -v .
+
+    - name: Teamserver example (go_sqlite)
+      working-directory: example/teamserver
+      run: go build -v -tags go_sqlite .
+
+    - name: Teamserver example (wasm_sqlite)
+      working-directory: example/teamserver
+      run: go build -v -tags wasm_sqlite .
+
+    - name: Teamserver example (cgo_sqlite)
+      working-directory: example/teamserver
+      run: go build -v -tags cgo_sqlite .
+
     - name: Run coverage
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
     - name: Upload coverage to Codecov
