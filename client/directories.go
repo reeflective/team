@@ -1,5 +1,23 @@
 package client
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"os"
 	"os/user"
@@ -7,10 +25,11 @@ import (
 )
 
 const (
-	// configsDirName - Directory name containing config files
+	// configsDirName - Directory name containing config files.
 	teamserverClientDir = "teamclient"
 	configsDirName      = "configs"
 	logFileExt          = "teamclient"
+	dirWriteModePerm    = 0o700
 )
 
 // AppDir returns the teamclient directory of the app (named ~/.<app>/teamserver/client/),
@@ -18,12 +37,14 @@ const (
 func (tc *Client) AppDir() string {
 	user, _ := user.Current()
 	dir := filepath.Join(user.HomeDir, "."+tc.name, teamserverClientDir)
+
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0o700)
+		err = os.MkdirAll(dir, dirWriteModePerm)
 		if err != nil {
-			tc.log().Errorf("cannot write to %s root dir: %w", dir, err)
+			tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
 		}
 	}
+
 	return dir
 }
 
@@ -32,11 +53,12 @@ func (tc *Client) AppDir() string {
 func (tc *Client) LogsDir() string {
 	logsDir := filepath.Join(tc.AppDir(), "logs")
 	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
-		err = os.MkdirAll(logsDir, 0o700)
+		err = os.MkdirAll(logsDir, dirWriteModePerm)
 		if err != nil {
-			tc.log().Errorf("cannot write to %s root dir: %w", logsDir, err)
+			tc.log().Errorf("cannot write to %s root dir: %s", logsDir, err)
 		}
 	}
+
 	return logsDir
 }
 
@@ -44,11 +66,13 @@ func (tc *Client) LogsDir() string {
 func (tc *Client) ConfigsDir() string {
 	rootDir, _ := filepath.Abs(tc.AppDir())
 	dir := filepath.Join(rootDir, configsDirName)
+
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0o700)
+		err = os.MkdirAll(dir, dirWriteModePerm)
 		if err != nil {
-			tc.log().Errorf("cannot write to %s configs dir: %w", dir, err)
+			tc.log().Errorf("cannot write to %s configs dir: %s", dir, err)
 		}
 	}
+
 	return dir
 }
