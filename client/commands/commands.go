@@ -7,15 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/internal/version"
 	"github.com/rsteube/carapace"
 	"github.com/rsteube/carapace/pkg/style"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-
-	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/internal/command"
-	"github.com/reeflective/team/internal/version"
 )
 
 // Generate initliazes and returns a command tree to embed in client applications
@@ -49,9 +48,10 @@ func PostRun(client *client.Client) command.CobraRunnerE {
 
 func clientCommands(cli *client.Client) *cobra.Command {
 	teamCmd := &cobra.Command{
-		Use:     "teamclient",
-		Short:   "Client-only teamserver commands (import configs, show users, etc)",
-		GroupID: command.TeamServerGroup,
+		Use:          "teamclient",
+		Short:        "Client-only teamserver commands (import configs, show users, etc)",
+		GroupID:      command.TeamServerGroup,
+		SilenceUsage: true,
 	}
 
 	teamFlags := pflag.NewFlagSet("teamserver", pflag.ContinueOnError)

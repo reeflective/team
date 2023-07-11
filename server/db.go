@@ -25,8 +25,13 @@ func (ts *Server) dbConfigPath() string {
 	return databaseConfigPath
 }
 
-// Save - Save config file to disk.
+// Save - Save config file to disk. If the server is configured
+// to run in-memory only, the config is not saved.
 func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
+	if ts.opts.inMemory {
+		return nil
+	}
+
 	log := ts.NamedLogger("config", "database")
 
 	configPath := ts.dbConfigPath()
@@ -94,12 +99,19 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 }
 
 func (ts *Server) getDefaultDatabaseConfig() *db.Config {
-	return &db.Config{
-		Database:     filepath.Join(ts.AppDir(), fmt.Sprintf("%s.teamserver.db", ts.name)),
+	cfg := &db.Config{
 		Dialect:      db.Sqlite,
 		MaxIdleConns: maxIdleConns,
 		MaxOpenConns: maxOpenConns,
 
 		LogLevel: "warn",
 	}
+
+	if ts.opts.inMemory {
+		cfg.Database = ":memory:"
+	} else {
+		cfg.Database = filepath.Join(ts.AppDir(), fmt.Sprintf("%s.teamserver.db", ts.name))
+	}
+
+	return cfg
 }

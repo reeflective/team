@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/transport"
 	"github.com/sirupsen/logrus"
 )
@@ -83,8 +82,6 @@ func (ts *Server) GetConfig() *Config {
 	if int(logrus.TraceLevel) < ts.opts.config.Log.Level {
 		ts.opts.config.Log.Level = int(logrus.TraceLevel)
 	}
-
-	ts.fileLogger.SetLevel(log.LevelFrom(ts.opts.config.Log.Level))
 
 	// This updates the config with any missing fields
 	err := ts.SaveConfig(ts.opts.config)
