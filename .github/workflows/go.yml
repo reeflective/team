@@ -5,9 +5,9 @@ name: Go
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
   unix:
@@ -21,31 +21,32 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v4
       with:
         go-version: 1.20.4
 
-    - name: Build
-      run: go build -v ./...
+    - name: Version information
+      run: bash teamserver_version_info 
+      working-directory: internal/version
 
     - name: Teamclient example
       working-directory: example/client
       run: go build -v .
 
     - name: Teamserver example (go_sqlite)
-      working-directory: example/teamserver
+      working-directory: example/server
       run: go build -v -tags go_sqlite .
 
     - name: Teamserver example (wasm_sqlite)
-      working-directory: example/teamserver
+      working-directory: example/server
       run: go build -v -tags wasm_sqlite .
 
     - name: Teamserver example (cgo_sqlite)
-      working-directory: example/teamserver
+      working-directory: example/server
       run: go build -v -tags cgo_sqlite .
 
-    - name: Run coverage
-      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+    - name: Run coverage (go_sqlite)
+      run: go test -tags go_sqlite -v -race -coverprofile=coverage.txt -covermode=atomic ./...
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
 

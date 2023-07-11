@@ -2,8 +2,13 @@
 
 outfile="_version.compiled"
 
-git describe --abbrev=0 > "client${outfile}"
+git describe --abbrev=0 --always > "client${outfile}"
 go version > "go${outfile}"
 git rev-parse HEAD > "commit${outfile}"
-git diff --quiet|| echo 'Dirty' > "dirty${outfile}"
+
+# Dirty (ensure file exists for github actions)
+touch "dirty${outfile}"
+git diff --quiet || echo 'Dirty' > "dirty${outfile}"
+
+# Compilation time
 date +%s > "compiled${outfile}"
