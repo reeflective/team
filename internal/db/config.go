@@ -7,20 +7,20 @@ import (
 )
 
 const (
-	// Sqlite - SQLite protocol
+	// Sqlite - SQLite protocol.
 	Sqlite = "sqlite3"
-	// Postgres - Postgresql protocol
+	// Postgres - Postgresql protocol.
 	Postgres = "postgresql"
-	// MySQL - MySQL protocol
+	// MySQL - MySQL protocol.
 	MySQL = "mysql"
 
 	databaseConfigFileName = "database.json"
 )
 
-// ErrInvalidDialect - An invalid dialect was specified
+// ErrInvalidDialect - An invalid dialect was specified.
 var ErrInvalidDialect = errors.New("invalid SQL Dialect")
 
-// Config - Server config
+// Config - Server config.
 type Config struct {
 	Dialect  string `json:"dialect"`
 	Database string `json:"database"`

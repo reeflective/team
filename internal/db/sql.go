@@ -28,7 +28,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// ErrRecordNotFound - Record not found error
+// ErrRecordNotFound - Record not found error.
 var ErrRecordNotFound = gorm.ErrRecordNotFound
 
 // NewClient initializes a database client connection to a backend specified in config.

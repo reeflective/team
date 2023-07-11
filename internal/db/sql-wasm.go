@@ -25,7 +25,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/reeflective/team/server/db/wasmsqlite"
+	"github.com/reeflective/team/internal/db/wasmsqlite"
 )
 
 func sqliteClient(dsn string, log logger.Interface) (*gorm.DB, error) {

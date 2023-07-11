@@ -23,7 +23,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Certificate - Certificate database model
+// Certificate - Certificate database model.
 type Certificate struct {
 	ID             uuid.UUID `gorm:"primaryKey;->;<-:create;type:uuid;"`
 	CreatedAt      time.Time `gorm:"->;<-:create;"`
@@ -34,7 +34,7 @@ type Certificate struct {
 	PrivateKeyPEM  string
 }
 
-// BeforeCreate - GORM hook to automatically set values
+// BeforeCreate - GORM hook to automatically set values.
 func (c *Certificate) BeforeCreate(tx *gorm.DB) (err error) {
 	c.ID, err = uuid.NewV4()
 	if err != nil {

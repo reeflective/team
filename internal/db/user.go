@@ -31,7 +31,7 @@ type User struct {
 	Token     string `gorm:"uniqueIndex"`
 }
 
-// BeforeCreate - GORM hook
+// BeforeCreate - GORM hook.
 func (o *User) BeforeCreate(tx *gorm.DB) (err error) {
 	o.ID, err = uuid.NewV4()
 	if err != nil {

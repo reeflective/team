@@ -9,12 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/server"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Command, args []string) {
