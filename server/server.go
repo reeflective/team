@@ -11,12 +11,11 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
-
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 // Server is a team server.
@@ -24,7 +23,6 @@ type Server struct {
 	// Core
 	name         string
 	rootDirEnv   string
-	listening    bool
 	fileLogger   *logrus.Logger
 	stdoutLogger *logrus.Logger
 	userTokens   *sync.Map
@@ -147,6 +145,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 		host = ts.opts.config.DaemonMode.Host
 		log.Debugf("No host specified, using config file default: %s", host)
 	}
+
 	if port == blankPort {
 		port = uint16(ts.opts.config.DaemonMode.Port)
 		log.Debugf("No port specified, using config file default: %d", port)
@@ -160,6 +159,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 
 	// Start the listener.
 	log.Infof("Starting %s teamserver daemon on %s:%d ...", ts.Name(), host, port)
+
 	listenerID, err := ts.ServeAddr(ts.self.Name(), host, port, opts...)
 	if err != nil {
 		return err
@@ -179,6 +179,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	done := make(chan bool)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
+
 	go func() {
 		<-signals
 		log.Infof("Received SIGTERM, exiting ...")
@@ -207,7 +208,7 @@ func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jo
 	return listenerID, err
 }
 
-func (ts *Server) ServeHandler(handler Handler[any], id, host string, port uint16, options ...Options) error {
+func (ts *Server) ServeHandler(handler Handler[any], lnID, host string, port uint16, options ...Options) error {
 	log := ts.NamedLogger("teamserver", "handler")
 
 	// If server was not initialized yet, do it.
@@ -236,7 +237,7 @@ func (ts *Server) ServeHandler(handler Handler[any], id, host string, port uint1
 	}
 
 	// The server is running, so add a job anyway.
-	ts.addListenerJob(id, host, int(port), handler)
+	ts.addListenerJob(lnID, host, int(port), handler)
 
 	// Run provided server hooks on the server interface.
 	// Any error arising from this is returned as is, for

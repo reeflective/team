@@ -3,12 +3,11 @@ package main
 import (
 	"log"
 
-	"github.com/rsteube/carapace"
-
 	teamclient "github.com/reeflective/team/client"
 	teamserver "github.com/reeflective/team/server"
 	"github.com/reeflective/team/server/commands"
 	grpc "github.com/reeflective/team/transports/grpc/server"
+	"github.com/rsteube/carapace"
 )
 
 func main() {
@@ -21,7 +20,7 @@ func main() {
 	// TODO: Rewrite comments
 	listener := grpc.NewTeamServer()
 
-	teamserver, err := teamserver.New("teamserver", listener)
+	teamserver, err := teamserver.New("teamserver", listener, teamserver.WithInMemory())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,3 +50,9 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
+func mainInMemory() {}
+
+func mainIntegrated() {}
+
+func mainSmallest() {}

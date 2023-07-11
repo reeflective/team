@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// job - Manages background jobs
+// job - Manages background jobs.
 type job struct {
 	ID          string
 	Name        string
@@ -15,7 +15,7 @@ type job struct {
 	Persistent  bool
 }
 
-// jobs - Holds refs to all active jobs
+// jobs - Holds refs to all active jobs.
 type jobs struct {
 	active *sync.Map
 }
@@ -26,24 +26,26 @@ func newJobs() *jobs {
 	}
 }
 
-// Add - Add a job to the hive (atomically)
+// Add - Add a job to the hive (atomically).
 func (j *jobs) Add(listener *job) {
 	j.active.Store(listener.ID, listener)
 }
 
-// Get - Get a Job
+// Get - Get a Job.
 func (j *jobs) Get(jobID string) *job {
 	if jobID == "" {
 		return nil
 	}
+
 	val, ok := j.active.Load(jobID)
 	if ok {
 		return val.(*job)
 	}
+
 	return nil
 }
 
-// Listeners - Return a list of all jobs
+// Listeners - Return a list of all jobs.
 func (ts *Server) Listeners() []*job {
 	all := []*job{}
 
@@ -76,7 +78,7 @@ func (ts *Server) AddListener(name, host string, port uint16) error {
 }
 
 // RemoveListenerJob removes a server listener job from the configuration and saves it.
-func (ts *Server) RemoveListener(id string) {
+func (ts *Server) RemoveListener(listenerID string) {
 	if ts.opts.config.Listeners == nil {
 		return
 	}
@@ -91,7 +93,7 @@ func (ts *Server) RemoveListener(id string) {
 	}
 
 	for _, listener := range ts.opts.config.Listeners {
-		if listener.ID != id {
+		if listener.ID != listenerID {
 			listeners = append(listeners, listener)
 		}
 	}
@@ -120,27 +122,27 @@ func (ts *Server) StartPersistentListeners(continueOnError bool) error {
 		return nil
 	}
 
-	for _, j := range ts.opts.config.Listeners {
-		handler := ts.handlers[j.Name]
+	for _, ln := range ts.opts.config.Listeners {
+		handler := ts.handlers[ln.Name]
 		if handler == nil {
 			handler = ts.self
 		}
 
 		if handler == nil {
 			if !continueOnError {
-				return ts.errorf("Failed to find handler for `%s` listener (%s:%d)", j.Name, j.Host, j.Port)
+				return ts.errorf("Failed to find handler for `%s` listener (%s:%d)", ln.Name, ln.Host, ln.Port)
 			}
 
 			continue
 		}
 
-		err := ts.ServeHandler(handler, j.ID, j.Host, j.Port)
+		err := ts.ServeHandler(handler, ln.ID, ln.Host, ln.Port)
 
 		if err == nil {
 			continue
 		}
 
-		log.Errorf("Failed to start %s listener (%s:%d): %s", j.Name, j.Host, j.Port, err)
+		log.Errorf("Failed to start %s listener (%s:%d): %s", ln.Name, ln.Host, ln.Port, err)
 
 		if !continueOnError {
 			return err
@@ -152,15 +154,15 @@ func (ts *Server) StartPersistentListeners(continueOnError bool) error {
 	return nil
 }
 
-func (ts *Server) addListenerJob(id, host string, port int, ln Handler[any]) {
+func (ts *Server) addListenerJob(listenerID, host string, port int, ln Handler[any]) {
 	log := ts.NamedLogger("teamserver", "listeners")
 
-	if id == "" {
-		id = getRandomID()
+	if listenerID == "" {
+		listenerID = getRandomID()
 	}
 
 	listener := &job{
-		ID:          id,
+		ID:          listenerID,
 		Name:        ln.Name(),
 		Description: fmt.Sprintf("%s:%d", host, port),
 		kill:        make(chan bool),

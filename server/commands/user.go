@@ -44,23 +44,25 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to get current OS user: %s\n", err)
 				return
 			}
+
 			name = user.Username
 			filename = fmt.Sprintf("%s_%s_default", serv.Name(), user.Username)
 			saveTo = cli.ConfigsDir()
 		} else {
 			saveTo, _ = filepath.Abs(save)
-			fi, err := os.Stat(saveTo)
-			if !os.IsNotExist(err) && !fi.IsDir() {
+			userFile, err := os.Stat(saveTo)
+			if !os.IsNotExist(err) && !userFile.IsDir() {
 				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"File already exists %s\n", err)
 				return
 			}
 
-			if !os.IsNotExist(err) && fi.IsDir() {
+			if !os.IsNotExist(err) && userFile.IsDir() {
 				filename = fmt.Sprintf("%s_%s", filepath.Base(name), filepath.Base(lhost))
 			}
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Generating new client certificate, please wait ... \n")
+
 		configJSON, err := serv.NewUserConfig(name, lhost, lport)
 		if err != nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err)
@@ -68,7 +70,8 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		}
 
 		saveTo = filepath.Join(saveTo, filename+".teamclient.cfg")
-		err = ioutil.WriteFile(saveTo, configJSON, 0o600)
+
+		err = ioutil.WriteFile(saveTo, configJSON, server.FileWriteModePerm)
 		if err != nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to write config to %s: %s\n", saveTo, err)
 			return

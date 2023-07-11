@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"gorm.io/gorm"
-
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team/internal/db"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 // Options are server options.
@@ -17,7 +15,6 @@ type Options func(opts *opts[any])
 type opts[server any] struct {
 	logFile         string
 	local           bool
-	userDefault     bool
 	noLogs          bool
 	noFiles         bool
 	inMemory        bool
