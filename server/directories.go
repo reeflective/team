@@ -45,7 +45,7 @@ func (ts *Server) LogsDir() string {
 	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
 		err = os.MkdirAll(rootDir, 0o700)
 		if err != nil {
-			ts.log().Errorf("Cannot write to %s root dir: %s", err)
+			ts.log().Errorf("Cannot write to %s root dir: %s", rootDir, err)
 		}
 	}
 	logDir := path.Join(rootDir, "logs")
