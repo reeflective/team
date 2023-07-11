@@ -1,5 +1,23 @@
 package client
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"fmt"
 	"io"
@@ -77,14 +95,14 @@ func WithNoLogs(noLogs bool) Options {
 }
 
 // WithLogFile sets the path to the file where teamclient logging should be done.
-// If not specified, the client log file is ~/.app/teamclient/logs/app.teamclient.log
+// If not specified, the client log file is ~/.app/teamclient/logs/app.teamclient.log.
 func WithLogFile(filePath string) Options {
 	return func(opts *opts) {
 		opts.logFile = filePath
 	}
 }
 
-// WithLogger sets the teamclient to use a specific logger for logging
+// WithLogger sets the teamclient to use a specific logger for logging.
 func WithLogger(logger *logrus.Logger) Options {
 	return func(opts *opts) {
 		opts.logger = logger

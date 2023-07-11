@@ -1,9 +1,26 @@
 package client
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +32,8 @@ import (
 )
 
 const (
-	configFileExt = "teamclient"
+	configFileExt     = "teamclient"
+	fileWriteModePerm = 0o600
 )
 
 // Config is a JSON client connection configuration.
@@ -32,37 +50,40 @@ type Config struct {
 	Certificate   string `json:"certificate"`
 }
 
-func (tc *Client) initConfig() (*Config, error) {
+func (tc *Client) initConfig() error {
 	cfg := tc.opts.config
 
 	if !tc.opts.local {
 		configs := tc.GetConfigs()
 		if len(configs) == 0 {
-			return nil, tc.errorf("no config files found at %s", tc.ConfigsDir())
+			return tc.errorf("no config files found at %s", tc.ConfigsDir())
 		}
+
 		cfg = tc.SelectConfig()
 	}
 
 	if cfg == nil {
-		return nil, errors.New("no application was selected or parsed")
+		return ErrNoConfig
 	}
 
 	tc.opts.config = cfg
 
-	return nil, nil
+	return nil
 }
 
 // GetConfigs returns a list of available configs in
-// the application config directory (~/.app/configs)
+// the application config directory (~/.app/configs).
 func (tc *Client) GetConfigs() map[string]*Config {
 	configDir := tc.ConfigsDir()
+
 	configFiles, err := os.ReadDir(configDir)
 	if err != nil {
-		tc.log().Errorf("No configs found: %w", err)
+		tc.log().Errorf("No configs found: %s", err)
 		return map[string]*Config{}
 	}
 
 	confs := map[string]*Config{}
+
 	for _, confFile := range configFiles {
 		confFilePath := filepath.Join(configDir, confFile.Name())
 
@@ -70,9 +91,11 @@ func (tc *Client) GetConfigs() map[string]*Config {
 		if err != nil {
 			continue
 		}
+
 		digest := sha256.Sum256([]byte(conf.Certificate))
 		confs[fmt.Sprintf("%s@%s (%x)", conf.User, conf.Host, digest[:8])] = conf
 	}
+
 	return confs
 }
 
@@ -84,11 +107,14 @@ func (tc *Client) ReadConfig(confFilePath string) (*Config, error) {
 		return nil, fmt.Errorf("open failed: %w", err)
 	}
 	defer confFile.Close()
+
 	data, err := io.ReadAll(confFile)
 	if err != nil {
 		return nil, fmt.Errorf("read failed: %w", err)
 	}
+
 	conf := &Config{}
+
 	err = json.Unmarshal(data, conf)
 	if err != nil {
 		return nil, fmt.Errorf("parse failed: %w", err)
@@ -107,12 +133,13 @@ func (tc *Client) SaveConfig(config *Config) error {
 
 	filename := fmt.Sprintf("%s_%s.%s", filepath.Base(config.User), filepath.Base(config.Host), configFileExt)
 	saveTo, _ := filepath.Abs(filepath.Join(configDir, filename))
+
 	configJSON, err := json.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrConfig, err)
 	}
 
-	err = os.WriteFile(saveTo, configJSON, 0o600)
+	err = os.WriteFile(saveTo, configJSON, fileWriteModePerm)
 	if err != nil {
 		return tc.errorf("Failed to write config to: %s (%w)", saveTo, err)
 	}
@@ -140,9 +167,10 @@ func (tc *Client) SelectConfig() *Config {
 
 	answer := struct{ Config string }{}
 	qs := getPromptForConfigs(configs)
+
 	err := survey.Ask(qs, &answer)
 	if err != nil {
-		tc.log().Errorf("config prompt failed: %w", err)
+		tc.log().Errorf("config prompt failed: %s", err)
 		return nil
 	}
 
@@ -179,6 +207,7 @@ func getPromptForConfigs(configs map[string]*Config) []*survey.Question {
 	for k := range configs {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
 
 	return []*survey.Question{

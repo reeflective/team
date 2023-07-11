@@ -1,15 +1,32 @@
 package client
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"fmt"
 	"io"
 	"os"
 	"sync"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/log"
+	"github.com/sirupsen/logrus"
 )
 
 // Client is a team client wrapper.
@@ -63,13 +80,14 @@ func (tc *Client) Connect(options ...Options) (err error) {
 	tc.apply(options...)
 
 	if tc.dialer == nil {
-		return
+		return nil
 	}
 
 	tc.connect.Do(func() {
-		_, err = tc.initConfig()
+		err = tc.initConfig()
 		if err != nil {
 			err = tc.errorf("%w: %w", ErrConfig, err)
+			return
 		}
 
 		// Initialize the dialer with our client.
@@ -80,7 +98,9 @@ func (tc *Client) Connect(options ...Options) (err error) {
 		}
 
 		// Connect to the teamserver.
-		client, err := tc.dialer.Dial()
+		var client any
+
+		client, err = tc.dialer.Dial()
 		if err != nil {
 			err = tc.errorf("%w: %w", ErrClient, err)
 			return
@@ -97,7 +117,7 @@ func (tc *Client) Connect(options ...Options) (err error) {
 		}
 	})
 
-	return
+	return err
 }
 
 // Users returns a list of all users registered to the application server.
@@ -155,13 +175,12 @@ func (tc *Client) Disconnect() {
 	// tc.connected = false
 	// tc.conn = nil
 	// tc.connectedT = &sync.Once{}
-	return
 }
 
 // IsConnected returns true if a working teamclient to server connection
-// is bound to to this precise client. Given that each client register may
-// register as many other RPC client services to its connection, this client
-// can't however reconnect to/with a different connection/stream.
+// is bound to this precise client. Given that each client register may register
+// as many other RPC client services to its connection, this client can't however
+// reconnect to/with a different connection/stream.
 func (tc *Client) IsConnected() bool {
 	return tc.connected
 }
