@@ -33,14 +33,16 @@ import (
 // It offers the core functionality of any team client.
 type Client struct {
 	name         string
-	connected    bool
 	opts         *opts
 	fileLogger   *logrus.Logger
 	stdoutLogger *logrus.Logger
 	logFile      *os.File
-	connect      *sync.Once
-	dialer       Dialer[any]
-	client       team.Client
+
+	dialer  Dialer[any]
+	connect *sync.Once
+
+	mutex  *sync.RWMutex
+	client team.Client
 }
 
 type Dialer[clientConn any] interface {
@@ -55,6 +57,7 @@ func New(application string, teamclient team.Client, options ...Options) (*Clien
 		name:    application,
 		connect: &sync.Once{},
 		client:  teamclient,
+		mutex:   &sync.RWMutex{},
 	}
 	client.opts = client.defaultOpts()
 
@@ -156,33 +159,26 @@ func (tc *Client) Name() string {
 
 // Disconnect disconnects the client from the server, closing the connection
 // and the client log file.Any errors are logged to the this file, not returned.
-func (tc *Client) Disconnect() {
+func (tc *Client) Disconnect() error {
 	if tc.opts.console {
-		return
+		return nil
 	}
 
-	// if tc.conn != nil {
-	// 	if err := tc.conn.Close(); err != nil {
-	// 		tc.log.Error(fmt.Sprintf("error closing connection: %v", err))
-	// 	}
-	// }
-	//
-	if tc.logFile != nil {
-		tc.logFile.Close()
-	}
-	//
-	// // Decrement the counter, should be back to 0.
-	// tc.connected = false
-	// tc.conn = nil
-	// tc.connectedT = &sync.Once{}
-}
+	// The client can reconnect..
+	defer func() {
+		tc.connect = &sync.Once{}
+	}()
 
-// IsConnected returns true if a working teamclient to server connection
-// is bound to this precise client. Given that each client register may register
-// as many other RPC client services to its connection, this client can't however
-// reconnect to/with a different connection/stream.
-func (tc *Client) IsConnected() bool {
-	return tc.connected
+	if tc.dialer == nil {
+		return nil
+	}
+
+	err := tc.dialer.Close()
+	if err != nil {
+		tc.log().Error(err)
+	}
+
+	return err
 }
 
 // NamedLogger returns a new logging "thread" which should grossly

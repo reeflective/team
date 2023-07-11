@@ -31,9 +31,9 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 	serveAndConnect := func(cmd *cobra.Command, args []string) error {
 		// If the server is already serving us with an in-memory con, return.
 		// Also, the daemon command does not need a teamclient connection.
-		if teamclient.IsConnected() {
-			return nil
-		}
+		// if teamclient.IsConnected() {
+		// 	return nil
+		// }
 
 		// And connect the client locally, only needed.
 		return teamserver.ServeLocal(teamclient)
@@ -70,12 +70,6 @@ func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraR
 		teamserver.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
 
 		// TODO: use the client pre-runners ?
-
-		// If the server is already serving us with an in-memory con, return.
-		// Also, the daemon command does not need a teamclient connection.
-		if teamclient.IsConnected() {
-			return nil
-		}
 
 		// And connect the client locally, only needed.
 		return teamserver.ServeLocal(teamclient)

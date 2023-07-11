@@ -20,7 +20,7 @@ func main() {
 	// TODO: Rewrite comments
 	listener := grpc.NewTeamServer()
 
-	teamserver, err := teamserver.New("teamserver", listener, teamserver.WithInMemory())
+	teamserver, err := teamserver.New("teamserver", listener)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,8 +51,22 @@ func main() {
 	}
 }
 
-func mainInMemory() {}
+func mainInMemory() {
+	var clientOpts []teamclient.Options
+	clientOpts = append(clientOpts,
+		teamclient.WithInMemory(),
+	)
+
+	var serverOpts []teamclient.Options
+	serverOpts = append(serverOpts,
+		teamclient.WithInMemory(),
+	)
+}
 
 func mainIntegrated() {}
 
 func mainSmallest() {}
+
+func mainCustom() {}
+
+func mainNoCommands() {}

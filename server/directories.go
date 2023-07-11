@@ -80,7 +80,7 @@ func (ts *Server) checkWritableFiles() error {
 		}
 	case err != nil:
 		return fmt.Errorf("Cannot write to %w", err)
-	case appDirWrite:
+	case !appDirWrite:
 		return ErrDirectoryUnwritable
 	}
 
