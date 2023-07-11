@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/reeflective/team/internal/db"
+	"github.com/reeflective/team/internal/log"
 )
 
 const (
@@ -32,15 +33,15 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 		return nil
 	}
 
-	log := ts.NamedLogger("config", "database")
+	dblog := ts.NamedLogger("config", "database")
 
 	configPath := ts.dbConfigPath()
 	configDir := path.Dir(configPath)
 
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		log.Debugf("Creating config dir %s", configDir)
+		dblog.Debugf("Creating config dir %s", configDir)
 
-		err := os.MkdirAll(configDir, dirWriteModePerm)
+		err := os.MkdirAll(configDir, log.DirPerm)
 		if err != nil {
 			return err
 		}
@@ -51,9 +52,9 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 		return err
 	}
 
-	log.Infof("Saving config to %s", configPath)
+	dblog.Infof("Saving config to %s", configPath)
 
-	return os.WriteFile(configPath, data, FileWriteModePerm)
+	return os.WriteFile(configPath, data, log.FilePerm)
 }
 
 // getDatabaseConfig returns a working database configuration,

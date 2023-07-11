@@ -30,7 +30,7 @@ func (ts *Server) AppDir() string {
 	}
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, dirWriteModePerm)
+		err = os.MkdirAll(dir, log.DirPerm)
 		if err != nil {
 			ts.log().Errorf("Cannot write to %s root dir: %s", dir, err)
 		}
@@ -45,7 +45,7 @@ func (ts *Server) LogsDir() string {
 	rootDir := ts.AppDir()
 
 	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
-		err = os.MkdirAll(rootDir, dirWriteModePerm)
+		err = os.MkdirAll(rootDir, log.DirPerm)
 		if err != nil {
 			ts.log().Errorf("Cannot write to %s root dir: %s", rootDir, err)
 		}
@@ -53,7 +53,7 @@ func (ts *Server) LogsDir() string {
 
 	logDir := path.Join(rootDir, "logs")
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		err = os.MkdirAll(logDir, dirWriteModePerm)
+		err = os.MkdirAll(logDir, log.DirPerm)
 		if err != nil {
 			ts.log().Errorf("Cannot write logs dir %s: %s", logDir, err)
 		}

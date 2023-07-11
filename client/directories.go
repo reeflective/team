@@ -22,6 +22,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+
+	"github.com/reeflective/team/internal/log"
 )
 
 const (
@@ -29,7 +31,6 @@ const (
 	teamserverClientDir = "teamclient"
 	configsDirName      = "configs"
 	logFileExt          = "teamclient"
-	dirWriteModePerm    = 0o700
 )
 
 // AppDir returns the teamclient directory of the app (named ~/.<app>/teamserver/client/),
@@ -39,7 +40,7 @@ func (tc *Client) AppDir() string {
 	dir := filepath.Join(user.HomeDir, "."+tc.name, teamserverClientDir)
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, dirWriteModePerm)
+		err = os.MkdirAll(dir, log.DirPerm)
 		if err != nil {
 			tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
 		}
@@ -53,7 +54,7 @@ func (tc *Client) AppDir() string {
 func (tc *Client) LogsDir() string {
 	logsDir := filepath.Join(tc.AppDir(), "logs")
 	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
-		err = os.MkdirAll(logsDir, dirWriteModePerm)
+		err = os.MkdirAll(logsDir, log.DirPerm)
 		if err != nil {
 			tc.log().Errorf("cannot write to %s root dir: %s", logsDir, err)
 		}
@@ -68,7 +69,7 @@ func (tc *Client) ConfigsDir() string {
 	dir := filepath.Join(rootDir, configsDirName)
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, dirWriteModePerm)
+		err = os.MkdirAll(dir, log.DirPerm)
 		if err != nil {
 			tc.log().Errorf("cannot write to %s configs dir: %s", dir, err)
 		}

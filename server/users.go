@@ -18,6 +18,7 @@ import (
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
+	"github.com/reeflective/team/internal/transport"
 	"github.com/reeflective/team/internal/version"
 )
 
@@ -168,7 +169,7 @@ func (ts *Server) SaveUsersCA(cert, key []byte) {
 
 // newUserToken - Generate a new user authentication token.
 func (ts *Server) newUserToken() (string, error) {
-	buf := make([]byte, identifierLength)
+	buf := make([]byte, transport.TokenLength)
 
 	n, err := rand.Read(buf)
 	if err != nil || n != len(buf) {

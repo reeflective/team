@@ -4,6 +4,11 @@ import (
 	"context"
 )
 
+const (
+	// TokenLength is used for user tokens, as well as listeners IDs.
+	TokenLength = 32
+)
+
 type TokenAuth string
 
 // Return value is mapped to request headers.

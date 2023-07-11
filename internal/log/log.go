@@ -9,6 +9,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	FilePerm = 0o600 // FilePerm is the permission bit given to the OS when writing files.
+	DirPerm  = 0o700 // DirPerm is th permission bit given to teamserver/client directories.
+)
+
 // NewStdio returns a logger configured to output its events to the system stdio:
 // - Info/Debug/Trace logs are written to os.Stdout.
 // - Warn/Error/Fatal/Panic are written to os.Stderr.
@@ -109,7 +114,7 @@ func NewText(logFile string) (*logrus.Logger, error) {
 	return txtLogger, nil
 }
 
-// LevelFrom - returns level from int
+// LevelFrom - returns level from int.
 func LevelFrom(level int) logrus.Level {
 	switch level {
 	case 0:

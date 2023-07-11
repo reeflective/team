@@ -11,6 +11,7 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/server"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -71,7 +72,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		saveTo = filepath.Join(saveTo, filename+".teamclient.cfg")
 
-		err = ioutil.WriteFile(saveTo, configJSON, server.FileWriteModePerm)
+		err = ioutil.WriteFile(saveTo, configJSON, log.FilePerm)
 		if err != nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to write config to %s: %s\n", saveTo, err)
 			return

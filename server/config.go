@@ -10,17 +10,15 @@ import (
 	"time"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/transport"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	configFileExt     = "teamserver.json"
-	blankHost         = "-"
-	blankPort         = uint16(0)
-	dirWriteModePerm  = 0o700
-	FileWriteModePerm = 0o600
-	identifierLength  = 32
+	configFileExt = "teamserver.json"
+	blankHost     = "-"
+	blankPort     = uint16(0)
 )
 
 type Config struct {
@@ -94,15 +92,15 @@ func (ts *Server) GetConfig() *Config {
 
 // Save - Save config file to disk.
 func (ts *Server) SaveConfig(cfg *Config) error {
-	log := ts.NamedLogger("config", "server")
+	cfgLog := ts.NamedLogger("config", "server")
 
 	configPath := ts.ConfigPath()
 	configDir := filepath.Dir(configPath)
 
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		log.Debugf("Creating config dir %s", configDir)
+		cfgLog.Debugf("Creating config dir %s", configDir)
 
-		err := os.MkdirAll(configDir, dirWriteModePerm)
+		err := os.MkdirAll(configDir, log.DirPerm)
 		if err != nil {
 			return ts.errorf("%w: %w", ErrConfig, err)
 		}
@@ -113,9 +111,9 @@ func (ts *Server) SaveConfig(cfg *Config) error {
 		return err
 	}
 
-	log.Debugf("Saving config to %s", configPath)
+	cfgLog.Debugf("Saving config to %s", configPath)
 
-	err = os.WriteFile(configPath, data, FileWriteModePerm)
+	err = os.WriteFile(configPath, data, log.FilePerm)
 	if err != nil {
 		return ts.errorf("%w: failed to write config: %s", ErrConfig, err)
 	}
@@ -171,7 +169,7 @@ func (ts *Server) clientServerMatch(config *client.Config) bool {
 
 func getRandomID() string {
 	seededRand := insecureRand.New(insecureRand.NewSource(time.Now().UnixNano()))
-	buf := make([]byte, identifierLength)
+	buf := make([]byte, transport.TokenLength)
 	seededRand.Read(buf)
 
 	return hex.EncodeToString(buf)
