@@ -16,9 +16,12 @@ import (
 )
 
 const (
-	configFileExt = "teamserver.json"
-	blankHost     = "-"
-	blankPort     = uint16(0)
+	configFileExt     = "teamserver.json"
+	blankHost         = "-"
+	blankPort         = uint16(0)
+	dirWriteModePerm  = 0o700
+	FileWriteModePerm = 0o600
+	identifierLength  = 32
 )
 
 type Config struct {
@@ -45,8 +48,8 @@ type Config struct {
 // GetServerConfigPath - File path to the server config.json file.
 func (ts *Server) ConfigPath() string {
 	appDir := ts.AppDir()
-
 	serverConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name(), configFileExt))
+
 	return serverConfigPath
 }
 
@@ -63,6 +66,7 @@ func (ts *Server) GetConfig() *Config {
 			cfgLog.Errorf("Failed to read config file %s", err)
 			return ts.opts.config
 		}
+
 		err = json.Unmarshal(data, ts.opts.config)
 		if err != nil {
 			cfgLog.Errorf("Failed to parse config file %s", err)
@@ -75,9 +79,11 @@ func (ts *Server) GetConfig() *Config {
 	if ts.opts.config.Log.Level < 0 {
 		ts.opts.config.Log.Level = 0
 	}
-	if 6 < ts.opts.config.Log.Level {
-		ts.opts.config.Log.Level = 6
+
+	if int(logrus.TraceLevel) < ts.opts.config.Log.Level {
+		ts.opts.config.Log.Level = int(logrus.TraceLevel)
 	}
+
 	ts.fileLogger.SetLevel(log.LevelFrom(ts.opts.config.Log.Level))
 
 	// This updates the config with any missing fields
@@ -90,29 +96,33 @@ func (ts *Server) GetConfig() *Config {
 }
 
 // Save - Save config file to disk.
-func (ts *Server) SaveConfig(c *Config) error {
+func (ts *Server) SaveConfig(cfg *Config) error {
 	log := ts.NamedLogger("config", "server")
 
 	configPath := ts.ConfigPath()
 	configDir := filepath.Dir(configPath)
+
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		log.Debugf("Creating config dir %s", configDir)
-		err := os.MkdirAll(configDir, 0o700)
+
+		err := os.MkdirAll(configDir, dirWriteModePerm)
 		if err != nil {
 			return ts.errorf("%w: %w", ErrConfig, err)
 		}
 	}
 
-	data, err := json.MarshalIndent(c, "", "    ")
+	data, err := json.MarshalIndent(cfg, "", "    ")
 	if err != nil {
 		return err
 	}
 
 	log.Debugf("Saving config to %s", configPath)
-	err = os.WriteFile(configPath, data, 0o600)
+
+	err = os.WriteFile(configPath, data, FileWriteModePerm)
 	if err != nil {
 		return ts.errorf("%w: failed to write config: %s", ErrConfig, err)
 	}
+
 	return nil
 }
 
@@ -164,7 +174,8 @@ func (ts *Server) clientServerMatch(config *client.Config) bool {
 
 func getRandomID() string {
 	seededRand := insecureRand.New(insecureRand.NewSource(time.Now().UnixNano()))
-	buf := make([]byte, 32)
+	buf := make([]byte, identifierLength)
 	seededRand.Read(buf)
+
 	return hex.EncodeToString(buf)
 }

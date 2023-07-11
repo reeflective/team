@@ -15,7 +15,6 @@ type Options func(opts *opts[any])
 type opts[server any] struct {
 	logFile         string
 	local           bool
-	userDefault     bool
 	noLogs          bool
 	noFiles         bool
 	inMemory        bool

@@ -44,11 +44,12 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 
 		lhost, err := cmd.Flags().GetString("host")
 		if err != nil {
-			return fmt.Errorf("Failed to get --host flag: %s", err)
+			return fmt.Errorf("Failed to get --host flag: %w", err)
 		}
+
 		lport, err := cmd.Flags().GetUint16("port")
 		if err != nil {
-			return fmt.Errorf("Failed to get --port (%d) flag: %s", lport, err)
+			return fmt.Errorf("Failed to get --port (%d) flag: %w", lport, err)
 		}
 
 		// Also written to logs in the teamserver code.
@@ -80,11 +81,12 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		_, err := serv.ServeAddr(ltype, lhost, lport)
 		if err == nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
+
 			if persistent {
 				serv.AddListener("", lhost, lport)
 			}
 		} else {
-			return fmt.Errorf(command.Warn+"Failed to start job %v\n", err)
+			return fmt.Errorf(command.Warn+"Failed to start job %w", err)
 		}
 
 		return nil
@@ -155,7 +157,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		// should be attached the daemon command.
 		daemonCmd, _, err := cmd.Parent().Find([]string{"daemon"})
 		if err != nil {
-			return fmt.Errorf("Failed to find teamserver daemon command in tree: %s", err)
+			return fmt.Errorf("Failed to find teamserver daemon command in tree: %w", err)
 		}
 
 		config.Args = append(callerArgs(cmd.Parent()), daemonCmd.Name())
@@ -172,7 +174,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		}
 
 		systemdConfig := systemd.NewFrom(serv.Name(), config)
-		fmt.Fprintf(cmd.OutOrStdout(), systemdConfig)
+		fmt.Fprint(cmd.OutOrStdout(), systemdConfig)
 
 		return nil
 	}
@@ -199,10 +201,10 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		listeners := serv.Listeners()
 		cfg := serv.GetConfig()
 
-		tb := &table.Table{}
-		tb.SetStyle(teamserverTableStyle)
+		tbl := &table.Table{}
+		tbl.SetStyle(teamserverTableStyle)
 
-		tb.AppendHeader(table.Row{
+		tbl.AppendHeader(table.Row{
 			"ID",
 			"Name",
 			"Description",
@@ -212,13 +214,14 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		for _, ln := range listeners {
 			persist := false
+
 			for _, saved := range cfg.Listeners {
 				if saved.ID == ln.ID {
 					persist = true
 				}
 			}
 
-			tb.AppendRow(table.Row{
+			tbl.AppendRow(table.Row{
 				formatSmallID(ln.ID),
 				ln.Name,
 				ln.Description,
@@ -228,7 +231,7 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		}
 
 		if len(listeners) > 0 {
-			fmt.Fprintln(cmd.OutOrStdout(), tb.Render())
+			fmt.Fprintln(cmd.OutOrStdout(), tbl.Render())
 		}
 	}
 }

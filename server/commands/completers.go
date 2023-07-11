@@ -27,13 +27,13 @@ func interfacesCompleter() carapace.Action {
 			}
 
 			for _, a := range addrs {
-				switch v := a.(type) {
+				switch ipType := a.(type) {
 				case *net.IPAddr:
-					results = append(results, v.IP.String())
+					results = append(results, ipType.IP.String())
 				case *net.IPNet:
-					results = append(results, v.IP.String())
+					results = append(results, ipType.IP.String())
 				default:
-					results = append(results, v.String())
+					results = append(results, ipType.String())
 				}
 			}
 		}
@@ -51,8 +51,8 @@ func userCompleter(client *client.Client, server *server.Server) carapace.Comple
 		}
 
 		results := make([]string, len(users))
-		for _, user := range users {
-			results = append(results, strings.TrimSpace(user.Name))
+		for i, user := range users {
+			results[i] = strings.TrimSpace(user.Name)
 		}
 
 		if len(results) == 0 {

@@ -43,20 +43,20 @@ func (ts *Server) GetVersion() team.Version {
 
 // GetUsers returns the list of users in the teamserver database, and their information.
 func (ts *Server) GetUsers() ([]team.User, error) {
-	var users []team.User
-
 	usersDB := []*db.User{}
 	err := ts.db.Distinct("Name").Find(&usersDB).Error
+
+	users := make([]team.User, len(usersDB))
 
 	if err != nil && len(usersDB) == 0 {
 		return users, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
-	for _, user := range users {
-		users = append(users, team.User{
+	for i, user := range users {
+		users[i] = team.User{
 			Name: user.Name,
 			// TODO: online && num clients.
-		})
+		}
 	}
 
 	return users, nil
@@ -67,9 +67,11 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 	if !namePattern.MatchString(userName) {
 		return nil, ts.errorf("%w: invalid user name (alphanumerics only)", ErrUserConfig)
 	}
+
 	if userName == "" {
 		return nil, ts.errorf("%w: user name required ", ErrUserConfig)
 	}
+
 	if lhost == "" {
 		return nil, ts.errorf("%w: invalid team server host (empty)", ErrUserConfig)
 	}
@@ -88,6 +90,7 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 		Name:  userName,
 		Token: hex.EncodeToString(digest[:]),
 	}
+
 	err = ts.db.Save(dbuser).Error
 	if err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
@@ -165,13 +168,15 @@ func (ts *Server) SaveUsersCA(cert, key []byte) {
 
 // newUserToken - Generate a new user authentication token.
 func (ts *Server) newUserToken() (string, error) {
-	buf := make([]byte, 32)
+	buf := make([]byte, identifierLength)
+
 	n, err := rand.Read(buf)
 	if err != nil || n != len(buf) {
-		return "", fmt.Errorf("failed to read from secure rand: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrSecureRandFailed, err)
 	} else if n != len(buf) {
-		return "", errors.New("failed to read from secure rand")
+		return "", ErrSecureRandFailed
 	}
+
 	return hex.EncodeToString(buf), nil
 }
 
@@ -180,10 +185,12 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 	if len(value) < 1 {
 		return nil, db.ErrRecordNotFound
 	}
+
 	user := &db.User{}
 	err := ts.db.Where(&db.User{
 		Token: value,
 	}).First(user).Error
+
 	return user, err
 }
 
@@ -191,16 +198,20 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 // to specify any TLS parameters, we choose sensible defaults instead.
 func (ts *Server) GetUserTLSConfig() (*tls.Config, error) {
 	log := ts.NamedLogger("certs", "mtls")
+
 	caCertPtr, _, err := ts.certs.GetUsersCA()
 	if err != nil {
 		return nil, ts.errorWith(log, "%w: failed to get users certificate authority: %w", ErrCertificate, err)
 	}
+
 	caCertPool := x509.NewCertPool()
 	caCertPool.AddCert(caCertPtr)
 
 	_, _, err = ts.certs.UserServerGetCertificate()
-	if err == certs.ErrCertDoesNotExist {
-		ts.certs.UserServerGenerateCertificate()
+	if errors.Is(err, certs.ErrCertDoesNotExist) {
+		if _, _, err := ts.certs.UserServerGenerateCertificate(); err != nil {
+			return nil, ts.errorWith(log, err.Error())
+		}
 	}
 
 	certPEM, keyPEM, err := ts.certs.UserServerGetCertificate()

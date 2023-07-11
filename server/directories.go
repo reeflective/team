@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -22,6 +21,7 @@ func (ts *Server) AppDir() string {
 	value := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(ts.name)))
 
 	var dir string
+
 	if len(value) == 0 {
 		user, _ := user.Current()
 		dir = filepath.Join(user.HomeDir, fmt.Sprintf(".%s", ts.name), teamserverDir)
@@ -30,11 +30,12 @@ func (ts *Server) AppDir() string {
 	}
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0o700)
+		err = os.MkdirAll(dir, dirWriteModePerm)
 		if err != nil {
 			ts.log().Errorf("Cannot write to %s root dir: %s", dir, err)
 		}
 	}
+
 	return dir
 }
 
@@ -42,19 +43,22 @@ func (ts *Server) AppDir() string {
 // the directory if needed, or logging a fatal event if failing to create it.
 func (ts *Server) LogsDir() string {
 	rootDir := ts.AppDir()
+
 	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
-		err = os.MkdirAll(rootDir, 0o700)
+		err = os.MkdirAll(rootDir, dirWriteModePerm)
 		if err != nil {
 			ts.log().Errorf("Cannot write to %s root dir: %s", rootDir, err)
 		}
 	}
+
 	logDir := path.Join(rootDir, "logs")
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		err = os.MkdirAll(logDir, 0o700)
+		err = os.MkdirAll(logDir, dirWriteModePerm)
 		if err != nil {
 			ts.log().Errorf("Cannot write logs dir %s: %s", logDir, err)
 		}
 	}
+
 	return logDir
 }
 
@@ -68,14 +72,16 @@ func (ts *Server) checkWritableFiles() error {
 	// If it does not exist but we don't have write permission
 	// on /user/home, we return an error as we can't work.
 	appDirWrite, err := log.IsWritable(ts.AppDir())
-	if err != nil && os.IsNotExist(err) {
+
+	switch {
+	case os.IsNotExist(err):
 		if homeWritable, err := log.IsWritable(os.Getenv("HOME")); !homeWritable {
 			return fmt.Errorf("Cannot create %w", err)
 		}
-	} else if err != nil {
+	case err != nil:
 		return fmt.Errorf("Cannot write to %w", err)
-	} else if !appDirWrite {
-		return errors.New("The directory seems to be unwritable")
+	case appDirWrite:
+		return ErrDirectoryUnwritable
 	}
 
 	return nil

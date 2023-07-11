@@ -219,7 +219,7 @@ linters:
     # - scopelint       # Deprecated
     # - sqlclosecheck   # checks that sql.Rows and sql.Stmt are closed              (bugs,sql)
     # - stylecheck      # replacement for golint                                    (style)
-    - tagliatelle     # checks struct tags                                        (style)
+    # - tagliatelle     # checks struct tags                                        (style)
     - tenv            # detects using os.Setenv instead of t.Setenv since go1.17  (style)
     # - testpackage     # makes you use a separate _test package                    (style,test)
     - thelper         # detects test helpers without t.Helper(), checks consistent (style)
@@ -279,6 +279,7 @@ linters:
     - gomodguard      # allow/block for direct module deps.                   (style,imp,mod)
     - musttag 
     - wrapcheck       # checks errors returned from external packages are wrapped (style,err)
+    - tagliatelle     # checks struct tags                                        (style)
       
   # Run only fast linters from enabled linters set (first run won't be fast)
   # Default: false
