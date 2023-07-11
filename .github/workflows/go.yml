@@ -45,8 +45,8 @@ jobs:
       working-directory: example/server
       run: go build -v -tags cgo_sqlite .
 
-    - name: Run coverage
-      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+    - name: Run coverage (go_sqlite)
+      run: go test -tags go_sqlite -v -race -coverprofile=coverage.txt -covermode=atomic ./...
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
 

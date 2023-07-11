@@ -8,16 +8,15 @@ import (
 	"time"
 
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
-	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/status"
-
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/transport"
 	"github.com/reeflective/team/transports/grpc/common"
 	"github.com/reeflective/team/transports/grpc/proto"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -25,7 +24,7 @@ const (
 	mb = kb * 1024
 	gb = mb * 1024
 
-	// ClientMaxReceiveMessageSize - Max gRPC message size ~2Gb
+	// ClientMaxReceiveMessageSize - Max gRPC message size ~2Gb.
 	ClientMaxReceiveMessageSize = (2 * gb) - 1 // 2Gb - 1 byte
 
 	defaultTimeout = time.Duration(10 * time.Second)
@@ -154,7 +153,7 @@ func (h *handler) loggingInterceptor(log *logrus.Entry) grpc.UnaryClientIntercep
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		rawRequest, err := json.Marshal(req)
 		if err != nil {
-			log.Errorf("Failed to serialize: %w", err)
+			log.Errorf("Failed to serialize: %s", err)
 			return invoker(ctx, method, req, reply, cc, opts...)
 		}
 
