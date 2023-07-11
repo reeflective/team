@@ -16,7 +16,7 @@ var (
 	// ErrDatabaseConfig is an error related to the database configuration.
 	ErrDatabaseConfig = errors.New("teamserver database configuration")
 
-	// ErrDatabase is an error raised by the database backend
+	// ErrDatabase is an error raised by the database backend.
 	ErrDatabase = errors.New("database")
 
 	// ErrTeamServer is an error raised by the teamserver code.

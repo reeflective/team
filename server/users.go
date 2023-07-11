@@ -113,7 +113,7 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 }
 
 // DeleteUser deletes a user from the teamserver database, in fact forbidding
-// it to ever reconnect with the user's credentials (client configuration file)
+// it to ever reconnect with the user's credentials (client configuration file).
 func (ts *Server) DeleteUser(name string) error {
 	err := ts.db.Where(&db.User{
 		Name: name,
@@ -175,7 +175,7 @@ func (ts *Server) newUserToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-// userByToken - Select a teamserver user by token value
+// userByToken - Select a teamserver user by token value.
 func (ts *Server) userByToken(value string) (*db.User, error) {
 	if len(value) < 1 {
 		return nil, db.ErrRecordNotFound

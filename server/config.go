@@ -89,7 +89,7 @@ func (ts *Server) GetConfig() *Config {
 	return ts.opts.config
 }
 
-// Save - Save config file to disk
+// Save - Save config file to disk.
 func (ts *Server) SaveConfig(c *Config) error {
 	log := ts.NamedLogger("config", "server")
 

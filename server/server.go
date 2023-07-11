@@ -11,12 +11,11 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
-
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 // Server is a team server.

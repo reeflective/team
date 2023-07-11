@@ -11,7 +11,7 @@ import (
 	"github.com/reeflective/team/internal/db"
 )
 
-// GetDatabaseConfigPath - File path to config.json
+// GetDatabaseConfigPath - File path to config.json.
 func (ts *Server) dbConfigPath() string {
 	appDir := ts.AppDir()
 	log := ts.NamedLogger("config", "database")
@@ -20,7 +20,7 @@ func (ts *Server) dbConfigPath() string {
 	return databaseConfigPath
 }
 
-// Save - Save config file to disk
+// Save - Save config file to disk.
 func (ts *Server) saveDatabaseConfig(c *db.Config) error {
 	log := ts.NamedLogger("config", "database")
 

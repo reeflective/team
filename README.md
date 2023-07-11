@@ -31,7 +31,7 @@
 
 <p align="center">
   <a href="https://github.com/reeflective/team/actions/workflows/go.yml">
-    <img src="https://github.com/reeflective/team/actions/workflows/go.yml/badge.svg?branch=master"
+    <img src="https://github.com/reeflective/team/actions/workflows/go.yml/badge.svg?branch=main"
       alt="Github Actions (workflows)" />
   </a>
 
@@ -51,7 +51,7 @@
   </a>
 
   <a href="https://codecov.io/gh/reeflective/team">
-    <img src="https://codecov.io/gh/reeflective/team/branch/master/graph/badge.svg"
+    <img src="https://codecov.io/gh/reeflective/team/branch/main/graph/badge.svg"
       alt="codecov" />
   </a>
 

@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// job - Manages background jobs
+// job - Manages background jobs.
 type job struct {
 	ID          string
 	Name        string
@@ -15,7 +15,7 @@ type job struct {
 	Persistent  bool
 }
 
-// jobs - Holds refs to all active jobs
+// jobs - Holds refs to all active jobs.
 type jobs struct {
 	active *sync.Map
 }
@@ -26,12 +26,12 @@ func newJobs() *jobs {
 	}
 }
 
-// Add - Add a job to the hive (atomically)
+// Add - Add a job to the hive (atomically).
 func (j *jobs) Add(listener *job) {
 	j.active.Store(listener.ID, listener)
 }
 
-// Get - Get a Job
+// Get - Get a Job.
 func (j *jobs) Get(jobID string) *job {
 	if jobID == "" {
 		return nil
@@ -43,7 +43,7 @@ func (j *jobs) Get(jobID string) *job {
 	return nil
 }
 
-// Listeners - Return a list of all jobs
+// Listeners - Return a list of all jobs.
 func (ts *Server) Listeners() []*job {
 	all := []*job{}
 
