@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
@@ -163,6 +164,14 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 	user, err := ts.userByToken(token)
 	if err != nil || user == nil {
 		return "", false, ts.errorf("%w: %w", ErrUnauthenticated, err)
+	}
+
+	// This is now the last-time we've seen this user
+	// connected, since we have been asked to authenticate him.
+	user.LastSeen = time.Now().Unix()
+	err = ts.db.Save(user).Error
+	if err != nil {
+		return user.Name, true, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
 	log.Debugf("Valid user token for %s", user.Name)

@@ -29,6 +29,7 @@ type User struct {
 	CreatedAt time.Time `gorm:"->;<-:create;"`
 	Name      string
 	Token     string `gorm:"uniqueIndex"`
+	LastSeen  int64
 }
 
 // BeforeCreate - GORM hook.

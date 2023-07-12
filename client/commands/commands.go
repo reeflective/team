@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/version"
@@ -151,6 +153,45 @@ func clientCommands(cli *client.Client) *cobra.Command {
 				if err == nil {
 					cli.SetLogLevel(logLevel + int(logrus.ErrorLevel))
 				}
+			}
+
+			if err := cli.Connect(); err != nil {
+				return err
+			}
+
+			// Server
+			users, err := cli.Users()
+			if err != nil {
+				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Server error: %s\n", err)
+			}
+
+			tbl := &table.Table{}
+			tbl.SetStyle(command.TableStyle)
+
+			tbl.AppendHeader(table.Row{
+				"Name",
+				"Status",
+				"Last seen",
+			})
+
+			for _, user := range users {
+				lastSeen := user.LastSeen.Format(time.RFC1123)
+				if user.LastSeen.IsZero() {
+					lastSeen = ""
+				}
+
+				tbl.AppendRow(table.Row{
+					user.Name,
+					user.Online,
+					lastSeen,
+				})
+
+			}
+
+			if len(users) > 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), tbl.Render())
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), command.Info+"The %s teamserver has no users\n", cli.Name())
 			}
 
 			return nil

@@ -70,6 +70,10 @@ func (ts *Server) LogsDir() string {
 // If any error happens it will returned right away and the creator
 // of the teamserver will know right away that it can't work correctly.
 func (ts *Server) checkWritableFiles() error {
+	if ts.opts.inMemory {
+		return nil
+	}
+
 	// Check home application directory.
 	// If it does not exist but we don't have write permission
 	// on /user/home, we return an error as we can't work.

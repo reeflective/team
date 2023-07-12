@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -30,6 +31,7 @@ type Server struct {
 	db           *gorm.DB
 	dbInitOnce   sync.Once
 	certs        *certs.Manager
+	fs           *assets.FS
 
 	// Listeners and job control
 	self     Handler[any]
@@ -76,6 +78,9 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 	}
 
 	server.apply(options...)
+
+	// Filesystem
+	server.fs = assets.NewFileSystem(server.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := server.initLogging(); err != nil {

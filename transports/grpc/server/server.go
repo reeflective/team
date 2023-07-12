@@ -37,16 +37,17 @@ type handler struct {
 }
 
 func NewTeamServer(opts ...grpc.ServerOption) *handler {
-	h := &handler{
+	listener := &handler{
 		mutex: &sync.RWMutex{},
 	}
 
 	// Buffering
-	h.options = append(h.options,
+	listener.options = append(listener.options,
 		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
 	)
-	return h
+
+	return listener
 }
 
 // DialerFrom generates an in-memory, unauthenticated client dialer and server.
@@ -125,17 +126,18 @@ func (h *handler) Listen(addr string) (net.Listener, error) {
 // Serve implements server.Handler.Serve().
 // It accepts a network listener that will be served by a gRPC server.
 // This also registers the Teamclient RPC service.
-func (h *handler) Serve(ln net.Listener) (any, error) {
+func (h *handler) Serve(listener net.Listener) (any, error) {
 	rpcLog := h.NamedLogger("transport", "grpc")
 
 	// Encryption.
 	if h.conn == nil {
-		rpcLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
+		rpcLog.Infof("Serving gRPC teamserver on %s", listener.Addr())
 
 		tlsConfig, err := h.GetUserTLSConfig()
 		if err != nil {
 			return nil, err
 		}
+
 		creds := credentials.NewTLS(tlsConfig)
 		h.options = append(h.options, grpc.Creds(creds))
 	}
@@ -144,7 +146,7 @@ func (h *handler) Serve(ln net.Listener) (any, error) {
 
 	// If we already have an in-memory listener, use it.
 	if h.conn != nil {
-		ln = h.conn
+		listener = h.conn
 		h.conn = nil
 	}
 
@@ -156,7 +158,8 @@ func (h *handler) Serve(ln net.Listener) (any, error) {
 				rpcLog.Errorf("stacktrace from panic: %s", string(debug.Stack()))
 			}
 		}()
-		if err := grpcServer.Serve(ln); err != nil {
+
+		if err := grpcServer.Serve(listener); err != nil {
 			rpcLog.Errorf("gRPC server exited with error: %v", err)
 		} else {
 			panicked = false

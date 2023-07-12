@@ -21,11 +21,12 @@ package client
 import (
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"sync"
 
 	"github.com/reeflective/team"
+	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 )
@@ -37,7 +38,8 @@ type Client struct {
 	opts         *opts
 	fileLogger   *logrus.Logger
 	stdoutLogger *logrus.Logger
-	logFile      *os.File
+	logFile      fs.File
+	fs           *assets.FS
 
 	dialer  Dialer[any]
 	connect *sync.Once
@@ -60,9 +62,13 @@ func New(application string, teamclient team.Client, options ...Options) (*Clien
 		client:  teamclient,
 		connect: &sync.Once{},
 		mutex:   &sync.RWMutex{},
+		fs:      &assets.FS{},
 	}
 
 	client.apply(options...)
+
+	// Filesystem
+	client.fs = assets.NewFileSystem(client.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := client.initLogging(); err != nil {
@@ -218,22 +224,23 @@ func (tc *Client) SetLogLevel(level int) {
 // Initialize loggers in files/stdout according to options.
 func (tc *Client) initLogging() (err error) {
 	// No logging means only stdout with warn level
-	if tc.opts.noLogs || tc.opts.inMemory {
-		tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
-		return nil
-	}
+	// if tc.opts.noLogs || tc.opts.inMemory {
+	// 	tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
+	// 	return nil
+	// }
 
+	// Path to our client log file, and open it (in mem or on disk)
 	logFileName := fmt.Sprintf("%s.teamclient.log", tc.Name())
 	tc.opts.logFile = filepath.Join(tc.LogsDir(), logFileName)
 
 	// If user supplied a logger, use it in place of the
 	// file-based logger, since the file logger is optional.
-	if tc.opts.logger != nil {
-		tc.fileLogger = tc.opts.logger
-	}
+	// if tc.opts.logger != nil {
+	// 	tc.fileLogger = tc.opts.logger
+	// }
 
-	// Either use default logfile or user-specified one.
-	tc.fileLogger, tc.stdoutLogger, err = log.NewClient(tc.opts.logFile, logrus.InfoLevel)
+	// Create the loggers writing to this file, and hooked to write to stdout as well.
+	tc.fileLogger, tc.stdoutLogger, err = log.Init(tc.fs, tc.opts.logFile, logrus.InfoLevel)
 	if err != nil {
 		return err
 	}

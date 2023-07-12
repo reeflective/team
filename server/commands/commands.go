@@ -34,6 +34,8 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 		// if teamclient.IsConnected() {
 		// 	return nil
 		// }
+		// Server specific settings.
+		teamserver.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
 
 		// And connect the client locally, only needed.
 		return teamserver.ServeLocal(teamclient)

@@ -13,8 +13,10 @@ message Client {
 message Users { repeated User Users = 1; }
 
 message User {
-  bool Online = 1;
-  string Name = 2;
+  string Name = 1;
+  bool Online = 2;
+  int64 LastSeen = 3;
+  int32 Clients = 4;
 }
 
 

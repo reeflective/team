@@ -29,6 +29,10 @@ func (ts *Server) SetLogLevel(level int) {
 	}
 
 	ts.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
+
+	// if ts.fileLogger != nil {
+	// 	ts.fileLogger.SetLevel(logrus.Level(uint32(level)))
+	// }
 }
 
 // WithLoggerStdout sets the source to which the stdout logger (not any file logger) should write to.
@@ -43,7 +47,7 @@ func (ts *Server) AuditLogger() (*logrus.Logger, error) {
 	}
 
 	// Generate a new audit logger
-	auditLog, err := log.NewAudit(ts.LogsDir())
+	auditLog, err := log.NewAudit(ts.fs, ts.LogsDir())
 	if err != nil {
 		return nil, ts.errorf("%w: %w", ErrLogging, err)
 	}
@@ -54,10 +58,10 @@ func (ts *Server) AuditLogger() (*logrus.Logger, error) {
 // Initialize loggers in files/stdout according to options.
 func (ts *Server) initLogging() (err error) {
 	// No logging means only stdout with warn level
-	if ts.opts.noLogs || ts.opts.noFiles || ts.opts.inMemory {
-		ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
-		return nil
-	}
+	// if ts.opts.noLogs || ts.opts.noFiles || ts.opts.inMemory {
+	// 	ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
+	// 	return nil
+	// }
 
 	logFileName := fmt.Sprintf("%s.teamserver.log", ts.Name())
 	ts.opts.logFile = filepath.Join(ts.LogsDir(), logFileName)
@@ -69,14 +73,14 @@ func (ts *Server) initLogging() (err error) {
 
 	// If user supplied a logger, use it in place of the
 	// stdout logger, since the file logger is optional.
-	if ts.opts.logger != nil {
-		ts.stdoutLogger = ts.opts.logger
-	}
+	// if ts.opts.logger != nil {
+	// 	ts.stdoutLogger = ts.opts.logger
+	// }
 
 	level := logrus.Level(ts.opts.config.Log.Level)
 
 	// Either use default logfile or user-specified one.
-	ts.fileLogger, ts.stdoutLogger, err = log.NewClient(ts.opts.logFile, level)
+	ts.fileLogger, ts.stdoutLogger, err = log.Init(ts.fs, ts.opts.logFile, level)
 	if err != nil {
 		return err
 	}

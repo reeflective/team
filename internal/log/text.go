@@ -2,6 +2,7 @@ package log
 
 import (
 	"errors"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -16,10 +17,10 @@ type txtHook struct {
 }
 
 // newTxtHook - returns a new txt hook.
-func newTxtHook(logFile string, level logrus.Level, log *logrus.Logger) *txtHook {
+func newTxtHook(fs io.Writer, level logrus.Level, log *logrus.Logger) *txtHook {
 	hook := &txtHook{}
 
-	logger, err := NewText(logFile)
+	logger, err := NewText(fs)
 	if err != nil {
 		log.Error(err)
 	}

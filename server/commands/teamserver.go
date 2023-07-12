@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/systemd"
 	"github.com/reeflective/team/server"
@@ -202,7 +201,7 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		cfg := serv.GetConfig()
 
 		tbl := &table.Table{}
-		tbl.SetStyle(teamserverTableStyle)
+		tbl.SetStyle(command.TableStyle)
 
 		tbl.AppendHeader(table.Row{
 			"ID",
@@ -246,47 +245,6 @@ func callerArgs(cmd *cobra.Command) []string {
 	args = append(args, cmd.Name())
 
 	return args
-}
-
-var teamserverTableStyle = table.Style{
-	Name: "TeamServerDefault",
-	Box: table.BoxStyle{
-		BottomLeft:       " ",
-		BottomRight:      " ",
-		BottomSeparator:  " ",
-		Left:             " ",
-		LeftSeparator:    " ",
-		MiddleHorizontal: "=",
-		MiddleSeparator:  " ",
-		MiddleVertical:   " ",
-		PaddingLeft:      " ",
-		PaddingRight:     " ",
-		Right:            " ",
-		RightSeparator:   " ",
-		TopLeft:          " ",
-		TopRight:         " ",
-		TopSeparator:     " ",
-		UnfinishedRow:    "~~",
-	},
-	Color: table.ColorOptions{
-		IndexColumn:  text.Colors{},
-		Footer:       text.Colors{},
-		Header:       text.Colors{},
-		Row:          text.Colors{},
-		RowAlternate: text.Colors{},
-	},
-	Format: table.FormatOptions{
-		Footer: text.FormatDefault,
-		Header: text.FormatTitle,
-		Row:    text.FormatDefault,
-	},
-	Options: table.Options{
-		DrawBorder:      false,
-		SeparateColumns: true,
-		SeparateFooter:  false,
-		SeparateHeader:  true,
-		SeparateRows:    false,
-	},
 }
 
 func formatSection(msg string, args ...any) string {

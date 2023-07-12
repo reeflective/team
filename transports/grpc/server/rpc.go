@@ -41,12 +41,14 @@ func (ts *rpcServer) GetVersion(context.Context, *proto.Empty) (*proto.Version, 
 func (ts *rpcServer) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
 	users, err := ts.server.GetUsers()
 
-	var userspb []*proto.User
-	for _, user := range users {
-		userspb = append(userspb, &proto.User{
-			Name:   user.Name,
-			Online: user.Online,
-		})
+	userspb := make([]*proto.User, len(users))
+	for i, user := range users {
+		userspb[i] = &proto.User{
+			Name:     user.Name,
+			Online:   user.Online,
+			LastSeen: user.LastSeen.Unix(),
+			Clients:  int32(user.Clients),
+		}
 	}
 
 	return &proto.Users{Users: userspb}, err

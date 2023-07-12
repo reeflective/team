@@ -39,15 +39,14 @@ func (tc *Client) AppDir() string {
 	user, _ := user.Current()
 	dir := filepath.Join(user.HomeDir, "."+tc.name, teamserverClientDir)
 
-	if tc.opts.inMemory {
-		return dir
+	var err error
+
+	if _, err = tc.fs.Sub(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, log.DirPerm)
 	}
 
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, log.DirPerm)
-		if err != nil {
-			tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
-		}
+	if err != nil {
+		tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
 	}
 
 	return dir
@@ -58,15 +57,14 @@ func (tc *Client) AppDir() string {
 func (tc *Client) LogsDir() string {
 	logsDir := filepath.Join(tc.AppDir(), "logs")
 
-	if tc.opts.inMemory {
-		return logsDir
+	var err error
+
+	if _, err = tc.fs.Sub(logsDir); os.IsNotExist(err) {
+		err = tc.fs.MkdirAll(logsDir, log.DirPerm)
 	}
 
-	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
-		err = os.MkdirAll(logsDir, log.DirPerm)
-		if err != nil {
-			tc.log().Errorf("cannot write to %s root dir: %s", logsDir, err)
-		}
+	if err != nil {
+		tc.log().Errorf("cannot write to %s root dir: %s", logsDir, err)
 	}
 
 	return logsDir
@@ -77,15 +75,14 @@ func (tc *Client) ConfigsDir() string {
 	rootDir, _ := filepath.Abs(tc.AppDir())
 	dir := filepath.Join(rootDir, configsDirName)
 
-	if tc.opts.inMemory {
-		return dir
+	var err error
+
+	if _, err = tc.fs.Sub(dir); os.IsNotExist(err) {
+		err = tc.fs.MkdirAll(dir, log.DirPerm)
 	}
 
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, log.DirPerm)
-		if err != nil {
-			tc.log().Errorf("cannot write to %s configs dir: %s", dir, err)
-		}
+	if err != nil {
+		tc.log().Errorf("cannot write to %s configs dir: %s", dir, err)
 	}
 
 	return dir
