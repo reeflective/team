@@ -8,23 +8,21 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_tags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"github.com/reeflective/team/transports/grpc/common"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/reeflective/team/internal/log"
-	"github.com/reeflective/team/transports/grpc/common"
 )
 
-// initMiddleware - Initialize middleware logger
+// initMiddleware - Initialize middleware logger.
 func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 	var requestOpts []grpc.UnaryServerInterceptor
 	var streamOpts []grpc.StreamServerInterceptor
 
 	// Audit-log all requests. Any failure to audit-log the requests
 	// of this server will themselves be logged to the root teamserver log.
-	auditLog, err := log.NewAudit(ts.LogsDir())
+	auditLog, err := ts.AuditLogger()
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +32,7 @@ func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 	requestOpts = append(requestOpts,
 		grpc_tags.UnaryServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
 	)
+
 	streamOpts = append(streamOpts,
 		grpc_tags.StreamServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
 	)
@@ -43,12 +42,14 @@ func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 	logrusOpts := []grpc_logrus.Option{
 		grpc_logrus.WithLevels(common.CodeToLevel),
 	}
+
 	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
 
 	requestOpts = append(requestOpts,
 		grpc_logrus.UnaryServerInterceptor(logrusEntry, logrusOpts...),
 		grpc_logrus.PayloadUnaryServerInterceptor(logrusEntry, ts.deciderUnary),
 	)
+
 	streamOpts = append(streamOpts,
 		grpc_logrus.StreamServerInterceptor(logrusEntry, logrusOpts...),
 		grpc_logrus.PayloadStreamServerInterceptor(logrusEntry, ts.deciderStream),
@@ -60,6 +61,7 @@ func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 		requestOpts = append(requestOpts,
 			grpc_auth.UnaryServerInterceptor(ts.tokenAuthFunc),
 		)
+
 		streamOpts = append(streamOpts,
 			grpc_auth.StreamServerInterceptor(ts.tokenAuthFunc),
 		)
@@ -84,6 +86,7 @@ func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 func serverAuthFunc(ctx context.Context) (context.Context, error) {
 	newCtx := context.WithValue(ctx, "transport", "local")
 	newCtx = context.WithValue(newCtx, "user", "server")
+
 	return newCtx, nil
 }
 
@@ -148,6 +151,7 @@ func (ts *handler) auditLogUnaryServerInterceptor(auditLog *logrus.Logger) grpc.
 		auditLog.Info(ctx, string(msgData))
 
 		resp, err := handler(ctx, req)
+
 		return resp, err
 	}
 }

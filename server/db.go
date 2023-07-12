@@ -77,7 +77,7 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 
 	dblog.Infof("Saving config to %s", configPath)
 
-	return os.WriteFile(configPath, data, log.FilePerm)
+	return os.WriteFile(configPath, data, log.FileReadPerm)
 }
 
 // getDatabaseConfig returns a working database configuration,

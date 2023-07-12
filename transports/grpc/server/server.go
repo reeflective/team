@@ -6,15 +6,14 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/test/bufconn"
-
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/server"
 	clientConn "github.com/reeflective/team/transports/grpc/client"
 	"github.com/reeflective/team/transports/grpc/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 const (
@@ -24,7 +23,7 @@ const (
 
 	bufSize = 2 * mb
 
-	// ServerMaxMessageSize - Server-side max GRPC message size
+	// ServerMaxMessageSize - Server-side max GRPC message size.
 	ServerMaxMessageSize = 2*gb - 1
 )
 
@@ -50,7 +49,7 @@ func NewTeamServer(opts ...grpc.ServerOption) *handler {
 	return h
 }
 
-// DialerFrom generates an in-memory, unauthenticated client dialer and server
+// DialerFrom generates an in-memory, unauthenticated client dialer and server.
 func DialerFrom(server *handler) (teamclient team.Client, dialer client.Dialer[any]) {
 	conn := bufconn.Listen(bufSize)
 

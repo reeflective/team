@@ -120,7 +120,7 @@ func (ts *Server) SaveConfig(cfg *Config) error {
 
 	cfgLog.Debugf("Saving config to %s", configPath)
 
-	err = os.WriteFile(configPath, data, log.FilePerm)
+	err = os.WriteFile(configPath, data, log.FileReadPerm)
 	if err != nil {
 		return ts.errorf("%w: failed to write config: %s", ErrConfig, err)
 	}

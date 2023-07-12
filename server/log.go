@@ -37,6 +37,20 @@ func (ts *Server) SetLogWriter(stdout, stderr io.Writer) {
 	ts.stdoutLogger.Out = stdout
 }
 
+func (ts *Server) AuditLogger() (*logrus.Logger, error) {
+	if ts.opts.inMemory || ts.opts.noLogs || ts.opts.noFiles {
+		return ts.log(), nil
+	}
+
+	// Generate a new audit logger
+	auditLog, err := log.NewAudit(ts.LogsDir())
+	if err != nil {
+		return nil, ts.errorf("%w: %w", ErrLogging, err)
+	}
+
+	return auditLog, nil
+}
+
 // Initialize loggers in files/stdout according to options.
 func (ts *Server) initLogging() (err error) {
 	// No logging means only stdout with warn level

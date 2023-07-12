@@ -24,6 +24,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/reeflective/team/internal/log"
 )
 
 // -----------------------
@@ -34,12 +36,18 @@ import (
 func (c *Manager) getCertDir() string {
 	rootDir := c.appDir
 	certDir := filepath.Join(rootDir, "certs")
+
+	if c.inMemory {
+		return certDir
+	}
+
 	if _, err := os.Stat(certDir); os.IsNotExist(err) {
-		err := os.MkdirAll(certDir, 0o700)
+		err := os.MkdirAll(certDir, log.DirPerm)
 		if err != nil {
 			c.log.Fatalf("Failed to create cert dir: %s", err)
 		}
 	}
+
 	return certDir
 }
 
@@ -65,6 +73,7 @@ func (c *Manager) SaveUsersCA(cert, key []byte) {
 // generateCA - Creates a new CA cert for a given type, or die trying.
 func (c *Manager) generateCA(caType string, commonName string) (*x509.Certificate, *ecdsa.PrivateKey) {
 	storageDir := c.getCertDir()
+
 	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s_%s-ca-cert.%s", c.appName, caType, certFileExt))
 	if _, err := os.Stat(certFilePath); os.IsNotExist(err) {
 		c.log.Infof("Generating certificate authority for '%s'", caType)
@@ -134,6 +143,10 @@ func (c *Manager) getCAPEM(caType string) ([]byte, []byte, error) {
 // doesn't return an error because errors are fatal. If we can't generate CAs,
 // then we can't secure communication and we should die a horrible death.
 func (c *Manager) saveCA(caType string, cert []byte, key []byte) {
+	if c.inMemory {
+		return
+	}
+
 	storageDir := c.getCertDir()
 	if _, err := os.Stat(storageDir); os.IsNotExist(err) {
 		os.MkdirAll(storageDir, 0o700)

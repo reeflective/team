@@ -72,7 +72,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		saveTo = filepath.Join(saveTo, filename+".teamclient.cfg")
 
-		err = ioutil.WriteFile(saveTo, configJSON, log.FilePerm)
+		err = ioutil.WriteFile(saveTo, configJSON, log.FileReadPerm)
 		if err != nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to write config to %s: %s\n", saveTo, err)
 			return

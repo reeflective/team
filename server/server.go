@@ -34,8 +34,7 @@ type Server struct {
 	// Listeners and job control
 	self     Handler[any]
 	handlers map[string]Handler[any]
-
-	jobs *jobs
+	jobs     *jobs
 }
 
 // Handler represents a teamserver listener stack.
@@ -300,7 +299,7 @@ func (ts *Server) init(opts ...Options) error {
 
 		// Certificate infrastructure, will make the code panic if unable to work properly.
 		certsLog := ts.NamedLogger("certs", "certificates")
-		ts.certs = certs.NewManager(ts.db.Session(&gorm.Session{}), certsLog, ts.Name(), ts.AppDir())
+		ts.certs = certs.NewManager(ts.db.Session(&gorm.Session{}), certsLog, ts.Name(), ts.AppDir(), ts.opts.inMemory)
 	})
 
 	return err

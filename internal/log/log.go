@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	FilePerm = 0o600 // FilePerm is the permission bit given to the OS when writing files.
-	DirPerm  = 0o700 // DirPerm is th permission bit given to teamserver/client directories.
+	FileReadPerm  = 0o600 // FileReadPerm is the permission bit given to the OS when reading files.
+	DirPerm       = 0o700 // DirPerm is the permission bit given to teamserver/client directories.
+	FileWritePerm = 0o644 // FileWritePerm is the permission bit given to the OS when writing files.
 )
 
 // NewStdio returns a logger configured to output its events to the system stdio:
@@ -71,14 +72,17 @@ func NewRoot(app, logDir string, level logrus.Level) (*logrus.Logger, error) {
 	rootLogger := logrus.New()
 	rootLogger.Formatter = &logrus.JSONFormatter{}
 	jsonFilePath := filepath.Join(logDir, fmt.Sprintf("%s.json", app))
-	jsonFile, err := os.OpenFile(jsonFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+
+	jsonFile, err := os.OpenFile(jsonFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, FileWritePerm)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open log file %v", err)
+		return nil, fmt.Errorf("Failed to open log file %w", err)
 	}
+
 	rootLogger.Out = jsonFile
 	rootLogger.SetLevel(logrus.InfoLevel)
 	rootLogger.SetReportCaller(true)
 	rootLogger.AddHook(newTxtHook(logDir, level, rootLogger))
+
 	return rootLogger, nil
 }
 
@@ -87,12 +91,15 @@ func NewAudit(logDir string) (*logrus.Logger, error) {
 	auditLogger := logrus.New()
 	auditLogger.Formatter = &logrus.JSONFormatter{}
 	jsonFilePath := filepath.Join(logDir, "audit.json")
-	jsonFile, err := os.OpenFile(jsonFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+
+	jsonFile, err := os.OpenFile(jsonFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, FileReadPerm)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open log file %v", err)
+		return nil, fmt.Errorf("Failed to open log file %w", err)
 	}
+
 	auditLogger.Out = jsonFile
 	auditLogger.SetLevel(logrus.DebugLevel)
+
 	return auditLogger, nil
 }
 
@@ -103,9 +110,10 @@ func NewText(logFile string) (*logrus.Logger, error) {
 		ForceColors:   true,
 		FullTimestamp: true,
 	}
-	txtFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+
+	txtFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, FileWritePerm)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open log file %v", err)
+		return nil, fmt.Errorf("Failed to open log file %w", err)
 	}
 
 	txtLogger.Out = txtFile
@@ -132,5 +140,6 @@ func LevelFrom(level int) logrus.Level {
 	case 6:
 		return logrus.TraceLevel
 	}
+
 	return logrus.DebugLevel
 }

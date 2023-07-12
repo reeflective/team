@@ -218,7 +218,7 @@ func (tc *Client) SetLogLevel(level int) {
 // Initialize loggers in files/stdout according to options.
 func (tc *Client) initLogging() (err error) {
 	// No logging means only stdout with warn level
-	if tc.opts.noLogs {
+	if tc.opts.noLogs || tc.opts.inMemory {
 		tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
 		return nil
 	}
