@@ -67,7 +67,7 @@ func New(application string, teamclient team.Client, options ...Options) (*Clien
 
 	client.apply(options...)
 
-	// Filesystem
+	// Filesystem (in-memory or on disk)
 	user, _ := user.Current()
 	root := filepath.Join(user.HomeDir, "."+client.name)
 	client.fs = assets.NewFileSystem(root, client.opts.inMemory)

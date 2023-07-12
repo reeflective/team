@@ -10,63 +10,16 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"runtime"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/transport"
-	"github.com/reeflective/team/internal/version"
 )
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
-
-// GetVersion returns the server binary version information.
-func (ts *Server) GetVersion() team.Version {
-	dirty := version.GitDirty != ""
-	semVer := version.Semantic()
-	compiled, _ := version.Compiled()
-
-	return team.Version{
-		Major:      int32(semVer[0]),
-		Minor:      int32(semVer[1]),
-		Patch:      int32(semVer[2]),
-		Commit:     strings.TrimSuffix(version.GitCommit, "\n"),
-		Dirty:      dirty,
-		CompiledAt: compiled.Unix(),
-		OS:         runtime.GOOS,
-		Arch:       runtime.GOARCH,
-	}
-}
-
-// GetUsers returns the list of users in the teamserver database, and their information.
-func (ts *Server) GetUsers() ([]team.User, error) {
-	if err := ts.initDatabase(); err != nil {
-		return nil, ts.errorf("%w: %w", ErrDatabase, err)
-	}
-
-	usersDB := []*db.User{}
-	err := ts.db.Distinct("Name").Find(&usersDB).Error
-
-	users := make([]team.User, len(usersDB))
-
-	if err != nil && len(usersDB) == 0 {
-		return users, ts.errorf("%w: %w", ErrDatabase, err)
-	}
-
-	for i, user := range users {
-		users[i] = team.User{
-			Name: user.Name,
-			// TODO: online && num clients.
-		}
-	}
-
-	return users, nil
-}
 
 // NewUserConfig generates a new user client connection configuration.
 func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]byte, error) {

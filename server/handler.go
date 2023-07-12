@@ -5,41 +5,14 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"os/user"
-	"path/filepath"
 	"regexp"
 	"runtime/debug"
-	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/certs"
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
-
-// Server is a team server.
-type Server struct {
-	// Core
-	name         string
-	rootDirEnv   string
-	fileLogger   *logrus.Logger
-	stdoutLogger *logrus.Logger
-	userTokens   *sync.Map
-	initOnce     *sync.Once
-	opts         *opts[any]
-	db           *gorm.DB
-	dbInitOnce   sync.Once
-	certs        *certs.Manager
-	fs           *assets.FS
-
-	// Listeners and job control
-	self     Handler[any]
-	handlers map[string]Handler[any]
-	jobs     *jobs
-}
 
 // Handler represents a teamserver listener stack.
 // It must be satisfied by any type aiming to be used
@@ -55,63 +28,6 @@ type Handler[server any] interface {
 	Listen(addr string) (ln net.Listener, err error)
 	Serve(net.Listener) (serv server, err error)
 	Close() error
-}
-
-// New creates a new teamserver for the provided application name.
-// This server can handle any number of remote clients for a given application
-// named "teamserver", including its own local runtime (fully in-memory) client.
-//
-// All errors returned from this call are critical, in that the server could not
-// run properly in its most basic state. If an error is raised, no server is returned.
-//
-// This call to create the server only creates the application default directory.
-// No files, logs, connections or any interaction with the os/filesystem are made.
-func New(application string, ln Handler[any], options ...Options) (*Server, error) {
-	server := &Server{
-		name:       application,
-		rootDirEnv: fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
-		opts:       newDefaultOpts(),
-		self:       ln,
-
-		userTokens: &sync.Map{},
-		initOnce:   &sync.Once{},
-		jobs:       newJobs(),
-		handlers:   make(map[string]Handler[any]),
-	}
-
-	server.apply(options...)
-
-	// Filesystem
-	user, _ := user.Current()
-	root := filepath.Join(user.HomeDir, "."+server.name)
-	server.fs = assets.NewFileSystem(root, server.opts.inMemory)
-
-	// Logging (if allowed)
-	if err := server.initLogging(); err != nil {
-		return nil, err
-	}
-
-	// Ensure we have a working database configuration,
-	// and at least an in-memory sqlite database.
-	server.opts.dbConfig = server.getDefaultDatabaseConfig()
-	if server.opts.dbConfig.Database == ":memory:" && server.db == nil {
-		if err := server.initDatabase(); err != nil {
-			return nil, server.errorf("%w: %w", ErrDatabase, err)
-		}
-	}
-
-	// Store given handlers.
-	server.handlers[ln.Name()] = ln
-
-	return server, nil
-}
-
-// Name returns the name of the application handled by the teamserver.
-// Since you can embed multiple teamservers (one for each application)
-// into a single binary, this is different from the program binary name
-// running this teamserver.
-func (ts *Server) Name() string {
-	return ts.name
 }
 
 // Handlers returns a copy of its teamserver handlers map.
@@ -308,7 +224,7 @@ func (ts *Server) init(opts ...Options) error {
 
 		// Certificate infrastructure, will make the code panic if unable to work properly.
 		certsLog := ts.NamedLogger("certs", "certificates")
-		ts.certs = certs.NewManager(ts.fs, ts.db.Session(&gorm.Session{}), certsLog, ts.Name(), ts.AppDir())
+		ts.certs = certs.NewManager(ts.fs, ts.db.Session(&gorm.Session{}), certsLog, ts.Name(), ts.TeamDir())
 	})
 
 	return err

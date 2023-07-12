@@ -43,7 +43,7 @@ type Config struct {
 
 // GetServerConfigPath - File path to the server config.json file.
 func (ts *Server) ConfigPath() string {
-	appDir := ts.AppDir()
+	appDir := ts.TeamDir()
 	configDir := filepath.Join(appDir, "configs")
 
 	err := ts.fs.MkdirAll(configDir, log.DirPerm)

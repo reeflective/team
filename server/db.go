@@ -41,7 +41,7 @@ func (ts *Server) initDatabase() (err error) {
 
 // GetDatabaseConfigPath - File path to config.json.
 func (ts *Server) dbConfigPath() string {
-	appDir := ts.AppDir()
+	appDir := ts.TeamDir()
 	log := ts.NamedLogger("config", "database")
 	databaseConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name()+"_database", configFileExt))
 	log.Debugf("Loading config from %s", databaseConfigPath)
@@ -137,7 +137,7 @@ func (ts *Server) getDefaultDatabaseConfig() *db.Config {
 	if ts.opts.inMemory {
 		cfg.Database = ":memory:"
 	} else {
-		cfg.Database = filepath.Join(ts.AppDir(), fmt.Sprintf("%s.teamserver.db", ts.name))
+		cfg.Database = filepath.Join(ts.TeamDir(), fmt.Sprintf("%s.teamserver.db", ts.name))
 	}
 
 	return cfg
