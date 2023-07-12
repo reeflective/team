@@ -16,6 +16,9 @@ const (
 	FileWritePerm = 0o644 // FileWritePerm is the permission bit given to the OS when writing files.
 
 	FileWriteOpenMode = os.O_APPEND | os.O_CREATE | os.O_WRONLY // Opening log files in append/create/write-only mode.
+
+	ClientLogFileExt = "teamclient.log" // Log files of all teamclients have this extension by default.
+	ServerLogFileExt = "teamserver.log" // Log files of all teamserver have this extension by default.
 )
 
 func Init(fs *assets.FS, file string, level logrus.Level) (*logrus.Logger, *logrus.Logger, error) {
@@ -142,4 +145,11 @@ func LevelFrom(level int) logrus.Level {
 	}
 
 	return logrus.DebugLevel
+}
+
+func FileName(name string, server bool) string {
+	if server {
+		return fmt.Sprintf("%s.%s", name, ServerLogFileExt)
+	}
+	return fmt.Sprintf("%s.%s", name, ClientLogFileExt)
 }

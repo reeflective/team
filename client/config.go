@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/user"
 	"path/filepath"
 	"sort"
 
+	"github.com/reeflective/team/internal/log"
 	"gopkg.in/AlecAivazis/survey.v1"
 )
 
@@ -131,6 +131,13 @@ func (tc *Client) SaveConfig(config *Config) error {
 
 	configDir := tc.ConfigsDir()
 
+	// If we are in-memory, still make the directory.
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err = tc.fs.MkdirAll(configDir, log.DirPerm); err != nil {
+			return tc.errorf("%w: %w", ErrConfig, err)
+		}
+	}
+
 	filename := fmt.Sprintf("%s_%s.%s", filepath.Base(config.User), filepath.Base(config.Host), configFileExt)
 	saveTo, _ := filepath.Abs(filepath.Join(configDir, filename))
 
@@ -185,22 +192,22 @@ func (tc *Client) Config() *Config {
 // defaultUserConfig returns the default user configuration for this application.
 // the file is of the following form: ~/.app/configs/app_USERNAME_default.cfg.
 // If the latter is found, it returned, otherwise no config is returned.
-func (tc *Client) defaultUserConfig() (cfg *Config) {
-	user, err := user.Current()
-	if err != nil {
-		return nil
-	}
-
-	filename := fmt.Sprintf("%s_%s_default", tc.Name(), user.Username)
-	saveTo := tc.ConfigsDir()
-
-	configPath := filepath.Join(saveTo, filename+".teamclient.cfg")
-	if _, err := os.Stat(configPath); err == nil {
-		cfg, _ = tc.ReadConfig(configPath)
-	}
-
-	return cfg
-}
+// func (tc *Client) defaultUserConfig() (cfg *Config) {
+// 	user, err := user.Current()
+// 	if err != nil {
+// 		return nil
+// 	}
+//
+// 	filename := fmt.Sprintf("%s_%s_default", tc.Name(), user.Username)
+// 	saveTo := tc.ConfigsDir()
+//
+// 	configPath := filepath.Join(saveTo, filename+".teamclient.cfg")
+// 	if _, err := os.Stat(configPath); err == nil {
+// 		cfg, _ = tc.ReadConfig(configPath)
+// 	}
+//
+// 	return cfg
+// }
 
 func getPromptForConfigs(configs map[string]*Config) []*survey.Question {
 	keys := []string{}

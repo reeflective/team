@@ -21,6 +21,7 @@ package assets
 import (
 	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/psanford/memfs"
 )
@@ -62,7 +63,9 @@ func (f *FS) MkdirAll(path string, perm fs.FileMode) error {
 
 func (f *FS) Sub(path string) (fs fs.FS, err error) {
 	if f.mem == nil {
-		return os.DirFS(path), nil
+		_, err = os.Stat(path)
+
+		return os.DirFS(path), err
 	}
 
 	return f.mem.Sub(path)
@@ -81,16 +84,18 @@ func (f *FS) OpenFile(name string, flag int, perm fs.FileMode) (*File, error) {
 		name: name,
 	}
 
-	if f.mem == nil {
-		file, err := os.OpenFile(name, flag, perm)
-		if err != nil {
-			return nil, err
-		}
-
-		inFile.file = file
-	} else {
+	if f.mem != nil {
 		inFile.mem = f.mem
+
+		return inFile, nil
 	}
+
+	file, err := os.OpenFile(name, flag, perm)
+	if err != nil {
+		return nil, err
+	}
+
+	inFile.file = file
 
 	return inFile, nil
 }
@@ -116,18 +121,20 @@ type File struct {
 // Write implements the io.Writer interface by writing data either
 // to the file on disk, or to an in-memory file.
 func (f *File) Write(data []byte) (written int, err error) {
-	if f.file == nil {
-		f.mem.WriteFile(f.name, data, FileWritePerm)
+	if f.file != nil {
+		return f.file.Write(data)
 	}
 
-	return f.file.Write(data)
+	fileName := filepath.Base(f.name)
+
+	return len(data), f.mem.WriteFile(fileName, data, FileWritePerm)
 }
 
 // Close implements io.Closer by closing the file on the filesystem.
 func (f *File) Close() error {
-	if f.file == nil {
-		return nil
+	if f.file != nil {
+		return f.file.Close()
 	}
 
-	return f.file.Close()
+	return nil
 }

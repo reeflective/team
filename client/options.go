@@ -64,20 +64,20 @@ func (tc *Client) apply(options ...Options) {
 // *** General options ***
 //
 
-// WithConfig sets the client to use a given teamserver configuration for
-// connection, instead of using default user/application configurations.
-func WithConfig(config *Config) Options {
-	return func(opts *opts) {
-		opts.config = config
-	}
-}
-
 // WithInMemory deactivates all interactions of the client with the filesystem.
 // This applies to logging, but will also to any forward feature using files.
 func WithInMemory() Options {
 	return func(opts *opts) {
 		opts.noLogs = true
 		opts.inMemory = true
+	}
+}
+
+// WithConfig sets the client to use a given teamserver configuration for
+// connection, instead of using default user/application configurations.
+func WithConfig(config *Config) Options {
+	return func(opts *opts) {
+		opts.config = config
 	}
 }
 

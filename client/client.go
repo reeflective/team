@@ -55,7 +55,6 @@ type Dialer[clientConn any] interface {
 }
 
 func New(application string, teamclient team.Client, options ...Options) (*Client, error) {
-	// Client has default logfile path, logging options.
 	client := &Client{
 		name:    application,
 		opts:    defaultOpts(),
@@ -216,31 +215,34 @@ func (tc *Client) SetLogLevel(level int) {
 
 	tc.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
 
-	if tc.fileLogger != nil {
-		tc.fileLogger.SetLevel(logrus.Level(uint32(level)))
-	}
+	// if tc.fileLogger != nil {
+	// 	tc.fileLogger.SetLevel(logrus.Level(uint32(level)))
+	// }
 }
 
 // Initialize loggers in files/stdout according to options.
 func (tc *Client) initLogging() (err error) {
-	// No logging means only stdout with warn level
-	// if tc.opts.noLogs || tc.opts.inMemory {
-	// 	tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
-	// 	return nil
-	// }
+	// By default, the stdout logger is never nil.
+	// We might overwrite it below if using our defaults.
+	tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
 
 	// Path to our client log file, and open it (in mem or on disk)
-	logFileName := fmt.Sprintf("%s.teamclient.log", tc.Name())
-	tc.opts.logFile = filepath.Join(tc.LogsDir(), logFileName)
+	logFile := filepath.Join(tc.LogsDir(), log.FileName(tc.Name(), false))
+
+	// If the teamclient should log to a predefined file.
+	if tc.opts.logFile != "" {
+		logFile = tc.opts.logFile
+	}
 
 	// If user supplied a logger, use it in place of the
 	// file-based logger, since the file logger is optional.
-	// if tc.opts.logger != nil {
-	// 	tc.fileLogger = tc.opts.logger
-	// }
+	if tc.opts.logger != nil {
+		tc.fileLogger = tc.opts.logger
+		return nil
+	}
 
 	// Create the loggers writing to this file, and hooked to write to stdout as well.
-	tc.fileLogger, tc.stdoutLogger, err = log.Init(tc.fs, tc.opts.logFile, logrus.InfoLevel)
+	tc.fileLogger, tc.stdoutLogger, err = log.Init(tc.fs, logFile, logrus.InfoLevel)
 	if err != nil {
 		return err
 	}
