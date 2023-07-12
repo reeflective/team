@@ -19,9 +19,7 @@ package client
 */
 
 import (
-	"fmt"
 	"io"
-	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 )
@@ -30,21 +28,21 @@ import (
 type Options func(opts *opts)
 
 type opts struct {
-	noLogs  bool
-	logFile string
-	console bool
-	local   bool
-	stdout  io.Writer
-	config  *Config
-	logger  *logrus.Logger
-	dialer  Dialer[any]
-	hooks   []func(s any) error
+	noLogs   bool
+	logFile  string
+	inMemory bool
+	console  bool
+	local    bool
+	stdout   io.Writer
+	config   *Config
+	logger   *logrus.Logger
+	dialer   Dialer[any]
+	hooks    []func(s any) error
 }
 
-func (tc *Client) defaultOpts() *opts {
+func defaultOpts() *opts {
 	return &opts{
-		config:  &Config{},
-		logFile: filepath.Join(tc.LogsDir(), fmt.Sprintf("%s.teamclient.log", tc.Name())),
+		config: &Config{},
 	}
 }
 
@@ -79,6 +77,7 @@ func WithConfig(config *Config) Options {
 func WithInMemory() Options {
 	return func(opts *opts) {
 		opts.noLogs = true
+		opts.inMemory = true
 	}
 }
 

@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 
 	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
@@ -33,18 +34,19 @@ func (ts *Server) SetLogLevel(level int) {
 // WithLoggerStdout sets the source to which the stdout logger (not any file logger) should write to.
 // This option is used by the teamserver/teamclient cobra command tree to coordinate its basic I/O/err.
 func (ts *Server) SetLogWriter(stdout, stderr io.Writer) {
-	// TODO: Maybe if the writer was already set in options, ignore ?
 	ts.stdoutLogger.Out = stdout
-	// TODO: Pass stderr to log internals.
 }
 
 // Initialize loggers in files/stdout according to options.
 func (ts *Server) initLogging() (err error) {
 	// No logging means only stdout with warn level
-	if ts.opts.noLogs || ts.opts.noFiles {
+	if ts.opts.noLogs || ts.opts.noFiles || ts.opts.inMemory {
 		ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
 		return nil
 	}
+
+	logFileName := fmt.Sprintf("%s.teamserver.log", ts.Name())
+	ts.opts.logFile = filepath.Join(ts.LogsDir(), logFileName)
 
 	// Ensure all teamserver-specific directories are writable.
 	if err := ts.checkWritableFiles(); err != nil {

@@ -67,14 +67,14 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 	server := &Server{
 		name:       application,
 		rootDirEnv: fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
+		opts:       newDefaultOpts(),
+		self:       ln,
+
 		userTokens: &sync.Map{},
 		initOnce:   &sync.Once{},
 		jobs:       newJobs(),
 		handlers:   make(map[string]Handler[any]),
-		self:       ln,
 	}
-
-	server.opts = server.newDefaultOpts()
 
 	server.apply(options...)
 

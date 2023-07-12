@@ -20,17 +20,15 @@ func main() {
 	// TODO: Rewrite comments
 	listener := grpc.NewTeamServer()
 
-	teamserver, err := teamserver.New("teamserver", listener)
+	teamserver, err := teamserver.New("teamserver", listener, teamserver.WithInMemory())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	teamserver.GetUsers()
-
 	// TODO: write comments
 	client, dialer := grpc.DialerFrom(listener)
 
-	teamclient, err := teamclient.New(teamserver.Name(), client, teamclient.WithDialer(dialer))
+	teamclient, err := teamclient.New(teamserver.Name(), client, teamclient.WithDialer(dialer), teamclient.WithInMemory())
 	if err != nil {
 		log.Fatal(err)
 	}

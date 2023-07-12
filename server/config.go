@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/transport"
 	"github.com/sirupsen/logrus"
@@ -54,6 +53,10 @@ func (ts *Server) ConfigPath() string {
 func (ts *Server) GetConfig() *Config {
 	cfgLog := ts.NamedLogger("config", "server")
 
+	if ts.opts.inMemory || ts.opts.noFiles {
+		return ts.opts.config
+	}
+
 	configPath := ts.ConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		cfgLog.Debugf("Loading config from %s", configPath)
@@ -93,6 +96,10 @@ func (ts *Server) GetConfig() *Config {
 // Save - Save config file to disk.
 func (ts *Server) SaveConfig(cfg *Config) error {
 	cfgLog := ts.NamedLogger("config", "server")
+
+	if ts.opts.inMemory || ts.opts.noFiles {
+		return nil
+	}
 
 	configPath := ts.ConfigPath()
 	configDir := filepath.Dir(configPath)
@@ -144,27 +151,6 @@ func getDefaultServerConfig() *Config {
 			ID   string `json:"id"`
 		}{},
 	}
-}
-
-func (ts *Server) clientServerMatch(config *client.Config) bool {
-	if config == nil {
-		return false
-	}
-
-	if ts.opts.config.Listeners != nil {
-		for _, job := range ts.opts.config.Listeners {
-			if job.Host == config.Host && job.Port == uint16(config.Port) {
-				return true
-			}
-		}
-	}
-
-	// If matching our daemon config.
-	if ts.opts.config.DaemonMode.Host == config.Host && ts.opts.config.DaemonMode.Port == config.Port {
-		return true
-	}
-
-	return false
 }
 
 func getRandomID() string {

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/reeflective/team"
@@ -55,11 +56,11 @@ func New(application string, teamclient team.Client, options ...Options) (*Clien
 	// Client has default logfile path, logging options.
 	client := &Client{
 		name:    application,
-		connect: &sync.Once{},
+		opts:    defaultOpts(),
 		client:  teamclient,
+		connect: &sync.Once{},
 		mutex:   &sync.RWMutex{},
 	}
-	client.opts = client.defaultOpts()
 
 	client.apply(options...)
 
@@ -221,6 +222,9 @@ func (tc *Client) initLogging() (err error) {
 		tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
 		return nil
 	}
+
+	logFileName := fmt.Sprintf("%s.teamclient.log", tc.Name())
+	tc.opts.logFile = filepath.Join(tc.LogsDir(), logFileName)
 
 	// If user supplied a logger, use it in place of the
 	// file-based logger, since the file logger is optional.

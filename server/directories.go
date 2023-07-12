@@ -29,6 +29,10 @@ func (ts *Server) AppDir() string {
 		dir = value
 	}
 
+	if ts.opts != nil && (ts.opts.noFiles || ts.opts.inMemory) {
+		return dir
+	}
+
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, log.DirPerm)
 		if err != nil {
@@ -44,14 +48,12 @@ func (ts *Server) AppDir() string {
 func (ts *Server) LogsDir() string {
 	rootDir := ts.AppDir()
 
-	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
-		err = os.MkdirAll(rootDir, log.DirPerm)
-		if err != nil {
-			ts.log().Errorf("Cannot write to %s root dir: %s", rootDir, err)
-		}
+	logDir := path.Join(rootDir, "logs")
+
+	if ts.opts != nil && (ts.opts.noFiles || ts.opts.inMemory) {
+		return logDir
 	}
 
-	logDir := path.Join(rootDir, "logs")
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		err = os.MkdirAll(logDir, log.DirPerm)
 		if err != nil {

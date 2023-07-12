@@ -1,9 +1,6 @@
 package server
 
 import (
-	"fmt"
-	"path/filepath"
-
 	"github.com/reeflective/team/internal/db"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -29,12 +26,11 @@ type opts[server any] struct {
 }
 
 // default in-memory configuration, ready to run.
-func (ts *Server) newDefaultOpts() *opts[any] {
+func newDefaultOpts() *opts[any] {
 	options := &opts[any]{
-		config:  getDefaultServerConfig(),
-		logFile: filepath.Join(ts.LogsDir(), fmt.Sprintf("%s.teamserver.log", ts.Name())),
-		hooks:   map[string][]func(serv any) error{},
-		local:   false,
+		config: getDefaultServerConfig(),
+		hooks:  map[string][]func(serv any) error{},
+		local:  false,
 	}
 
 	return options

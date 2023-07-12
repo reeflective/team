@@ -39,6 +39,10 @@ func (tc *Client) AppDir() string {
 	user, _ := user.Current()
 	dir := filepath.Join(user.HomeDir, "."+tc.name, teamserverClientDir)
 
+	if tc.opts.inMemory {
+		return dir
+	}
+
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, log.DirPerm)
 		if err != nil {
@@ -53,6 +57,11 @@ func (tc *Client) AppDir() string {
 // the directory if needed, or logging a fatal event if failing to create it.
 func (tc *Client) LogsDir() string {
 	logsDir := filepath.Join(tc.AppDir(), "logs")
+
+	if tc.opts.inMemory {
+		return logsDir
+	}
+
 	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
 		err = os.MkdirAll(logsDir, log.DirPerm)
 		if err != nil {
@@ -67,6 +76,10 @@ func (tc *Client) LogsDir() string {
 func (tc *Client) ConfigsDir() string {
 	rootDir, _ := filepath.Abs(tc.AppDir())
 	dir := filepath.Join(rootDir, configsDirName)
+
+	if tc.opts.inMemory {
+		return dir
+	}
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, log.DirPerm)
