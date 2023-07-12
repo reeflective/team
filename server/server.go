@@ -13,7 +13,6 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
-	"github.com/reeflective/team/internal/db"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
@@ -29,6 +28,7 @@ type Server struct {
 	initOnce     *sync.Once
 	opts         *opts[any]
 	db           *gorm.DB
+	dbInitOnce   sync.Once
 	certs        *certs.Manager
 
 	// Listeners and job control
@@ -83,11 +83,17 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 		return nil, err
 	}
 
-	// Ensure we have a working database configuration.
+	// Ensure we have a working database configuration,
+	// and at least an in-memory sqlite database.
 	server.opts.dbConfig = server.getDefaultDatabaseConfig()
+	if server.opts.dbConfig.Database == ":memory:" && server.db == nil {
+		if err := server.initDatabase(); err != nil {
+			return nil, server.errorf("%w: %w", ErrDatabase, err)
+		}
+	}
 
 	// Store given handlers.
-	// server.handlers[ln.Name()] = ln
+	server.handlers[ln.Name()] = ln
 
 	return server, nil
 }
@@ -265,25 +271,28 @@ func (ts *Server) init(opts ...Options) error {
 	ts.apply(opts...)
 
 	ts.initOnce.Do(func() {
+		if err = ts.initDatabase(); err != nil {
+			return
+		}
 		// Database configuration.
 		// At creation time, we ensured that server had
 		// a valid database configuration, but we might
-		// have been modified with options to Serve().
-		ts.opts.dbConfig, err = ts.getDatabaseConfig()
-		if err != nil {
-			err = ts.errorf("%w: %w", ErrDatabase, err)
-			return
-		}
-
-		// Connect to database if not connected already.
-		if ts.db == nil {
-			dbLogger := ts.NamedLogger("database", "database")
-			ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
-			if err != nil {
-				err = ts.errorf("%w: %w", ErrDatabase, err)
-				return
-			}
-		}
+		// // have been modified with options to Serve().
+		// ts.opts.dbConfig, err = ts.getDatabaseConfig()
+		// if err != nil {
+		// 	err = ts.errorf("%w: %w", ErrDatabase, err)
+		// 	return
+		// }
+		//
+		// // Connect to database if not connected already.
+		// if ts.db == nil {
+		// 	dbLogger := ts.NamedLogger("database", "database")
+		// 	ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
+		// 	if err != nil {
+		// 		err = ts.errorf("%w: %w", ErrDatabase, err)
+		// 		return
+		// 	}
+		// }
 
 		// Load any relevant server configuration: on disk,
 		// contained in options, or the default one.

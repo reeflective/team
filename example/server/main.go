@@ -25,6 +25,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	teamserver.GetUsers()
+
 	// TODO: write comments
 	client, dialer := grpc.DialerFrom(listener)
 

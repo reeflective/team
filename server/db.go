@@ -16,6 +16,29 @@ const (
 	maxOpenConns = 100
 )
 
+// initDatabase should be called once when a teamserver is created.
+func (ts *Server) initDatabase() (err error) {
+	ts.dbInitOnce.Do(func() {
+		dbLogger := ts.NamedLogger("database", "database")
+
+		if ts.db != nil {
+			return
+		}
+
+		ts.opts.dbConfig, err = ts.getDatabaseConfig()
+		if err != nil {
+			return
+		}
+
+		ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
+		if err != nil {
+			return
+		}
+	})
+
+	return nil
+}
+
 // GetDatabaseConfigPath - File path to config.json.
 func (ts *Server) dbConfigPath() string {
 	appDir := ts.AppDir()
@@ -65,6 +88,9 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 	log := ts.NamedLogger("config", "database")
 
 	config := ts.getDefaultDatabaseConfig()
+	if config.Database == ":memory:" {
+		return config, nil
+	}
 
 	configPath := ts.dbConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {

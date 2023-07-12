@@ -44,6 +44,10 @@ func (ts *Server) GetVersion() team.Version {
 
 // GetUsers returns the list of users in the teamserver database, and their information.
 func (ts *Server) GetUsers() ([]team.User, error) {
+	if err := ts.initDatabase(); err != nil {
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
 	usersDB := []*db.User{}
 	err := ts.db.Distinct("Name").Find(&usersDB).Error
 
@@ -65,6 +69,10 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 
 // NewUserConfig generates a new user client connection configuration.
 func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]byte, error) {
+	if err := ts.initDatabase(); err != nil {
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
 	if !namePattern.MatchString(userName) {
 		return nil, ts.errorf("%w: invalid user name (alphanumerics only)", ErrUserConfig)
 	}
@@ -119,6 +127,10 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 // DeleteUser deletes a user from the teamserver database, in fact forbidding
 // it to ever reconnect with the user's credentials (client configuration file).
 func (ts *Server) DeleteUser(name string) error {
+	if err := ts.initDatabase(); err != nil {
+		return ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
 	err := ts.db.Where(&db.User{
 		Name: name,
 	}).Delete(&db.User{}).Error
@@ -132,6 +144,10 @@ func (ts *Server) DeleteUser(name string) error {
 }
 
 func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized bool, err error) {
+	if err := ts.initDatabase(); err != nil {
+		return "", false, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
 	log := ts.NamedLogger("server", "auth")
 	log.Debugf("Authorization-checking user token ...")
 
@@ -158,12 +174,20 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 // GetUsersCA returns the bytes of a PEM-encoded certificate authority,
 // which may contain multiple teamserver users and their master.
 func (ts *Server) GetUsersCA() ([]byte, []byte, error) {
+	if err := ts.initDatabase(); err != nil {
+		return nil, nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
 	return ts.certs.GetUsersCAPEM()
 }
 
 // SaveUsersCA accepts the public and private parts of a Certificate
 // Authority containing one or more users to add to the teamserver.
 func (ts *Server) SaveUsersCA(cert, key []byte) {
+	if err := ts.initDatabase(); err != nil {
+		return
+	}
+
 	ts.certs.SaveUsersCA(cert, key)
 }
 
@@ -199,6 +223,10 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 // to specify any TLS parameters, we choose sensible defaults instead.
 func (ts *Server) GetUserTLSConfig() (*tls.Config, error) {
 	log := ts.NamedLogger("certs", "mtls")
+
+	if err := ts.initDatabase(); err != nil {
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
 
 	caCertPtr, _, err := ts.certs.GetUsersCA()
 	if err != nil {
