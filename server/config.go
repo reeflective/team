@@ -44,7 +44,14 @@ type Config struct {
 // GetServerConfigPath - File path to the server config.json file.
 func (ts *Server) ConfigPath() string {
 	appDir := ts.AppDir()
-	serverConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name(), configFileExt))
+	configDir := filepath.Join(appDir, "configs")
+
+	err := ts.fs.MkdirAll(configDir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s config dir: %s", configDir, err)
+	}
+
+	serverConfigPath := filepath.Join(configDir, fmt.Sprintf("%s.%s", ts.Name(), configFileExt))
 
 	return serverConfigPath
 }

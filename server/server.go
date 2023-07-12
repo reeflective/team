@@ -5,6 +5,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
+	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strings"
@@ -80,7 +82,9 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 	server.apply(options...)
 
 	// Filesystem
-	server.fs = assets.NewFileSystem(server.opts.inMemory)
+	user, _ := user.Current()
+	root := filepath.Join(user.HomeDir, "."+server.name)
+	server.fs = assets.NewFileSystem(root, server.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := server.initLogging(); err != nil {
@@ -304,7 +308,7 @@ func (ts *Server) init(opts ...Options) error {
 
 		// Certificate infrastructure, will make the code panic if unable to work properly.
 		certsLog := ts.NamedLogger("certs", "certificates")
-		ts.certs = certs.NewManager(ts.db.Session(&gorm.Session{}), certsLog, ts.Name(), ts.AppDir(), ts.opts.inMemory)
+		ts.certs = certs.NewManager(ts.fs, ts.db.Session(&gorm.Session{}), certsLog, ts.Name(), ts.AppDir())
 	})
 
 	return err

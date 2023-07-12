@@ -49,6 +49,13 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 			name = user.Username
 			filename = fmt.Sprintf("%s_%s_default", serv.Name(), user.Username)
 			saveTo = cli.ConfigsDir()
+
+			err = os.MkdirAll(saveTo, log.DirPerm)
+			if err != nil {
+				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"cannot write to %s root dir: %s", saveTo, err)
+				return
+			}
+
 		} else {
 			saveTo, _ = filepath.Abs(save)
 			userFile, err := os.Stat(saveTo)

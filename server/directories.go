@@ -13,6 +13,7 @@ import (
 
 const (
 	teamserverDir = "teamserver"
+	logsDir       = "logs"
 )
 
 // AppDir returns the directory of the team server app (named ~/.<application>-server),
@@ -22,22 +23,20 @@ func (ts *Server) AppDir() string {
 
 	var dir string
 
-	if len(value) == 0 {
-		user, _ := user.Current()
-		dir = filepath.Join(user.HomeDir, fmt.Sprintf(".%s", ts.name), teamserverDir)
-	} else {
-		dir = value
-	}
-
-	if ts.opts != nil && (ts.opts.noFiles || ts.opts.inMemory) {
-		return dir
-	}
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, log.DirPerm)
-		if err != nil {
-			ts.log().Errorf("Cannot write to %s root dir: %s", dir, err)
+	if !ts.opts.inMemory {
+		if len(value) == 0 {
+			user, _ := user.Current()
+			dir = filepath.Join(user.HomeDir, "."+ts.name, teamserverDir)
+		} else {
+			dir = value
 		}
+	} else {
+		dir = filepath.Join("."+ts.name, teamserverDir)
+	}
+
+	err := ts.fs.MkdirAll(dir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s root dir: %s", dir, err)
 	}
 
 	return dir
@@ -47,18 +46,11 @@ func (ts *Server) AppDir() string {
 // the directory if needed, or logging a fatal event if failing to create it.
 func (ts *Server) LogsDir() string {
 	rootDir := ts.AppDir()
+	logDir := path.Join(rootDir, logsDir)
 
-	logDir := path.Join(rootDir, "logs")
-
-	if ts.opts != nil && (ts.opts.noFiles || ts.opts.inMemory) {
-		return logDir
-	}
-
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		err = os.MkdirAll(logDir, log.DirPerm)
-		if err != nil {
-			ts.log().Errorf("Cannot write logs dir %s: %s", logDir, err)
-		}
+	err := ts.fs.MkdirAll(logDir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s root dir: %s", logDir, err)
 	}
 
 	return logDir

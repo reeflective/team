@@ -28,6 +28,7 @@ import (
 const (
 	// configsDirName - Directory name containing config files.
 	teamserverClientDir = "teamclient"
+	logsDirName         = "logs"
 	configsDirName      = "configs"
 	logFileExt          = "teamclient"
 )
@@ -49,7 +50,7 @@ func (tc *Client) AppDir() string {
 // LogsDir returns the directory of the client (~/.app/logs), creating
 // the directory if needed, or logging a fatal event if failing to create it.
 func (tc *Client) LogsDir() string {
-	logsDir := filepath.Join(tc.AppDir(), "logs")
+	logsDir := filepath.Join(tc.AppDir(), logsDirName)
 
 	err := tc.fs.MkdirAll(logsDir, log.DirPerm)
 	if err != nil {

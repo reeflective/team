@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os/user"
 	"path/filepath"
 	"sync"
 
@@ -67,7 +68,9 @@ func New(application string, teamclient team.Client, options ...Options) (*Clien
 	client.apply(options...)
 
 	// Filesystem
-	client.fs = assets.NewFileSystem(client.opts.inMemory)
+	user, _ := user.Current()
+	root := filepath.Join(user.HomeDir, "."+client.name)
+	client.fs = assets.NewFileSystem(root, client.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := client.initLogging(); err != nil {
