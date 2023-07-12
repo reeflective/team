@@ -18,6 +18,8 @@ package certs
 
 import (
 	"os"
+
+	"github.com/reeflective/team/internal/log"
 )
 
 const (
@@ -27,13 +29,16 @@ const (
 func (c *Manager) NewKeyLogger() *os.File {
 	keyFilePath, present := os.LookupEnv("SSLKEYLOGFILE")
 	if present {
-		keyFile, err := os.OpenFile(keyFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		keyFile, err := os.OpenFile(keyFilePath, log.FileWriteOpenMode, log.FileReadPerm)
 		if err != nil {
 			c.log.Errorf("Failed to open TLS key file %v", err)
 			return nil
 		}
+
 		c.log.Warnf("NOTICE: TLS Keys logged to '%s'\n", keyFilePath)
+
 		return keyFile
 	}
+
 	return nil
 }

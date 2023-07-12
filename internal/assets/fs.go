@@ -22,6 +22,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/psanford/memfs"
 )
@@ -39,12 +40,15 @@ const (
 // filesystem is initialized accordingly, otherwise it will forward
 // its calls to the on-disk filesystem.
 type FS struct {
-	mem *memfs.FS
+	mem  *memfs.FS
+	root string
 }
 
 // NewFileSystem returns a new filesystem configured to run on disk or in-memory.
-func NewFileSystem(inMemory bool) *FS {
-	filesystem := &FS{}
+func NewFileSystem(root string, inMemory bool) *FS {
+	filesystem := &FS{
+		root: root,
+	}
 
 	if inMemory {
 		filesystem.mem = memfs.New()
@@ -58,6 +62,8 @@ func (f *FS) MkdirAll(path string, perm fs.FileMode) error {
 		return os.MkdirAll(path, perm)
 	}
 
+	path = strings.TrimPrefix(path, f.root)
+
 	return f.mem.MkdirAll(path, perm)
 }
 
@@ -68,6 +74,8 @@ func (f *FS) Sub(path string) (fs fs.FS, err error) {
 		return os.DirFS(path), err
 	}
 
+	path = strings.TrimPrefix(path, f.root)
+
 	return f.mem.Sub(path)
 }
 
@@ -75,6 +83,8 @@ func (f *FS) Open(name string) (fs.File, error) {
 	if f.mem == nil {
 		return os.Open(name)
 	}
+
+	name = strings.TrimPrefix(name, f.root)
 
 	return f.mem.Open(name)
 }
@@ -105,7 +115,22 @@ func (f *FS) WriteFile(path string, data []byte, perm fs.FileMode) error {
 		return os.WriteFile(path, data, perm)
 	}
 
+	path = strings.TrimPrefix(path, f.root)
+
 	return f.mem.WriteFile(path, data, perm)
+}
+
+func (f *FS) ReadFile(path string) (b []byte, err error) {
+	if f.mem == nil {
+		return os.ReadFile(path)
+	}
+
+	_, err = f.mem.Open(path)
+	if err != nil {
+		return
+	}
+
+	return fs.ReadFile(f.mem, path)
 }
 
 // File wraps the *os.File type with some in-memory helpers,
