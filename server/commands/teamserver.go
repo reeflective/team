@@ -82,7 +82,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
 
 			if persistent {
-				serv.AddListener("", lhost, lport)
+				serv.AddListener(ltype, lhost, lport)
 			}
 		} else {
 			return fmt.Errorf(command.Warn+"Failed to start job %w", err)
@@ -226,6 +226,24 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 				ln.Description,
 				command.Green + command.Bold + "Up" + command.Normal,
 				persist,
+			})
+		}
+
+	next:
+		for _, saved := range cfg.Listeners {
+
+			for _, ln := range listeners {
+				if saved.ID == ln.ID {
+					continue next
+				}
+			}
+
+			tbl.AppendRow(table.Row{
+				formatSmallID(saved.ID),
+				saved.Name,
+				fmt.Sprintf("%s:%d", saved.Host, saved.Port),
+				command.Red + command.Bold + "Down" + command.Normal,
+				true,
 			})
 		}
 

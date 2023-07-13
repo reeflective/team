@@ -67,6 +67,7 @@ func userCompleter(client *client.Client, server *server.Server) carapace.Comple
 func listenerIDCompleter(client *client.Client, server *server.Server) carapace.CompletionCallback {
 	return func(c carapace.Context) carapace.Action {
 		listeners := server.Listeners()
+		cfg := server.GetConfig()
 
 		var results []string
 		for _, ln := range listeners {
@@ -74,11 +75,31 @@ func listenerIDCompleter(client *client.Client, server *server.Server) carapace.
 			results = append(results, fmt.Sprintf("[%s] (%s)", ln.Description, "Up"))
 		}
 
-		if len(results) == 0 {
-			return carapace.ActionMessage(fmt.Sprintf("no listeners running for %s teamserver", server.Name()))
+		var persistents []string
+	next:
+		for _, saved := range cfg.Listeners {
+
+			for _, ln := range listeners {
+				if saved.ID == ln.ID {
+					continue next
+				}
+			}
+
+			persistents = append(persistents, strings.TrimSpace(formatSmallID(saved.ID)))
+
+			host := fmt.Sprintf("%s:%d", saved.Host, saved.Port)
+			persistents = append(persistents, fmt.Sprintf("[%s] (%s)", host, "Up"))
 		}
 
-		return carapace.ActionValuesDescribed(results...).Tag(fmt.Sprintf("%s teamserver listeners", server.Name()))
+		if len(results) == 0 && len(persistents) == 0 {
+			return carapace.ActionMessage(fmt.Sprintf("no listeners running/saved for %s teamserver", server.Name()))
+		}
+
+		// return carapace.
+		return carapace.Batch(
+			carapace.ActionValuesDescribed(results...).Tag("active teamserver listeners"),
+			carapace.ActionValuesDescribed(persistents...).Tag("saved teamserver listeners"),
+		).ToA()
 	}
 }
 

@@ -72,6 +72,10 @@ func (ts *Server) AddListener(name, host string, port uint16) error {
 		ID:   getRandomID(),
 	}
 
+	if listener.Name == "" && ts.self != nil {
+		listener.Name = ts.self.Name()
+	}
+
 	ts.opts.config.Listeners = append(ts.opts.config.Listeners, listener)
 
 	return ts.SaveConfig(ts.opts.config)
