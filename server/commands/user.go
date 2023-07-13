@@ -55,7 +55,6 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"cannot write to %s root dir: %s", saveTo, err)
 				return
 			}
-
 		} else {
 			saveTo, _ = filepath.Abs(save)
 			userFile, err := os.Stat(saveTo)
@@ -141,9 +140,11 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		importCA := &CA{}
 		err = json.Unmarshal(data, importCA)
+
 		if err != nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to parse file: %s\n", err)
 		}
+
 		cert := []byte(importCA.Certificate)
 		key := []byte(importCA.PrivateKey)
 		serv.SaveUsersCA(cert, key)
@@ -186,17 +187,21 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		}
 
 		saveTo, _ := filepath.Abs(save)
-		fi, err := os.Stat(saveTo)
-		if !os.IsNotExist(err) && !fi.IsDir() {
+
+		caFile, err := os.Stat(saveTo)
+		if !os.IsNotExist(err) && !caFile.IsDir() {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"File already exists: %s\n", err)
 			return
 		}
-		if !os.IsNotExist(err) && fi.IsDir() {
-			filename := fmt.Sprintf("%s.ca", filepath.Base("user"))
+
+		if !os.IsNotExist(err) && caFile.IsDir() {
+			filename := fmt.Sprintf("%s-%s.teamserver.ca", serv.Name(), "users")
 			saveTo = filepath.Join(saveTo, filename)
 		}
+
 		data, _ := json.Marshal(exportedCA)
-		err = os.WriteFile(saveTo, data, 0o600)
+
+		err = os.WriteFile(saveTo, data, log.FileWritePerm)
 		if err != nil {
 			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Write failed: %s (%s)\n", saveTo, err)
 			return

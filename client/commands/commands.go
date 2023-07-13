@@ -117,8 +117,11 @@ func clientCommands(cli *client.Client) *cobra.Command {
 						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err.Error())
 						continue
 					}
+
 					if err = cli.SaveConfig(conf); err == nil {
 						fmt.Fprintln(cmd.OutOrStdout(), command.Info+"Saved new client config in ", cli.ConfigsDir())
+					} else {
+						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err.Error())
 					}
 				}
 			} else {

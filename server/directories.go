@@ -61,7 +61,7 @@ func (ts *Server) HomeDir() string {
 // TeamDir returns the directory of the team server app (named ~/.<app>/teamserver/),
 // creating the directory if needed, or logging a fatal event if failing to create it.
 func (ts *Server) TeamDir() string {
-	dir := path.Join(ts.HomeDir(), logsDir)
+	dir := path.Join(ts.HomeDir(), teamserverDir)
 
 	err := ts.fs.MkdirAll(dir, log.DirPerm)
 	if err != nil {
