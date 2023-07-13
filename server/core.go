@@ -138,7 +138,7 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 	}
 
 	usersDB := []*db.User{}
-	err := ts.db.Distinct("Name").Find(&usersDB).Error
+	err := ts.db.Find(&usersDB).Error
 
 	users := make([]team.User, len(usersDB))
 
@@ -146,9 +146,10 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 		return users, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
-	for i, user := range users {
+	for i, user := range usersDB {
 		users[i] = team.User{
-			Name: user.Name,
+			Name:     user.Name,
+			LastSeen: user.LastSeen,
 			// TODO: online && num clients.
 		}
 	}

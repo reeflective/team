@@ -181,11 +181,20 @@ func clientCommands(cli *client.Client) *cobra.Command {
 				lastSeen := user.LastSeen.Format(time.RFC1123)
 				if user.LastSeen.IsZero() {
 					lastSeen = ""
+				} else {
+					lastSeen = fmt.Sprintf("%s", time.Since(user.LastSeen).Round(1*time.Second))
+				}
+
+				var status string
+				if user.Online {
+					status = command.Bold + command.Green + "Online" + command.Normal
+				} else {
+					status = command.Bold + command.Red + "Offline" + command.Normal
 				}
 
 				tbl.AppendRow(table.Row{
 					user.Name,
-					user.Online,
+					status,
 					lastSeen,
 				})
 

@@ -117,8 +117,9 @@ func (h *handler) Users() (users []team.User, err error) {
 
 	for _, user := range res.GetUsers() {
 		users = append(users, team.User{
-			Name:   user.Name,
-			Online: user.Online,
+			Name:     user.Name,
+			Online:   user.Online,
+			LastSeen: time.Unix(user.LastSeen, 0),
 		})
 	}
 

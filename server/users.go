@@ -121,8 +121,9 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 
 	// This is now the last-time we've seen this user
 	// connected, since we have been asked to authenticate him.
-	user.LastSeen = time.Now().Unix()
-	err = ts.db.Save(user).Error
+	user.LastSeen = time.Now().Round(1 * time.Second)
+
+	err = ts.db.Model(&db.User{}).Where("name", user.Name).Update("LastSeen", user.LastSeen).Error
 	if err != nil {
 		return user.Name, true, ts.errorf("%w: %w", ErrDatabase, err)
 	}
