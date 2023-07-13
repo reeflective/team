@@ -186,3 +186,7 @@ func (tc *Client) Disconnect() error {
 
 	return err
 }
+
+func (tc *Client) Filesystem() *assets.FS {
+	return tc.fs
+}

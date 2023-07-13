@@ -9,15 +9,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/transport"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	configFileExt = "teamserver.json"
-	blankHost     = "-"
-	blankPort     = uint16(0)
+	blankHost = "-"
+	blankPort = uint16(0)
 )
 
 type Config struct {
@@ -51,7 +51,7 @@ func (ts *Server) ConfigPath() string {
 		ts.log().Errorf("cannot write to %s config dir: %s", configDir, err)
 	}
 
-	serverConfigPath := filepath.Join(configDir, fmt.Sprintf("%s.%s", ts.Name(), configFileExt))
+	serverConfigPath := filepath.Join(configDir, fmt.Sprintf("%s.%s", ts.Name(), command.ServerConfigExt))
 
 	return serverConfigPath
 }

@@ -30,37 +30,66 @@ type Handler[server any] interface {
 	Close() error
 }
 
-// Handlers returns a copy of its teamserver handlers map.
-func (ts *Server) Handlers() map[string]Handler[any] {
-	handlers := make(map[string]Handler[any], len(ts.handlers))
+func (ts *Server) ServeHandler(handler Handler[any], lnID, host string, port uint16, options ...Options) error {
+	log := ts.NamedLogger("teamserver", "handler")
 
-	for name, handler := range ts.handlers {
-		handlers[name] = handler
+	// If server was not initialized yet, do it.
+	err := ts.init(options...)
+	if err != nil {
+		return ts.errorf("%w: %w", ErrTeamServer, err)
 	}
 
-	return handlers
-}
-
-func (ts *Server) ServeLocal(cli *client.Client, opts ...Options) error {
-	host := cli.Config().Host
-	port := uint16(cli.Config().Port)
-
-	// Some errors might come from user-provided hooks,
-	// so we don't wrap errors again, our own errors
-	// have been prepared accordingly in this call.
-	err := ts.ServeHandler(ts.self, "", host, port, opts...)
+	// Let the handler initialize itself: load everything it needs from
+	// the server, configuration, fetch certificates, log stuff, etc.
+	err = handler.Init(ts)
 	if err != nil {
-		return err
+		return ts.errorWith(log, "%w: %w", ErrListener, err)
 	}
 
-	// Attempt to connect with the user configuration.
-	// Log the error by default, the client might not.
-	err = cli.Connect(client.WithLocalDialer())
+	// Now let the handler start listening on somewhere.
+	laddr := fmt.Sprintf("%s:%d", host, port)
+
+	listener, err := handler.Listen(laddr)
 	if err != nil {
-		return ts.errorf(err.Error())
+		return ts.errorWith(log, "%s: %w", ErrListener, err)
+	}
+
+	// The previous is not blocking, serve the listener immediately.
+	serverConn, err := handler.Serve(listener)
+	if err != nil {
+		return ts.errorWith(log, "%w: %w", ErrListener, err)
+	}
+
+	// The server is running, so add a job anyway.
+	ts.addListenerJob(lnID, host, int(port), handler)
+
+	// Run provided server hooks on the server interface.
+	// Any error arising from this is returned as is, for
+	// users can directly compare it with their own errors.
+	for _, hook := range ts.opts.hooks[handler.Name()] {
+		if err := hook(serverConn); err != nil {
+			return ts.errorWith(log, "%w: %w", ErrTeamServer, err)
+		}
 	}
 
 	return nil
+}
+
+func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jobID string, err error) {
+	handler := ts.handlers[name]
+
+	// The default handler can never be nil, as even the
+	// default one is a pure fake in-memory teamclient.
+	if handler == nil {
+		handler = ts.self
+	}
+
+	// Generate the listener ID now so we can return it.
+	listenerID := getRandomID()
+
+	err = ts.ServeHandler(handler, listenerID, host, port, opts...)
+
+	return listenerID, err
 }
 
 // ServeDaemon is a blocking call which starts the server as daemon process, using
@@ -121,66 +150,46 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	return nil
 }
 
-func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jobID string, err error) {
-	handler := ts.handlers[name]
-
-	// The default handler can never be nil, as even the
-	// default one is a pure fake in-memory teamclient.
-	if handler == nil {
-		handler = ts.self
-	}
-
-	// Generate the listener ID now so we can return it.
-	listenerID := getRandomID()
-
-	err = ts.ServeHandler(handler, listenerID, host, port, opts...)
-
-	return listenerID, err
-}
-
-func (ts *Server) ServeHandler(handler Handler[any], lnID, host string, port uint16, options ...Options) error {
-	log := ts.NamedLogger("teamserver", "handler")
-
-	// If server was not initialized yet, do it.
-	err := ts.init(options...)
-	if err != nil {
-		return ts.errorf("%w: %w", ErrTeamServer, err)
-	}
-
-	// Let the handler initialize itself: load everything it needs from
-	// the server, configuration, fetch certificates, log stuff, etc.
-	err = handler.Init(ts)
-	if err != nil {
-		return ts.errorWith(log, "%w: %w", ErrListener, err)
-	}
+func (ts *Server) Serve(cli *client.Client, opts ...Options) error {
+	host := cli.Config().Host
+	port := uint16(cli.Config().Port)
 
 	// Now let the handler start listening on somewhere.
-	laddr := fmt.Sprintf("%s:%d", host, port)
-
-	listener, err := handler.Listen(laddr)
-	if err != nil {
-		return ts.errorWith(log, "%s: %w", ErrListener, err)
+	laddr := host
+	if port != 0 {
+		laddr = fmt.Sprintf("%s:%d", laddr, port)
 	}
 
-	// The previous is not blocking, serve the listener immediately.
-	serverConn, err := handler.Serve(listener)
+	if laddr == "" {
+		laddr = "runtime"
+	}
+	// Some errors might come from user-provided hooks,
+	// so we don't wrap errors again, our own errors
+	// have been prepared accordingly in this call.
+	err := ts.ServeHandler(ts.self, "", host, port, opts...)
 	if err != nil {
-		return ts.errorWith(log, "%w: %w", ErrListener, err)
+		return err
 	}
 
-	// The server is running, so add a job anyway.
-	ts.addListenerJob(lnID, host, int(port), handler)
-
-	// Run provided server hooks on the server interface.
-	// Any error arising from this is returned as is, for
-	// users can directly compare it with their own errors.
-	for _, hook := range ts.opts.hooks[handler.Name()] {
-		if err := hook(serverConn); err != nil {
-			return ts.errorWith(log, "%w: %w", ErrTeamServer, err)
-		}
+	// Attempt to connect with the user configuration.
+	// Log the error by default, the client might not.
+	err = cli.Connect(client.WithLocalDialer())
+	if err != nil {
+		return ts.errorf(err.Error())
 	}
 
 	return nil
+}
+
+// Handlers returns a copy of its teamserver handlers map.
+func (ts *Server) Handlers() map[string]Handler[any] {
+	handlers := make(map[string]Handler[any], len(ts.handlers))
+
+	for name, handler := range ts.handlers {
+		handlers[name] = handler
+	}
+
+	return handlers
 }
 
 // Close gracefully stops all components of the server,

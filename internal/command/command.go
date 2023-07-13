@@ -12,6 +12,11 @@ type (
 )
 
 const (
+	ClientConfigExt = "teamclient.cfg"
+	ServerConfigExt = "teamserver.json"
+)
+
+const (
 	TeamServerGroup     = "teamserver control" // TeamServerGroup is the group of all server/client control commands.
 	UserManagementGroup = "user management"    // UserManagementGroup is the group to manage teamserver users.
 )

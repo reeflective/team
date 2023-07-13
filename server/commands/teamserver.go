@@ -20,12 +20,16 @@ package commands
 
 import (
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/systemd"
 	"github.com/reeflective/team/server"
 	"github.com/sirupsen/logrus"
@@ -207,11 +211,34 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 			}
 		}
 
-		// General options, available listeners, etc
+		// General options, in-memory, default port, config path, database, etc
 		fmt.Fprintln(cmd.OutOrStdout(), formatSection("General"))
+		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Home"), serv.HomeDir())
+		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Default port"))
+		fmt.Fprintf(cmd.OutOrStdout(), fmtField("In-memory"))
+		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Database"))
+		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Config"))
 
 		// Logging files/level/status
+		fakeLog := serv.NamedLogger("", "")
+
 		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Logging"))
+		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Level"), fakeLog.Level.String())
+		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Root"), log.FileName(filepath.Join(serv.LogsDir(), serv.Name()), true))
+		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Audit"), filepath.Join(serv.LogsDir(), "audit.json"))
+
+		// Certificate files.
+		certsPath := serv.CertificatesDir()
+		if dir, err := os.Stat(certsPath); err == nil && dir.IsDir() {
+			files, err := fs.ReadDir(os.DirFS(certsPath), ".")
+			if err == nil || len(files) > 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), formatSection("Certificate files"))
+
+				for _, file := range files {
+					fmt.Fprintln(cmd.OutOrStdout(), filepath.Join(certsPath, file.Name()))
+				}
+			}
+		}
 
 		// Listeners (excluding in-memory ones, BUT INCLUDING PERSISTENT NON-RUNNING ONES)
 		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Listeners"))
@@ -230,19 +257,19 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 			"Persistent",
 		})
 
-		for _, ln := range listeners {
+		for _, listener := range listeners {
 			persist := false
 
 			for _, saved := range cfg.Listeners {
-				if saved.ID == ln.ID {
+				if saved.ID == listener.ID {
 					persist = true
 				}
 			}
 
 			tbl.AppendRow(table.Row{
-				formatSmallID(ln.ID),
-				ln.Name,
-				ln.Description,
+				formatSmallID(listener.ID),
+				listener.Name,
+				listener.Description,
 				command.Green + command.Bold + "Up" + command.Normal,
 				persist,
 			})
@@ -270,6 +297,10 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 			fmt.Fprintln(cmd.OutOrStdout(), tbl.Render())
 		}
 	}
+}
+
+func fmtField(name string) string {
+	return command.Blue + command.Bold + name + command.Normal + ": %s\n"
 }
 
 func callerArgs(cmd *cobra.Command) []string {

@@ -151,5 +151,6 @@ func FileName(name string, server bool) string {
 	if server {
 		return fmt.Sprintf("%s.%s", name, ServerLogFileExt)
 	}
+
 	return fmt.Sprintf("%s.%s", name, ClientLogFileExt)
 }

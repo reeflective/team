@@ -165,10 +165,19 @@ func (ts *Server) addListenerJob(listenerID, host string, port int, ln Handler[a
 		listenerID = getRandomID()
 	}
 
+	laddr := host
+	if port != 0 {
+		laddr = fmt.Sprintf("%s:%d", laddr, port)
+	}
+
+	if laddr == "" {
+		laddr = "runtime"
+	}
+
 	listener := &job{
 		ID:          listenerID,
 		Name:        ln.Name(),
-		Description: fmt.Sprintf("%s:%d", host, port),
+		Description: laddr,
 		kill:        make(chan bool),
 	}
 

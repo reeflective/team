@@ -140,8 +140,8 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	iComps := carapace.Gen(importCmd)
 	iComps.PositionalCompletion(
 		carapace.Batch(
-			carapace.ActionCallback(ConfigsCompleter(cli, "teamclient/configs", ".teamclient", "other teamserver apps", true)),
-			carapace.ActionFiles().Tag("server configuration"),
+			carapace.ActionCallback(ConfigsCompleter(cli, "teamclient/configs", ".teamclient.cfg", "other teamserver apps", true)),
+			carapace.ActionFiles().Tag("server configuration").StyleF(getConfigStyle(".teamclient.cfg")),
 		).ToA(),
 	)
 
@@ -220,6 +220,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool) carapace.CompletionCallback {
 	return func(ctx carapace.Context) carapace.Action {
 		var compErrors []carapace.Action
+
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			compErrors = append(compErrors, carapace.ActionMessage("failed to get user home dir: %s", err))
@@ -236,9 +237,11 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool
 			if !strings.HasPrefix(dir.Name(), ".") {
 				continue
 			}
+
 			if !dir.IsDir() {
 				continue
 			}
+
 			if strings.TrimPrefix(dir.Name(), ".") != cli.Name() {
 				continue
 			}
@@ -273,14 +276,18 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool
 			}
 		}
 
-		configsAction := carapace.ActionValuesDescribed(results...).StyleF(func(s string, sc style.Context) string {
-			if strings.HasSuffix(s, ext) {
-				return style.Red
-			}
-			return s
-		})
+		configsAction := carapace.ActionValuesDescribed(results...).StyleF(getConfigStyle(ext))
 
 		return configsAction.Tag(tag)
+	}
+}
+
+func getConfigStyle(ext string) func(s string, sc style.Context) string {
+	return func(s string, sc style.Context) string {
+		if strings.HasSuffix(s, ext) {
+			return style.Red
+		}
+		return s
 	}
 }
 

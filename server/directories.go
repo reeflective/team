@@ -32,6 +32,7 @@ import (
 const (
 	teamserverDir = "teamserver"
 	logsDir       = "logs"
+	certsDir      = "certs"
 )
 
 func (ts *Server) HomeDir() string {
@@ -82,6 +83,17 @@ func (ts *Server) LogsDir() string {
 	}
 
 	return logDir
+}
+
+func (ts *Server) CertificatesDir() string {
+	certDir := path.Join(ts.TeamDir(), certsDir)
+
+	err := ts.fs.MkdirAll(certDir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s root dir: %s", certDir, err)
+	}
+
+	return certDir
 }
 
 // When creating a new server, don't write anything to anywhere yet,

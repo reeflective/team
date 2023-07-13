@@ -38,7 +38,7 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 		teamserver.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
 
 		// And connect the client locally, only needed.
-		return teamserver.ServeLocal(teamclient)
+		return teamserver.Serve(teamclient)
 	}
 
 	// Server-only commands always need to have open log
@@ -74,7 +74,7 @@ func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraR
 		// TODO: use the client pre-runners ?
 
 		// And connect the client locally, only needed.
-		return teamserver.ServeLocal(teamclient)
+		return teamserver.Serve(teamclient)
 	}
 }
 

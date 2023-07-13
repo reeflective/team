@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/log"
 )
@@ -43,7 +44,7 @@ func (ts *Server) initDatabase() (err error) {
 func (ts *Server) dbConfigPath() string {
 	appDir := ts.TeamDir()
 	log := ts.NamedLogger("config", "database")
-	databaseConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name()+"_database", configFileExt))
+	databaseConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name()+"_database", command.ServerConfigExt))
 	log.Debugf("Loading config from %s", databaseConfigPath)
 
 	return databaseConfigPath

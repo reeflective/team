@@ -159,3 +159,7 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 
 	return users, nil
 }
+
+func (ts *Server) Filesystem() *assets.FS {
+	return ts.fs
+}
