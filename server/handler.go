@@ -163,17 +163,20 @@ func (ts *Server) Serve(cli *client.Client, opts ...Options) error {
 	if laddr == "" {
 		laddr = "runtime"
 	}
-	// Some errors might come from user-provided hooks,
-	// so we don't wrap errors again, our own errors
-	// have been prepared accordingly in this call.
-	err := ts.ServeHandler(ts.self, "", host, port, opts...)
-	if err != nil {
-		return err
+
+	if ts.self != nil {
+		// Some errors might come from user-provided hooks,
+		// so we don't wrap errors again, our own errors
+		// have been prepared accordingly in this call.
+		err := ts.ServeHandler(ts.self, "", host, port, opts...)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Attempt to connect with the user configuration.
 	// Log the error by default, the client might not.
-	err = cli.Connect(client.WithLocalDialer())
+	err := cli.Connect(client.WithLocalDialer())
 	if err != nil {
 		return ts.errorf(err.Error())
 	}

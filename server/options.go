@@ -17,10 +17,11 @@ type opts[server any] struct {
 	inMemory        bool
 	continueOnError bool
 
-	config   *Config
-	dbConfig *db.Config
-	db       *gorm.DB
-	logger   *logrus.Logger
+	config    *Config
+	dbConfig  *db.Config
+	db        *gorm.DB
+	logger    *logrus.Logger
+	listeners []Handler[server]
 
 	hooks map[string][]func(serv server) error
 }
@@ -44,16 +45,23 @@ func (ts *Server) apply(options ...Options) {
 	if ts.opts.db != nil {
 		ts.db = ts.opts.db
 	}
+
+	// Load any listener backends.
+	for _, listener := range ts.opts.listeners {
+		ts.handlers[listener.Name()] = listener
+	}
+
+	// Make the first one as the default if needed.
+	if len(ts.opts.listeners) > 0 && ts.self == nil {
+		ts.self = ts.opts.listeners[0]
+	}
+
+	ts.opts.listeners = make([]Handler[any], 0)
 }
 
-// WithDefaultPort sets the default port on which the teamserver should start listeners.
-// This default is used in the default daemon configuration, and as command flags defaults.
-// The default port set for teamserver applications is port 31416.
-func WithDefaultPort(port uint16) Options {
-	return func(opts *opts[any]) {
-		opts.config.DaemonMode.Port = int(port)
-	}
-}
+//
+// *** General options ***
+//
 
 // WithInMemory deactivates all interactions of the client with the filesystem.
 // This applies to logging, but will also to any forward feature using files.
@@ -71,6 +79,23 @@ func WithInMemory() Options {
 	}
 }
 
+// WithDefaultPort sets the default port on which the teamserver should start listeners.
+// This default is used in the default daemon configuration, and as command flags defaults.
+// The default port set for teamserver applications is port 31416.
+func WithDefaultPort(port uint16) Options {
+	return func(opts *opts[any]) {
+		opts.config.DaemonMode.Port = int(port)
+	}
+}
+
+// WithDatabase sets the server database to an existing database.
+// Note that it will run an automigration of the teamserver types (certificates and users).
+func WithDatabase(db *gorm.DB) Options {
+	return func(opts *opts[any]) {
+		opts.db = db
+	}
+}
+
 // WithNoFiles deactivates all interactions between the teamserver and
 // the OS filesystem: no database is created, no log files written.
 // Using this option with noFiles set to true will in effect disable
@@ -84,6 +109,10 @@ func WithNoFiles(noFiles bool) Options {
 		opts.noFiles = noFiles
 	}
 }
+
+//
+// *** Logging options ***
+//
 
 // WithNoLogs deactivates all logging normally done by the teamserver
 // if noLogs is set to true, or keeps/reestablishes them if false.
@@ -115,22 +144,13 @@ func WithDatabaseConfig(config *db.Config) Options {
 	}
 }
 
-// WithDatabase sets the server database to an existing database.
-// Note that it will run an automigration of the teamserver types (certificates and users).
-func WithDatabase(db *gorm.DB) Options {
-	return func(opts *opts[any]) {
-		opts.db = db
-	}
-}
+//
+// *** Server network/RPC options ***
+//
 
-// WithPreServeHooks is used to register additional steps to the teamserver "before" serving
-// its gRPC server connection and services. While this is not needed when your code path allows
-// you to further manipulate the server connection after start, it is useful for persistent jobs
-// that restarted on server start: in order to bind your application functionality to them, you
-// need to use register hooks here.
-func WithPreServeHooks(handlerName string, hooks ...func(server any) error) Options {
+func WithListener(ln Handler[any]) Options {
 	return func(opts *opts[any]) {
-		opts.hooks[handlerName] = append(opts.hooks[handlerName], hooks...)
+		opts.listeners = append(opts.listeners, ln)
 	}
 }
 
@@ -154,3 +174,14 @@ func WithContinueOnError(continueOnError bool) Options {
 // 		opts.userDefault = true
 // 	}
 // }
+
+// WithPreServeHooks is used to register additional steps to the teamserver "before" serving
+// its gRPC server connection and services. While this is not needed when your code path allows
+// you to further manipulate the server connection after start, it is useful for persistent jobs
+// that restarted on server start: in order to bind your application functionality to them, you
+// need to use register hooks here.
+func WithPreServeHooks(handlerName string, hooks ...func(server any) error) Options {
+	return func(opts *opts[any]) {
+		opts.hooks[handlerName] = append(opts.hooks[handlerName], hooks...)
+	}
+}

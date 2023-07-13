@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/reeflective/team"
-	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/server"
+	teamclient "github.com/reeflective/team/client"
+	teamserver "github.com/reeflective/team/server"
 	clientConn "github.com/reeflective/team/transports/grpc/client"
 	"github.com/reeflective/team/transports/grpc/proto"
 	"google.golang.org/grpc"
@@ -28,15 +28,15 @@ const (
 )
 
 type handler struct {
-	*server.Server
-	sconfig *server.Config
+	*teamserver.Server
+	sconfig *teamserver.Config
 
 	options []grpc.ServerOption
 	conn    *bufconn.Listener
 	mutex   *sync.RWMutex
 }
 
-func NewTeamServer(opts ...grpc.ServerOption) *handler {
+func NewTeam(opts ...grpc.ServerOption) (teamserver.Handler[any], team.Client, teamclient.Dialer[any]) {
 	listener := &handler{
 		mutex: &sync.RWMutex{},
 	}
@@ -47,11 +47,13 @@ func NewTeamServer(opts ...grpc.ServerOption) *handler {
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
 	)
 
-	return listener
+	client, dialer := NewTeamClientFrom(listener)
+
+	return listener, client, dialer
 }
 
-// DialerFrom generates an in-memory, unauthenticated client dialer and server.
-func DialerFrom(server *handler) (teamclient team.Client, dialer client.Dialer[any]) {
+// NewTeamClientFrom generates an in-memory, unauthenticated client dialer and server.
+func NewTeamClientFrom(server *handler) (client team.Client, dialer teamclient.Dialer[any]) {
 	conn := bufconn.Listen(bufSize)
 
 	ctxDialer := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
@@ -71,15 +73,6 @@ func DialerFrom(server *handler) (teamclient team.Client, dialer client.Dialer[a
 	return clientConn.NewTeamClient(dialOpts...)
 }
 
-// TeamClientFrom builds a complete teamclient from a server.
-// It first generates the dialer and the teamclient with DialerFrom(server),
-// then directly creates a new teamclient from the team/client package.
-func TeamClientFrom(server *handler) (*client.Client, error) {
-	teamclient, dialer := DialerFrom(server)
-
-	return client.New(server.Name(), teamclient, client.WithDialer(dialer))
-}
-
 // Name immplements server.Handler.Name(), and indicates the transport/rpc stack.
 func (h *handler) Name() string {
 	return "gRPC"
@@ -88,7 +81,7 @@ func (h *handler) Name() string {
 // Init implements server.Handler.Init(), and is used to initialize
 // the server handler. Logging, connection options, anything can be
 // done as long as it's for ensuring that the rest will work.
-func (h *handler) Init(serv *server.Server) (err error) {
+func (h *handler) Init(serv *teamserver.Server) (err error) {
 	h.Server = serv
 	h.sconfig = h.Server.GetConfig()
 
@@ -130,6 +123,7 @@ func (h *handler) Serve(listener net.Listener) (any, error) {
 	rpcLog := h.NamedLogger("transport", "grpc")
 
 	// Encryption.
+	h.mutex.Lock()
 	if h.conn == nil {
 		rpcLog.Infof("Serving gRPC teamserver on %s", listener.Addr())
 
@@ -141,14 +135,17 @@ func (h *handler) Serve(listener net.Listener) (any, error) {
 		creds := credentials.NewTLS(tlsConfig)
 		h.options = append(h.options, grpc.Creds(creds))
 	}
+	h.mutex.Unlock()
 
 	grpcServer := grpc.NewServer(h.options...)
 
 	// If we already have an in-memory listener, use it.
+	h.mutex.Lock()
 	if h.conn != nil {
 		listener = h.conn
 		h.conn = nil
 	}
+	h.mutex.Unlock()
 
 	// Start serving the listener
 	go func() {

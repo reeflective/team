@@ -89,7 +89,7 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 	log := ts.NamedLogger("config", "database")
 
 	config := ts.getDefaultDatabaseConfig()
-	if config.Database == ":memory:" {
+	if config.Database == db.SQLiteInMemoryHost {
 		return config, nil
 	}
 
@@ -136,7 +136,7 @@ func (ts *Server) getDefaultDatabaseConfig() *db.Config {
 	}
 
 	if ts.opts.inMemory {
-		cfg.Database = ":memory:"
+		cfg.Database = db.SQLiteInMemoryHost
 	} else {
 		cfg.Database = filepath.Join(ts.TeamDir(), fmt.Sprintf("%s.teamserver.db", ts.name))
 	}

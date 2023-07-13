@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/reeflective/team"
+	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
@@ -65,12 +66,11 @@ type Server struct {
 //
 // This call to create the server only creates the application default directory.
 // No files, logs, connections or any interaction with the os/filesystem are made.
-func New(application string, ln Handler[any], options ...Options) (*Server, error) {
+func New(application string, options ...Options) (*Server, error) {
 	server := &Server{
 		name:       application,
 		rootDirEnv: fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
 		opts:       newDefaultOpts(),
-		self:       ln,
 
 		userTokens: &sync.Map{},
 		initOnce:   &sync.Once{},
@@ -93,14 +93,16 @@ func New(application string, ln Handler[any], options ...Options) (*Server, erro
 	// Ensure we have a working database configuration,
 	// and at least an in-memory sqlite database.
 	server.opts.dbConfig = server.getDefaultDatabaseConfig()
-	if server.opts.dbConfig.Database == ":memory:" && server.db == nil {
+	if server.opts.dbConfig.Database == db.SQLiteInMemoryHost && server.db == nil {
 		if err := server.initDatabase(); err != nil {
 			return nil, server.errorf("%w: %w", ErrDatabase, err)
 		}
 	}
 
+	// Default listener.
+
 	// Store given handlers.
-	server.handlers[ln.Name()] = ln
+	// server.handlers[listener.Name()] = listener
 
 	return server, nil
 }
@@ -113,8 +115,8 @@ func (ts *Server) Name() string {
 	return ts.name
 }
 
-// GetVersion returns the server binary version information.
-func (ts *Server) GetVersion() team.Version {
+// Version returns the server binary version information.
+func (ts *Server) Version() (team.Version, error) {
 	dirty := version.GitDirty != ""
 	semVer := version.Semantic()
 	compiled, _ := version.Compiled()
@@ -128,11 +130,11 @@ func (ts *Server) GetVersion() team.Version {
 		CompiledAt: compiled.Unix(),
 		OS:         runtime.GOOS,
 		Arch:       runtime.GOARCH,
-	}
+	}, nil
 }
 
-// GetUsers returns the list of users in the teamserver database, and their information.
-func (ts *Server) GetUsers() ([]team.User, error) {
+// Users returns the list of users in the teamserver database, and their information.
+func (ts *Server) Users() ([]team.User, error) {
 	if err := ts.initDatabase(); err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -162,4 +164,10 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 
 func (ts *Server) Filesystem() *assets.FS {
 	return ts.fs
+}
+
+func (ts *Server) Self(opts ...client.Options) *client.Client {
+	teamclient, _ := client.New(ts.Name(), ts, opts...)
+
+	return teamclient
 }

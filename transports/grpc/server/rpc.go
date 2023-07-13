@@ -23,7 +23,7 @@ func newServer(server *server.Server) *rpcServer {
 
 // GetVersion returns the teamserver version.
 func (ts *rpcServer) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
-	ver := ts.server.GetVersion()
+	ver, err := ts.server.Version()
 
 	return &proto.Version{
 		Major:      ver.Major,
@@ -34,12 +34,12 @@ func (ts *rpcServer) GetVersion(context.Context, *proto.Empty) (*proto.Version, 
 		CompiledAt: ver.CompiledAt,
 		OS:         ver.OS,
 		Arch:       ver.Arch,
-	}, nil
+	}, err
 }
 
 // GetUsers returns the list of teamserver users and their status.
 func (ts *rpcServer) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
-	users, err := ts.server.GetUsers()
+	users, err := ts.server.Users()
 
 	userspb := make([]*proto.User, len(users))
 	for i, user := range users {
