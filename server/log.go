@@ -30,9 +30,12 @@ func (ts *Server) SetLogLevel(level int) {
 
 	ts.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
 
-	// if ts.fileLogger != nil {
-	// 	ts.fileLogger.SetLevel(logrus.Level(uint32(level)))
-	// }
+	// Also Change the file-based logging level:
+	// - If they app runs a memfs, this wont have any effect.
+	// - If the user wants to debug anyway, better two sources than one.
+	if ts.fileLogger != nil {
+		ts.fileLogger.SetLevel(logrus.Level(uint32(level)))
+	}
 }
 
 // WithLoggerStdout sets the source to which the stdout logger (not any file logger) should write to.
