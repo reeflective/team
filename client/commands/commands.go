@@ -78,7 +78,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 			// Server
 			serverVer, err := cli.ServerVersion()
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Server error: %s\n", err)
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Server error: %s\n", err)
 			}
 
 			dirty := ""
@@ -112,20 +112,20 @@ func clientCommands(cli *client.Client) *cobra.Command {
 				for _, arg := range args {
 					conf, err := cli.ReadConfig(arg)
 					if jsonErr, ok := err.(*json.SyntaxError); ok {
-						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", jsonErr.Error())
+						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", jsonErr.Error())
 					} else if err != nil {
-						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err.Error())
+						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err.Error())
 						continue
 					}
 
 					if err = cli.SaveConfig(conf); err == nil {
 						fmt.Fprintln(cmd.OutOrStdout(), command.Info+"Saved new client config in ", cli.ConfigsDir())
 					} else {
-						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err.Error())
+						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err.Error())
 					}
 				}
 			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "Missing config file path, see --help")
+				fmt.Fprintln(cmd.OutOrStdout(), "Missing config file path, see --help")
 			}
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -165,7 +165,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 			// Server
 			users, err := cli.Users()
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Server error: %s\n", err)
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Server error: %s\n", err)
 			}
 
 			tbl := &table.Table{}

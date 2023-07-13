@@ -154,8 +154,10 @@ func (ts *Server) ServeHandler(handler Handler[any], lnID, host string, port uin
 		return ts.errorWith(log, "%w: %w", ErrListener, err)
 	}
 
-	// Now let the handler start listening a network interface.
-	listener, err := handler.Listen(fmt.Sprintf("%s:%d", host, port))
+	// Now let the handler start listening on somewhere.
+	laddr := fmt.Sprintf("%s:%d", host, port)
+
+	listener, err := handler.Listen(laddr)
 	if err != nil {
 		return ts.errorWith(log, "%s: %w", ErrListener, err)
 	}

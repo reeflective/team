@@ -101,12 +101,15 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 			}
 		}
 
+		listeners := serv.Listeners()
+		cfg := serv.GetConfig()
+
 		for _, arg := range args {
 			if arg == "" {
 				continue
 			}
 
-			for _, ln := range serv.Listeners() {
+			for _, ln := range listeners {
 				if strings.HasPrefix(ln.ID, arg) {
 					err := serv.CloseListener(arg)
 					if err != nil {
@@ -114,6 +117,22 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 					} else {
 						fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Closed %s listener (%s) [%s]", ln.Name, formatSmallID(ln.ID), ln.Description)
 					}
+				}
+			}
+		}
+
+		for _, arg := range args {
+			if arg == "" {
+				continue
+			}
+
+			for _, saved := range cfg.Listeners {
+				if strings.HasPrefix(saved.ID, arg) {
+					serv.RemoveListener(saved.ID)
+					id := formatSmallID(saved.ID)
+					fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Deleted %s listener (%s) from saved jobs\n", saved.Name, id)
+
+					continue
 				}
 			}
 		}

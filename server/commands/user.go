@@ -42,7 +42,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		if system {
 			user, err := user.Current()
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to get current OS user: %s\n", err)
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to get current OS user: %s\n", err)
 				return
 			}
 
@@ -52,14 +52,14 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 			err = os.MkdirAll(saveTo, log.DirPerm)
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"cannot write to %s root dir: %s", saveTo, err)
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"cannot write to %s root dir: %s\n", saveTo, err)
 				return
 			}
 		} else {
 			saveTo, _ = filepath.Abs(save)
 			userFile, err := os.Stat(saveTo)
 			if !os.IsNotExist(err) && !userFile.IsDir() {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"File already exists %s\n", err)
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"File already exists %s\n", err)
 				return
 			}
 
@@ -72,7 +72,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		configJSON, err := serv.NewUserConfig(name, lhost, lport)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err)
 			return
 		}
 
@@ -80,7 +80,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		err = ioutil.WriteFile(saveTo, configJSON, log.FileReadPerm)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to write config to %s: %s\n", saveTo, err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to write config to %s: %s\n", saveTo, err)
 			return
 		}
 
@@ -103,7 +103,7 @@ func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		err := serv.DeleteUser(user)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to remove the user certificate: %v \n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to remove the user certificate: %v\n", err)
 			return
 		}
 
@@ -124,12 +124,12 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		fi, err := os.Stat(load)
 		if os.IsNotExist(err) || fi.IsDir() {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Cannot load file %s\n", load)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Cannot load file %s\n", load)
 		}
 
 		data, err := os.ReadFile(load)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Cannot read file: %v\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Cannot read file: %v\n", err)
 		}
 
 		// CA - Exported CA format
@@ -142,7 +142,7 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		err = json.Unmarshal(data, importCA)
 
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to parse file: %s\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to parse file: %s\n", err)
 		}
 
 		cert := []byte(importCA.Certificate)
@@ -171,7 +171,7 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		certificateData, privateKeyData, err := serv.GetUsersCA()
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Error reading CA %s\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Error reading CA %s\n", err)
 			return
 		}
 
@@ -190,7 +190,7 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		caFile, err := os.Stat(saveTo)
 		if !os.IsNotExist(err) && !caFile.IsDir() {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"File already exists: %s\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"File already exists: %s\n", err)
 			return
 		}
 
@@ -203,7 +203,7 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		err = os.WriteFile(saveTo, data, log.FileWritePerm)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Write failed: %s (%s)\n", saveTo, err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Write failed: %s (%s)\n", saveTo, err)
 			return
 		}
 	}
