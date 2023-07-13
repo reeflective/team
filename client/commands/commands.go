@@ -179,9 +179,8 @@ func clientCommands(cli *client.Client) *cobra.Command {
 
 			for _, user := range users {
 				lastSeen := user.LastSeen.Format(time.RFC1123)
-				if user.LastSeen.IsZero() {
-					lastSeen = ""
-				} else {
+
+				if !user.LastSeen.IsZero() {
 					lastSeen = fmt.Sprintf("%s", time.Since(user.LastSeen).Round(1*time.Second))
 				}
 

@@ -111,6 +111,7 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 
 	if name, ok := ts.userTokens.Load(token); ok {
 		log.Debugf("Token in cache!")
+		ts.updateLastSeen(name.(string))
 		return name.(string), true, nil
 	}
 
@@ -119,19 +120,17 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 		return "", false, ts.errorf("%w: %w", ErrUnauthenticated, err)
 	}
 
-	// This is now the last-time we've seen this user
-	// connected, since we have been asked to authenticate him.
-	user.LastSeen = time.Now().Round(1 * time.Second)
-
-	err = ts.db.Model(&db.User{}).Where("name", user.Name).Update("LastSeen", user.LastSeen).Error
-	if err != nil {
-		return user.Name, true, ts.errorf("%w: %w", ErrDatabase, err)
-	}
+	ts.updateLastSeen(user.Name)
 
 	log.Debugf("Valid user token for %s", user.Name)
 	ts.userTokens.Store(token, user.Name)
 
 	return user.Name, true, nil
+}
+
+func (ts *Server) updateLastSeen(name string) {
+	lastSeen := time.Now().Round(1 * time.Second)
+	ts.db.Model(&db.User{}).Where("name", name).Update("LastSeen", lastSeen)
 }
 
 // GetUsersCA returns the bytes of a PEM-encoded certificate authority,

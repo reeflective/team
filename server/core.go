@@ -150,7 +150,10 @@ func (ts *Server) GetUsers() ([]team.User, error) {
 		users[i] = team.User{
 			Name:     user.Name,
 			LastSeen: user.LastSeen,
-			// TODO: online && num clients.
+		}
+
+		if _, ok := ts.userTokens.Load(user.Token); ok {
+			users[i].Online = true
 		}
 	}
 
