@@ -13,7 +13,6 @@ type opts[server any] struct {
 	logFile         string
 	local           bool
 	noLogs          bool
-	noFiles         bool
 	inMemory        bool
 	continueOnError bool
 
@@ -74,7 +73,6 @@ func (ts *Server) apply(options ...Options) {
 func WithInMemory() Options {
 	return func(opts *opts[any]) {
 		opts.noLogs = true
-		opts.noFiles = true
 		opts.inMemory = true
 	}
 }
@@ -96,17 +94,10 @@ func WithDatabase(db *gorm.DB) Options {
 	}
 }
 
-// WithNoFiles deactivates all interactions between the teamserver and
-// the OS filesystem: no database is created, no log files written.
-// Using this option with noFiles set to true will in effect disable
-// the multiplayer/remote functionality of the teamserver.
-//
-// This option can be useful if you have embedded a teamserver into
-// your application because you might need it in the future, but that
-// you don't want it yet to do anything other than being compiled in.
-func WithNoFiles(noFiles bool) Options {
+// WithDatabaseConfig sets the server to use a database backend with a given configuration.
+func WithDatabaseConfig(config *db.Config) Options {
 	return func(opts *opts[any]) {
-		opts.noFiles = noFiles
+		opts.dbConfig = config
 	}
 }
 
@@ -137,13 +128,6 @@ func WithLogger(logger *logrus.Logger) Options {
 	}
 }
 
-// WithDatabaseConfig sets the server to use a database backend with a given configuration.
-func WithDatabaseConfig(config *db.Config) Options {
-	return func(opts *opts[any]) {
-		opts.dbConfig = config
-	}
-}
-
 //
 // *** Server network/RPC options ***
 //
@@ -165,15 +149,6 @@ func WithContinueOnError(continueOnError bool) Options {
 		opts.continueOnError = continueOnError
 	}
 }
-
-// WithOSUserDefault automatically creates a user for the teamserver, using the current OS user.
-// This will create the client application directory (~/.app) if needed, and will write the config
-// in the configs dir, using 'app_local_user_default.cfg' name, overwriting any file having this name.
-// func WithOSUserDefault() Options {
-// 	return func(opts *opts[any]) {
-// 		opts.userDefault = true
-// 	}
-// }
 
 // WithPreServeHooks is used to register additional steps to the teamserver "before" serving
 // its gRPC server connection and services. While this is not needed when your code path allows

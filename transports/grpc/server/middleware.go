@@ -148,7 +148,7 @@ func (ts *handler) auditLogUnaryServerInterceptor(auditLog *logrus.Logger) grpc.
 		}
 
 		msgData, _ := json.Marshal(msg)
-		auditLog.Info(ctx, string(msgData))
+		auditLog.Info(string(msgData))
 
 		resp, err := handler(ctx, req)
 

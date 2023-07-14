@@ -60,7 +60,7 @@ func (ts *Server) ConfigPath() string {
 func (ts *Server) GetConfig() *Config {
 	cfgLog := ts.NamedLogger("config", "server")
 
-	if ts.opts.inMemory || ts.opts.noFiles {
+	if ts.opts.inMemory {
 		return ts.opts.config
 	}
 
@@ -104,7 +104,7 @@ func (ts *Server) GetConfig() *Config {
 func (ts *Server) SaveConfig(cfg *Config) error {
 	cfgLog := ts.NamedLogger("config", "server")
 
-	if ts.opts.inMemory || ts.opts.noFiles {
+	if ts.opts.inMemory {
 		return nil
 	}
 

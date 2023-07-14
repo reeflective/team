@@ -45,7 +45,7 @@ func (ts *Server) SetLogWriter(stdout, stderr io.Writer) {
 }
 
 func (ts *Server) AuditLogger() (*logrus.Logger, error) {
-	if ts.opts.inMemory || ts.opts.noLogs || ts.opts.noFiles {
+	if ts.opts.inMemory || ts.opts.noLogs {
 		return ts.log(), nil
 	}
 
