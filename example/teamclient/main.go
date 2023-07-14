@@ -3,11 +3,10 @@ package main
 import (
 	"log"
 
-	"github.com/rsteube/carapace"
-
 	teamclient "github.com/reeflective/team/client"
 	"github.com/reeflective/team/client/commands"
 	grpc "github.com/reeflective/team/transports/grpc/client"
+	"github.com/rsteube/carapace"
 )
 
 func main() {

@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 
 	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
@@ -28,39 +29,64 @@ func (ts *Server) SetLogLevel(level int) {
 	}
 
 	ts.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
+
+	// Also Change the file-based logging level:
+	// - If they app runs a memfs, this wont have any effect.
+	// - If the user wants to debug anyway, better two sources than one.
+	if ts.fileLogger != nil {
+		ts.fileLogger.SetLevel(logrus.Level(uint32(level)))
+	}
 }
 
 // WithLoggerStdout sets the source to which the stdout logger (not any file logger) should write to.
 // This option is used by the teamserver/teamclient cobra command tree to coordinate its basic I/O/err.
 func (ts *Server) SetLogWriter(stdout, stderr io.Writer) {
-	// TODO: Maybe if the writer was already set in options, ignore ?
 	ts.stdoutLogger.Out = stdout
-	// TODO: Pass stderr to log internals.
+}
+
+func (ts *Server) AuditLogger() (*logrus.Logger, error) {
+	if ts.opts.inMemory || ts.opts.noLogs {
+		return ts.log(), nil
+	}
+
+	// Generate a new audit logger
+	auditLog, err := log.NewAudit(ts.fs, ts.LogsDir())
+	if err != nil {
+		return nil, ts.errorf("%w: %w", ErrLogging, err)
+	}
+
+	return auditLog, nil
 }
 
 // Initialize loggers in files/stdout according to options.
 func (ts *Server) initLogging() (err error) {
-	// No logging means only stdout with warn level
-	if ts.opts.noLogs || ts.opts.noFiles {
-		ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
-		return nil
+	// By default, the stdout logger is never nil.
+	// We might overwrite it below if using our defaults.
+	// ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
+
+	logFile := filepath.Join(ts.LogsDir(), log.FileName(ts.Name(), true))
+
+	// If the teamserver should log to a given file.
+	if ts.opts.logFile != "" {
+		logFile = ts.opts.logFile
 	}
 
 	// Ensure all teamserver-specific directories are writable.
-	if err := ts.checkWritableFiles(); err != nil {
-		return fmt.Errorf("%w: %w", ErrDirectory, err)
-	}
+	// if err := ts.checkWritableFiles(); err != nil {
+	// 	return fmt.Errorf("%w: %w", ErrDirectory, err)
+	// }
 
 	// If user supplied a logger, use it in place of the
-	// stdout logger, since the file logger is optional.
+	// file-based logger, since the file logger is optional.
 	if ts.opts.logger != nil {
-		ts.stdoutLogger = ts.opts.logger
+		ts.fileLogger = ts.opts.logger
+		return nil
 	}
 
 	level := logrus.Level(ts.opts.config.Log.Level)
 
-	// Either use default logfile or user-specified one.
-	ts.fileLogger, ts.stdoutLogger, err = log.NewClient(ts.opts.logFile, level)
+	// Create any additional/configured logger and related/missing hooks.
+	ts.fileLogger, ts.stdoutLogger, err = log.Init(ts.fs, logFile, level)
 	if err != nil {
 		return err
 	}

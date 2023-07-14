@@ -3,11 +3,10 @@ package server
 import (
 	"context"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/reeflective/team/server"
 	"github.com/reeflective/team/transports/grpc/proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type rpcServer struct {
@@ -24,7 +23,7 @@ func newServer(server *server.Server) *rpcServer {
 
 // GetVersion returns the teamserver version.
 func (ts *rpcServer) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
-	ver := ts.server.GetVersion()
+	ver, err := ts.server.Version()
 
 	return &proto.Version{
 		Major:      ver.Major,
@@ -35,19 +34,21 @@ func (ts *rpcServer) GetVersion(context.Context, *proto.Empty) (*proto.Version, 
 		CompiledAt: ver.CompiledAt,
 		OS:         ver.OS,
 		Arch:       ver.Arch,
-	}, nil
+	}, err
 }
 
 // GetUsers returns the list of teamserver users and their status.
 func (ts *rpcServer) GetUsers(context.Context, *proto.Empty) (*proto.Users, error) {
-	users, err := ts.server.GetUsers()
+	users, err := ts.server.Users()
 
-	var userspb []*proto.User
-	for _, user := range users {
-		userspb = append(userspb, &proto.User{
-			Name:   user.Name,
-			Online: user.Online,
-		})
+	userspb := make([]*proto.User, len(users))
+	for i, user := range users {
+		userspb[i] = &proto.User{
+			Name:     user.Name,
+			Online:   user.Online,
+			LastSeen: user.LastSeen.Unix(),
+			Clients:  int32(user.Clients),
+		}
 	}
 
 	return &proto.Users{Users: userspb}, err

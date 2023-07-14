@@ -9,18 +9,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/transport"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	configFileExt     = "teamserver.json"
-	blankHost         = "-"
-	blankPort         = uint16(0)
-	dirWriteModePerm  = 0o700
-	FileWriteModePerm = 0o600
-	identifierLength  = 32
+	blankHost = "-"
+	blankPort = uint16(0)
 )
 
 type Config struct {
@@ -46,8 +43,15 @@ type Config struct {
 
 // GetServerConfigPath - File path to the server config.json file.
 func (ts *Server) ConfigPath() string {
-	appDir := ts.AppDir()
-	serverConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name(), configFileExt))
+	appDir := ts.TeamDir()
+	configDir := filepath.Join(appDir, "configs")
+
+	err := ts.fs.MkdirAll(configDir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s config dir: %s", configDir, err)
+	}
+
+	serverConfigPath := filepath.Join(configDir, fmt.Sprintf("%s.%s", ts.Name(), command.ServerConfigExt))
 
 	return serverConfigPath
 }
@@ -55,6 +59,10 @@ func (ts *Server) ConfigPath() string {
 // GetConfig returns the team server configuration struct.
 func (ts *Server) GetConfig() *Config {
 	cfgLog := ts.NamedLogger("config", "server")
+
+	if ts.opts.inMemory {
+		return ts.opts.config
+	}
 
 	configPath := ts.ConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
@@ -72,7 +80,7 @@ func (ts *Server) GetConfig() *Config {
 			return ts.opts.config
 		}
 	} else {
-		cfgLog.Warnf("Config file does not exist, using defaults")
+		cfgLog.Warnf("Teamserver: no config file found, using and saving defaults")
 	}
 
 	if ts.opts.config.Log.Level < 0 {
@@ -94,15 +102,19 @@ func (ts *Server) GetConfig() *Config {
 
 // Save - Save config file to disk.
 func (ts *Server) SaveConfig(cfg *Config) error {
-	log := ts.NamedLogger("config", "server")
+	cfgLog := ts.NamedLogger("config", "server")
+
+	if ts.opts.inMemory {
+		return nil
+	}
 
 	configPath := ts.ConfigPath()
 	configDir := filepath.Dir(configPath)
 
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		log.Debugf("Creating config dir %s", configDir)
+		cfgLog.Debugf("Creating config dir %s", configDir)
 
-		err := os.MkdirAll(configDir, dirWriteModePerm)
+		err := os.MkdirAll(configDir, log.DirPerm)
 		if err != nil {
 			return ts.errorf("%w: %w", ErrConfig, err)
 		}
@@ -113,9 +125,9 @@ func (ts *Server) SaveConfig(cfg *Config) error {
 		return err
 	}
 
-	log.Debugf("Saving config to %s", configPath)
+	cfgLog.Debugf("Saving config to %s", configPath)
 
-	err = os.WriteFile(configPath, data, FileWriteModePerm)
+	err = os.WriteFile(configPath, data, log.FileReadPerm)
 	if err != nil {
 		return ts.errorf("%w: failed to write config: %s", ErrConfig, err)
 	}
@@ -148,30 +160,9 @@ func getDefaultServerConfig() *Config {
 	}
 }
 
-func (ts *Server) clientServerMatch(config *client.Config) bool {
-	if config == nil {
-		return false
-	}
-
-	if ts.opts.config.Listeners != nil {
-		for _, job := range ts.opts.config.Listeners {
-			if job.Host == config.Host && job.Port == uint16(config.Port) {
-				return true
-			}
-		}
-	}
-
-	// If matching our daemon config.
-	if ts.opts.config.DaemonMode.Host == config.Host && ts.opts.config.DaemonMode.Port == config.Port {
-		return true
-	}
-
-	return false
-}
-
 func getRandomID() string {
 	seededRand := insecureRand.New(insecureRand.NewSource(time.Now().UnixNano()))
-	buf := make([]byte, identifierLength)
+	buf := make([]byte, transport.TokenLength)
 	seededRand.Read(buf)
 
 	return hex.EncodeToString(buf)

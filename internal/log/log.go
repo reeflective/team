@@ -6,8 +6,48 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/reeflective/team/internal/assets"
 	"github.com/sirupsen/logrus"
 )
+
+const (
+	FileReadPerm  = 0o600 // FileReadPerm is the permission bit given to the OS when reading files.
+	DirPerm       = 0o700 // DirPerm is the permission bit given to teamserver/client directories.
+	FileWritePerm = 0o644 // FileWritePerm is the permission bit given to the OS when writing files.
+
+	FileWriteOpenMode = os.O_APPEND | os.O_CREATE | os.O_WRONLY // Opening log files in append/create/write-only mode.
+
+	ClientLogFileExt = "teamclient.log" // Log files of all teamclients have this extension by default.
+	ServerLogFileExt = "teamserver.log" // Log files of all teamserver have this extension by default.
+)
+
+func Init(fs *assets.FS, file string, level logrus.Level) (*logrus.Logger, *logrus.Logger, error) {
+	logFile, err := fs.OpenFile(file, FileWriteOpenMode, FileWritePerm)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to open log file %w", err)
+	}
+
+	// Text-format logger, writing to file.
+	textLogger := logrus.New()
+	textLogger.Formatter = &stdoutHook{
+		DisableColors: false,
+		ShowTimestamp: false,
+		Colors:        defaultFieldsFormat(),
+	}
+	textLogger.Out = io.Discard
+
+	textLogger.SetLevel(logrus.InfoLevel)
+	textLogger.SetReportCaller(true)
+
+	// File output
+	textLogger.AddHook(newTxtHook(logFile, level, textLogger))
+
+	// Stdout/err output, with special formatting.
+	stdioHook := newStdioHook()
+	textLogger.AddHook(stdioHook)
+
+	return textLogger, stdioHook.logger, nil
+}
 
 // NewStdio returns a logger configured to output its events to the system stdio:
 // - Info/Debug/Trace logs are written to os.Stdout.
@@ -20,96 +60,72 @@ func NewStdio(level logrus.Level) *logrus.Logger {
 		Colors:        defaultFieldsFormat(),
 	}
 
-	stdLogger.SetLevel(logrus.WarnLevel)
+	stdLogger.SetLevel(level)
 	stdLogger.SetReportCaller(true)
-	stdLogger.Out = io.Discard
+	stdLogger.Out = os.Stdout
 
 	// Info/debug/trace is given to a stdout logger.
-	stdoutHook := newLoggerStdout()
-	stdLogger.AddHook(stdoutHook)
-
-	// Warn/error/panics/fatals are given to stderr.
-	stderrHook := newLoggerStderr()
-	stdLogger.AddHook(stderrHook)
+	// stdoutHook := newLoggerStdout()
+	// stdLogger.AddHook(stdoutHook)
+	//
+	// // Warn/error/panics/fatals are given to stderr.
+	// stderrHook := newLoggerStderr()
+	// stdLogger.AddHook(stderrHook)
 
 	return stdLogger
 }
 
-// NewClient returns two distinct but partially overlapping loggers:
-//   - A logger writing to a given log file, with the level provided (config default/setting)
-//   - A stdio logger writing to stdout/err, but with a log level to warn and controlable from
-//     the client/server and the external API. Useful for changing log level in commands.
-func NewClient(logfile string, level logrus.Level) (file, stdout *logrus.Logger, err error) {
-	txtLogger := logrus.New()
-	txtLogger.Formatter = &stdoutHook{
-		DisableColors: false,
-		ShowTimestamp: false,
-		Colors:        defaultFieldsFormat(),
-	}
-	txtLogger.Out = io.Discard
-
-	txtLogger.SetLevel(logrus.InfoLevel)
-	txtLogger.SetReportCaller(true)
-
-	// File output
-	txtLogger.AddHook(newTxtHook(logfile, level, txtLogger))
-
-	// Stdio
-	stdioHook := newStdioHook()
-	txtLogger.AddHook(stdioHook)
-
-	return txtLogger, stdioHook.logger, nil
-}
-
-// NewRoot returns a logger writing to the central log file of the teamserver, JSON-encoded.
-func NewRoot(app, logDir string, level logrus.Level) (*logrus.Logger, error) {
+// NewJSON returns a logger writing to the central log file of the teamserver, JSON-encoded.
+func NewJSON(fs *assets.FS, file string, level logrus.Level) (*logrus.Logger, error) {
 	rootLogger := logrus.New()
 	rootLogger.Formatter = &logrus.JSONFormatter{}
-	jsonFilePath := filepath.Join(logDir, fmt.Sprintf("%s.json", app))
-	jsonFile, err := os.OpenFile(jsonFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	jsonFilePath := fmt.Sprintf("%s.json", file)
+
+	logFile, err := fs.OpenFile(jsonFilePath, FileWriteOpenMode, FileWritePerm)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open log file %v", err)
+		return nil, fmt.Errorf("Failed to open log file %w", err)
 	}
-	rootLogger.Out = jsonFile
+
+	rootLogger.Out = logFile
 	rootLogger.SetLevel(logrus.InfoLevel)
 	rootLogger.SetReportCaller(true)
-	rootLogger.AddHook(newTxtHook(logDir, level, rootLogger))
+	rootLogger.AddHook(newTxtHook(logFile, level, rootLogger))
+
 	return rootLogger, nil
 }
 
 // NewAudit returns a new client gRPC connections audit logger, JSON-encoded.
-func NewAudit(logDir string) (*logrus.Logger, error) {
+func NewAudit(fs *assets.FS, logDir string) (*logrus.Logger, error) {
 	auditLogger := logrus.New()
 	auditLogger.Formatter = &logrus.JSONFormatter{}
 	jsonFilePath := filepath.Join(logDir, "audit.json")
-	jsonFile, err := os.OpenFile(jsonFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+
+	logFile, err := fs.OpenFile(jsonFilePath, FileWriteOpenMode, FileWritePerm)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open log file %v", err)
+		return nil, fmt.Errorf("Failed to open log file %w", err)
 	}
-	auditLogger.Out = jsonFile
+
+	auditLogger.Out = logFile
 	auditLogger.SetLevel(logrus.DebugLevel)
+
 	return auditLogger, nil
 }
 
 // NewText returns a new logger writing to a given file.
-func NewText(logFile string) (*logrus.Logger, error) {
+func NewText(file io.Writer) (*logrus.Logger, error) {
 	txtLogger := logrus.New()
 	txtLogger.Formatter = &logrus.TextFormatter{
 		ForceColors:   true,
 		FullTimestamp: true,
 	}
-	txtFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to open log file %v", err)
-	}
 
-	txtLogger.Out = txtFile
+	txtLogger.Out = file
 	txtLogger.SetLevel(logrus.InfoLevel)
 
 	return txtLogger, nil
 }
 
-// LevelFrom - returns level from int
+// LevelFrom - returns level from int.
 func LevelFrom(level int) logrus.Level {
 	switch level {
 	case 0:
@@ -127,5 +143,14 @@ func LevelFrom(level int) logrus.Level {
 	case 6:
 		return logrus.TraceLevel
 	}
+
 	return logrus.DebugLevel
+}
+
+func FileName(name string, server bool) string {
+	if server {
+		return fmt.Sprintf("%s.%s", name, ServerLogFileExt)
+	}
+
+	return fmt.Sprintf("%s.%s", name, ClientLogFileExt)
 }

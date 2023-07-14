@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-const (
-	normal = "\033[0m"
-	bold   = "\033[1m"
-)
-
 //go:generate bash teamserver_version_info
 var (
 	// Version - The semantic version in string form
@@ -36,39 +31,47 @@ var (
 	CompiledAt string
 )
 
+const (
+	semVerLen = 3
+)
+
 // Semantic - Get the structured sematic version.
 func Semantic() []int {
-	semVer := []int{}
+	semVer := make([]int, semVerLen)
 	version := strings.TrimSuffix(Version, "\n")
-	if strings.HasPrefix(version, "v") {
-		version = version[1:]
+	version = strings.TrimPrefix(version, "v")
+
+	for i, part := range strings.Split(version, ".") {
+		number, _ := strconv.ParseInt(part, 10, 32)
+		semVer[i] = int(number)
 	}
-	for _, part := range strings.Split(version, ".") {
-		number, _ := strconv.Atoi(part)
-		semVer = append(semVer, number)
-	}
+
 	return semVer
 }
 
 // Compiled - Get time this binary was compiled.
 func Compiled() (time.Time, error) {
 	compiledAt := strings.TrimSuffix(CompiledAt, "\n")
+
 	compiled, err := strconv.ParseInt(compiledAt, 10, 64)
 	if err != nil {
 		return time.Unix(0, 0), err
 	}
+
 	return time.Unix(compiled, 0), nil
 }
 
 // Full - Full version string.
 func Full() string {
-	ver := fmt.Sprintf("%s", strings.TrimSuffix(Version, "\n"))
+	ver := strings.TrimSuffix(Version, "\n")
 	if GitCommit != "" {
 		ver += fmt.Sprintf(" - %s", GitCommit)
 	}
+
 	compiled, err := Compiled()
 	if err == nil {
 		ver += fmt.Sprintf(" - Compiled %s", compiled.String())
 	}
+
 	return ver
 }

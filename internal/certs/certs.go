@@ -33,6 +33,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/db"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -44,6 +45,12 @@ const (
 
 	// RSAKey - Namespace for RSA keys.
 	RSAKey = "rsa"
+
+	// Internal constants.
+	daysInYear      = 365
+	hoursInDay      = 24
+	validForYears   = 3
+	serialNumberLen = 128
 )
 
 // ErrCertDoesNotExist - Returned if a GetCertificate() is called for a cert/cn that does not exist.
@@ -55,6 +62,7 @@ type Manager struct {
 	appDir  string
 	log     *logrus.Entry
 	db      *gorm.DB
+	fs      *assets.FS
 }
 
 // NewManager initializes and returns a certificate manager for a given teamserver.
@@ -63,16 +71,15 @@ type Manager struct {
 // Any critical error happening at initialization time will send a log.Fatal event to the
 // provided logger. If the latter has no modified log.ExitFunc, this will make the server
 // panic and exit.
-func NewManager(db *gorm.DB, log *logrus.Entry, appName, appDir string) *Manager {
+func NewManager(fs *assets.FS, db *gorm.DB, logger *logrus.Entry, appName, appDir string) *Manager {
 	certs := &Manager{
 		appName: appName,
 		appDir:  appDir,
-		log:     log,
+		log:     logger,
 		db:      db,
+		fs:      fs,
 	}
 
-	// Ensure CAs are initialized.
-	certs.generateCA(mtlsCA, "mtls")
 	certs.generateCA(userCA, "teamusers")
 
 	return certs
@@ -103,6 +110,7 @@ func (c *Manager) saveCertificate(caType string, keyType string, commonName stri
 func (c *Manager) TeamServerGenerateECCCertificate(host string) ([]byte, []byte, error) {
 	cert, key := c.GenerateECCCertificate(mtlsCA, host, false, false)
 	err := c.saveCertificate(mtlsCA, ECCKey, host, cert, key)
+
 	return cert, key, err
 }
 
@@ -130,9 +138,11 @@ func (c *Manager) GetCertificate(caType string, keyType string, commonName strin
 		KeyType:    keyType,
 		CommonName: commonName,
 	}).First(&certModel)
+
 	if errors.Is(result.Error, db.ErrRecordNotFound) {
 		return nil, nil, ErrCertDoesNotExist
 	}
+
 	if result.Error != nil {
 		return nil, nil, result.Error
 	}
@@ -145,11 +155,15 @@ func (c *Manager) RemoveCertificate(caType string, keyType string, commonName st
 	if keyType != ECCKey && keyType != RSAKey {
 		return fmt.Errorf("Invalid key type '%s'", keyType)
 	}
+
+	c.log.Infof("Deleting certificate for cn = '%s'", commonName)
+
 	err := c.db.Where(&db.Certificate{
 		CAType:     caType,
 		KeyType:    keyType,
 		CommonName: commonName,
 	}).Delete(&db.Certificate{}).Error
+
 	return err
 }
 
@@ -169,13 +183,16 @@ func (c *Manager) GenerateECCCertificate(caType string, commonName string, isCA 
 	// Generate private key
 	curves := []elliptic.Curve{elliptic.P521(), elliptic.P384(), elliptic.P256()}
 	curve := curves[randomInt(len(curves))]
+
 	privateKey, err = ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
 		c.log.Fatalf("Failed to generate private key: %s", err)
 	}
+
 	subject := pkix.Name{
 		CommonName: commonName,
 	}
+
 	return c.generateCertificate(caType, subject, isCA, isClient, privateKey)
 }
 
@@ -191,42 +208,49 @@ func (c *Manager) GenerateRSACertificate(caType string, commonName string, isCA 
 	if err != nil {
 		c.log.Fatalf("Failed to generate private key: %s", err)
 	}
+
 	subject := pkix.Name{
 		CommonName: commonName,
 	}
+
 	return c.generateCertificate(caType, subject, isCA, isClient, privateKey)
 }
 
 func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA bool, isClient bool, privateKey interface{}) ([]byte, []byte) {
 	// Valid times, subtract random days from .Now()
 	notBefore := time.Now()
-	days := randomInt(365) * -1 // Within -1 year
+	days := randomInt(daysInYear) * -1 // Within -1 year
 	notBefore = notBefore.AddDate(0, 0, days)
 	notAfter := notBefore.Add(randomValidFor())
 	c.log.Debugf("Valid from %v to %v", notBefore, notAfter)
 
 	// Serial number
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), serialNumberLen)
 	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
 	c.log.Debugf("Serial Number: %d", serialNumber)
 
-	var keyUsage x509.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	keyUsage := x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	var extKeyUsage []x509.ExtKeyUsage
 
-	if isCA {
+	switch {
+	case isCA:
 		c.log.Debugf("Authority certificate")
+
 		keyUsage = x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 		extKeyUsage = []x509.ExtKeyUsage{
 			x509.ExtKeyUsageServerAuth,
 			x509.ExtKeyUsageClientAuth,
 		}
-	} else if isClient {
+	case isClient:
 		c.log.Debugf("Client authentication certificate")
+
 		extKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
-	} else {
+	default:
 		c.log.Debugf("Server authentication certificate")
+
 		extKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 	}
+
 	c.log.Debugf("ExtKeyUsage = %v", extKeyUsage)
 
 	// Certificate template
@@ -256,8 +280,10 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 	// Sign certificate or self-sign if CA
 	var certErr error
 	var derBytes []byte
+
 	if isCA {
 		c.log.Debugf("Certificate is an AUTHORITY")
+
 		template.IsCA = true
 		template.KeyUsage |= x509.KeyUsageCertSign
 		derBytes, certErr = x509.CreateCertificate(rand.Reader, &template, &template, publicKey(privateKey), privateKey)
@@ -268,6 +294,7 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 		}
 		derBytes, certErr = x509.CreateCertificate(rand.Reader, &template, caCert, publicKey(privateKey), caKey)
 	}
+
 	if certErr != nil {
 		// We maybe don't want this to be fatal, but it should basically never happen afaik
 		c.log.Fatalf("Failed to create certificate: %s", certErr)
@@ -293,6 +320,7 @@ func (c *Manager) pemBlockForKey(priv interface{}) *pem.Block {
 		if err != nil {
 			c.log.Fatalf("Unable to marshal ECDSA private key: %v", err)
 		}
+
 		return &pem.Block{Type: "EC PRIVATE KEY", Bytes: data}
 	default:
 		return nil
@@ -311,20 +339,24 @@ func publicKey(priv interface{}) interface{} {
 }
 
 func randomInt(max int) int {
-	buf := make([]byte, 4)
+	intLen := 4
+	buf := make([]byte, intLen)
 	rand.Read(buf)
 	i := binary.LittleEndian.Uint32(buf)
+
 	return int(i) % max
 }
 
 func randomValidFor() time.Duration {
-	validFor := 3 * (365 * 24 * time.Hour)
+	validFor := validForYears * (daysInYear * hoursInDay * time.Hour)
+
 	switch insecureRand.Intn(2) {
 	case 0:
-		validFor = 2 * (365 * 24 * time.Hour)
+		validFor = (validForYears - 1) * (daysInYear * hoursInDay * time.Hour)
 	case 1:
-		validFor = 3 * (365 * 24 * time.Hour)
+		validFor = validForYears * (daysInYear * hoursInDay * time.Hour)
 	}
+
 	return validFor
 }
 

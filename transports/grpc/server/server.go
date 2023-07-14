@@ -6,15 +6,13 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/test/bufconn"
-
 	"github.com/reeflective/team"
-	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/server"
+	teamclient "github.com/reeflective/team/client"
+	teamserver "github.com/reeflective/team/server"
 	clientConn "github.com/reeflective/team/transports/grpc/client"
 	"github.com/reeflective/team/transports/grpc/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 const (
@@ -24,34 +22,49 @@ const (
 
 	bufSize = 2 * mb
 
-	// ServerMaxMessageSize - Server-side max GRPC message size
+	// ServerMaxMessageSize - Server-side max GRPC message size.
 	ServerMaxMessageSize = 2*gb - 1
 )
 
 type handler struct {
-	*server.Server
-	sconfig *server.Config
+	*teamserver.Server
 
 	options []grpc.ServerOption
 	conn    *bufconn.Listener
 	mutex   *sync.RWMutex
 }
 
-func NewTeamServer(opts ...grpc.ServerOption) *handler {
-	h := &handler{
+// type inMemory struct {
+// 	*handler
+// 	conn *bufconn.Listener
+// }
+//
+// func (h *inMemory) Init(serv *teamserver.Server) (err error) {
+// 	return
+// }
+//
+// func (h *inMemory) Serve(ln net.Listener) (any, error) {
+// 	return nil, nil
+// }
+//
+// func (h *inMemory) Listen(addr string) (net.Listener, error) {
+// 	return nil, nil
+// }
+
+func NewTeam(opts ...grpc.ServerOption) (teamserver.Handler[any], team.Client, teamclient.Dialer[any]) {
+	listener := &handler{
 		mutex: &sync.RWMutex{},
 	}
 
-	// Buffering
-	h.options = append(h.options,
-		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
-		grpc.MaxSendMsgSize(ServerMaxMessageSize),
-	)
-	return h
+	listener.options = append(listener.options, opts...)
+
+	client, dialer := NewTeamClientFrom(listener)
+
+	return listener, client, dialer
 }
 
-// DialerFrom generates an in-memory, unauthenticated client dialer and server
-func DialerFrom(server *handler) (teamclient team.Client, dialer client.Dialer[any]) {
+// NewTeamClientFrom generates an in-memory, unauthenticated client dialer and server.
+func NewTeamClientFrom(server *handler) (client team.Client, dialer teamclient.Dialer[any]) {
 	conn := bufconn.Listen(bufSize)
 
 	ctxDialer := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
@@ -71,15 +84,6 @@ func DialerFrom(server *handler) (teamclient team.Client, dialer client.Dialer[a
 	return clientConn.NewTeamClient(dialOpts...)
 }
 
-// TeamClientFrom builds a complete teamclient from a server.
-// It first generates the dialer and the teamclient with DialerFrom(server),
-// then directly creates a new teamclient from the team/client package.
-func TeamClientFrom(server *handler) (*client.Client, error) {
-	teamclient, dialer := DialerFrom(server)
-
-	return client.New(server.Name(), teamclient, client.WithDialer(dialer))
-}
-
 // Name immplements server.Handler.Name(), and indicates the transport/rpc stack.
 func (h *handler) Name() string {
 	return "gRPC"
@@ -88,12 +92,16 @@ func (h *handler) Name() string {
 // Init implements server.Handler.Init(), and is used to initialize
 // the server handler. Logging, connection options, anything can be
 // done as long as it's for ensuring that the rest will work.
-func (h *handler) Init(serv *server.Server) (err error) {
+func (h *handler) Init(serv *teamserver.Server) (err error) {
 	h.Server = serv
-	h.sconfig = h.Server.GetConfig()
+
+	h.options, err = LogMiddleware(h.Server)
+	if err != nil {
+		return err
+	}
 
 	// Logging/authentication/audit
-	serverOptions, err := h.initMiddleware()
+	serverOptions, err := h.initAuthMiddleware()
 	if err != nil {
 		return err
 	}
@@ -113,7 +121,7 @@ func (h *handler) Listen(addr string) (net.Listener, error) {
 		return h.conn, nil
 	}
 
-	rpcLog.Debugf("Starting gRPC TLS listener on %s", addr)
+	rpcLog.Infof("Starting gRPC TLS listener on %s", addr)
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -126,28 +134,32 @@ func (h *handler) Listen(addr string) (net.Listener, error) {
 // Serve implements server.Handler.Serve().
 // It accepts a network listener that will be served by a gRPC server.
 // This also registers the Teamclient RPC service.
-func (h *handler) Serve(ln net.Listener) (any, error) {
+func (h *handler) Serve(listener net.Listener) (any, error) {
 	rpcLog := h.NamedLogger("transport", "grpc")
 
 	// Encryption.
+	h.mutex.Lock()
 	if h.conn == nil {
-		rpcLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
-
-		tlsConfig, err := h.GetUserTLSConfig()
+		tlsOptions, err := TLSAuthMiddleware(h.Server)
 		if err != nil {
 			return nil, err
 		}
-		creds := credentials.NewTLS(tlsConfig)
-		h.options = append(h.options, grpc.Creds(creds))
+
+		h.options = append(h.options, tlsOptions...)
+
+		rpcLog.Infof("Serving gRPC teamserver on %s", listener.Addr())
 	}
+	h.mutex.Unlock()
 
 	grpcServer := grpc.NewServer(h.options...)
 
 	// If we already have an in-memory listener, use it.
+	h.mutex.Lock()
 	if h.conn != nil {
-		ln = h.conn
+		listener = h.conn
 		h.conn = nil
 	}
+	h.mutex.Unlock()
 
 	// Start serving the listener
 	go func() {
@@ -157,7 +169,8 @@ func (h *handler) Serve(ln net.Listener) (any, error) {
 				rpcLog.Errorf("stacktrace from panic: %s", string(debug.Stack()))
 			}
 		}()
-		if err := grpcServer.Serve(ln); err != nil {
+
+		if err := grpcServer.Serve(listener); err != nil {
 			rpcLog.Errorf("gRPC server exited with error: %v", err)
 		} else {
 			panicked = false
@@ -170,6 +183,14 @@ func (h *handler) Serve(ln net.Listener) (any, error) {
 	return grpcServer, nil
 }
 
+// Close implements server.Handler.Close().
+//
+// In this implementation, the function does nothing. Thus the underlying
+// *grpc.Server .Shutdown() method is not called, and only the listener
+// will be closed by the server automatically.
+//
+// This is probably not optimal from a resource usage standpoint, but currently it
+// fits most use cases. Feel free to reimplement or propose changes to this lib.
 func (h *handler) Close() error {
 	return nil
 }

@@ -28,6 +28,10 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+const (
+	SQLiteInMemoryHost = ":memory:"
+)
+
 // ErrRecordNotFound - Record not found error.
 var ErrRecordNotFound = gorm.ErrRecordNotFound
 

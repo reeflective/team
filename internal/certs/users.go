@@ -37,6 +37,7 @@ const (
 func (c *Manager) UserClientGenerateCertificate(user string) ([]byte, []byte, error) {
 	cert, key := c.GenerateECCCertificate(userCA, user, false, true)
 	err := c.saveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", clientNamespace, user), cert, key)
+
 	return cert, key, err
 }
 
@@ -59,12 +60,14 @@ func (c *Manager) UserServerGetCertificate() ([]byte, []byte, error) {
 func (c *Manager) UserServerGenerateCertificate() ([]byte, []byte, error) {
 	cert, key := c.GenerateECCCertificate(userCA, userCertHostname, false, false)
 	err := c.saveCertificate(userCA, ECCKey, fmt.Sprintf("%s.%s", serverNamespace, userCertHostname), cert, key)
+
 	return cert, key, err
 }
 
 // UserClientListCertificates - Get all client certificates.
 func (c *Manager) UserClientListCertificates() []*x509.Certificate {
 	userCerts := []*db.Certificate{}
+
 	result := c.db.Where(&db.Certificate{CAType: userCA}).Find(&userCerts)
 	if result.Error != nil {
 		c.log.Error(result.Error)
@@ -74,18 +77,22 @@ func (c *Manager) UserClientListCertificates() []*x509.Certificate {
 	c.log.Infof("Found %d user certs ...", len(userCerts))
 
 	certs := []*x509.Certificate{}
+
 	for _, user := range userCerts {
 		block, _ := pem.Decode([]byte(user.CertificatePEM))
 		if block == nil {
 			c.log.Warn("failed to parse certificate PEM")
 			continue
 		}
+
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			c.log.Warnf("failed to parse x.509 certificate %v", err)
 			continue
 		}
+
 		certs = append(certs, cert)
 	}
+
 	return certs
 }

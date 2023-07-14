@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/version"
@@ -76,7 +78,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 			// Server
 			serverVer, err := cli.ServerVersion()
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Server error: %s\n", err)
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Server error: %s\n", err)
 			}
 
 			dirty := ""
@@ -110,17 +112,20 @@ func clientCommands(cli *client.Client) *cobra.Command {
 				for _, arg := range args {
 					conf, err := cli.ReadConfig(arg)
 					if jsonErr, ok := err.(*json.SyntaxError); ok {
-						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", jsonErr.Error())
+						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", jsonErr.Error())
 					} else if err != nil {
-						fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err.Error())
+						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err.Error())
 						continue
 					}
+
 					if err = cli.SaveConfig(conf); err == nil {
 						fmt.Fprintln(cmd.OutOrStdout(), command.Info+"Saved new client config in ", cli.ConfigsDir())
+					} else {
+						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err.Error())
 					}
 				}
 			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "Missing config file path, see --help")
+				fmt.Fprintln(cmd.OutOrStdout(), "Missing config file path, see --help")
 			}
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -135,8 +140,8 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	iComps := carapace.Gen(importCmd)
 	iComps.PositionalCompletion(
 		carapace.Batch(
-			carapace.ActionCallback(ConfigsCompleter(cli, "teamclient/configs", ".teamclient", "other teamserver apps", true)),
-			carapace.ActionFiles().Tag("server configuration"),
+			carapace.ActionCallback(ConfigsCompleter(cli, "teamclient/configs", ".teamclient.cfg", "other teamserver apps", true)),
+			carapace.ActionFiles().Tag("server configuration").StyleF(getConfigStyle(".teamclient.cfg")),
 		).ToA(),
 	)
 
@@ -151,6 +156,53 @@ func clientCommands(cli *client.Client) *cobra.Command {
 				if err == nil {
 					cli.SetLogLevel(logLevel + int(logrus.ErrorLevel))
 				}
+			}
+
+			if err := cli.Connect(); err != nil {
+				return err
+			}
+
+			// Server
+			users, err := cli.Users()
+			if err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Server error: %s\n", err)
+			}
+
+			tbl := &table.Table{}
+			tbl.SetStyle(command.TableStyle)
+
+			tbl.AppendHeader(table.Row{
+				"Name",
+				"Status",
+				"Last seen",
+			})
+
+			for _, user := range users {
+				lastSeen := user.LastSeen.Format(time.RFC1123)
+
+				if !user.LastSeen.IsZero() {
+					lastSeen = fmt.Sprintf("%s", time.Since(user.LastSeen).Round(1*time.Second))
+				}
+
+				var status string
+				if user.Online {
+					status = command.Bold + command.Green + "Online" + command.Normal
+				} else {
+					status = command.Bold + command.Red + "Offline" + command.Normal
+				}
+
+				tbl.AppendRow(table.Row{
+					user.Name,
+					status,
+					lastSeen,
+				})
+
+			}
+
+			if len(users) > 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), tbl.Render())
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), command.Info+"The %s teamserver has no users\n", cli.Name())
 			}
 
 			return nil
@@ -168,6 +220,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool) carapace.CompletionCallback {
 	return func(ctx carapace.Context) carapace.Action {
 		var compErrors []carapace.Action
+
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			compErrors = append(compErrors, carapace.ActionMessage("failed to get user home dir: %s", err))
@@ -184,9 +237,11 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool
 			if !strings.HasPrefix(dir.Name(), ".") {
 				continue
 			}
+
 			if !dir.IsDir() {
 				continue
 			}
+
 			if strings.TrimPrefix(dir.Name(), ".") != cli.Name() {
 				continue
 			}
@@ -221,14 +276,18 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool
 			}
 		}
 
-		configsAction := carapace.ActionValuesDescribed(results...).StyleF(func(s string, sc style.Context) string {
-			if strings.HasSuffix(s, ext) {
-				return style.Red
-			}
-			return s
-		})
+		configsAction := carapace.ActionValuesDescribed(results...).StyleF(getConfigStyle(ext))
 
 		return configsAction.Tag(tag)
+	}
+}
+
+func getConfigStyle(ext string) func(s string, sc style.Context) string {
+	return func(s string, sc style.Context) string {
+		if strings.HasSuffix(s, ext) {
+			return style.Red
+		}
+		return s
 	}
 }
 

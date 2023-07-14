@@ -1,14 +1,17 @@
 package team
 
+import "time"
+
 type Client interface {
 	Users() ([]User, error)
 	Version() (Version, error)
 }
 
 type User struct {
-	Name    string
-	Online  bool
-	Clients int
+	Name     string
+	Online   bool
+	LastSeen time.Time
+	Clients  int
 }
 
 type Version struct {

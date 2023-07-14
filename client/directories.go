@@ -19,30 +19,40 @@ package client
 */
 
 import (
-	"os"
 	"os/user"
 	"path/filepath"
+
+	"github.com/reeflective/team/internal/log"
 )
 
 const (
 	// configsDirName - Directory name containing config files.
 	teamserverClientDir = "teamclient"
+	logsDirName         = "logs"
 	configsDirName      = "configs"
 	logFileExt          = "teamclient"
-	dirWriteModePerm    = 0o700
 )
 
-// AppDir returns the teamclient directory of the app (named ~/.<app>/teamserver/client/),
-// creating the directory if needed, or logging an error event if failing to create it.
-func (tc *Client) AppDir() string {
+func (tc *Client) HomeDir() string {
 	user, _ := user.Current()
-	dir := filepath.Join(user.HomeDir, "."+tc.name, teamserverClientDir)
+	dir := filepath.Join(user.HomeDir, "."+tc.name)
 
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, dirWriteModePerm)
-		if err != nil {
-			tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
-		}
+	err := tc.fs.MkdirAll(dir, log.DirPerm)
+	if err != nil {
+		tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
+	}
+
+	return dir
+}
+
+// TeamDir returns the teamclient directory of the app (named ~/.<app>/teamclient/),
+// creating the directory if needed, or logging an error event if failing to create it.
+func (tc *Client) TeamDir() string {
+	dir := filepath.Join(tc.HomeDir(), teamserverClientDir)
+
+	err := tc.fs.MkdirAll(dir, log.DirPerm)
+	if err != nil {
+		tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
 	}
 
 	return dir
@@ -51,12 +61,11 @@ func (tc *Client) AppDir() string {
 // LogsDir returns the directory of the client (~/.app/logs), creating
 // the directory if needed, or logging a fatal event if failing to create it.
 func (tc *Client) LogsDir() string {
-	logsDir := filepath.Join(tc.AppDir(), "logs")
-	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
-		err = os.MkdirAll(logsDir, dirWriteModePerm)
-		if err != nil {
-			tc.log().Errorf("cannot write to %s root dir: %s", logsDir, err)
-		}
+	logsDir := filepath.Join(tc.TeamDir(), logsDirName)
+
+	err := tc.fs.MkdirAll(logsDir, log.DirPerm)
+	if err != nil {
+		tc.log().Errorf("cannot write to %s root dir: %s", logsDir, err)
 	}
 
 	return logsDir
@@ -64,14 +73,12 @@ func (tc *Client) LogsDir() string {
 
 // GetConfigDir - Returns the path to the config dir.
 func (tc *Client) ConfigsDir() string {
-	rootDir, _ := filepath.Abs(tc.AppDir())
+	rootDir, _ := filepath.Abs(tc.TeamDir())
 	dir := filepath.Join(rootDir, configsDirName)
 
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, dirWriteModePerm)
-		if err != nil {
-			tc.log().Errorf("cannot write to %s configs dir: %s", dir, err)
-		}
+	err := tc.fs.MkdirAll(dir, log.DirPerm)
+	if err != nil {
+		tc.log().Errorf("cannot write to %s configs dir: %s", dir, err)
 	}
 
 	return dir

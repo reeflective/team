@@ -27,6 +27,7 @@ import (
 type User struct {
 	ID        uuid.UUID `gorm:"primaryKey;->;<-:create;type:uuid;"`
 	CreatedAt time.Time `gorm:"->;<-:create;"`
+	LastSeen  time.Time
 	Name      string
 	Token     string `gorm:"uniqueIndex"`
 }
@@ -37,6 +38,8 @@ func (o *User) BeforeCreate(tx *gorm.DB) (err error) {
 	if err != nil {
 		return err
 	}
+
 	o.CreatedAt = time.Now()
+
 	return nil
 }

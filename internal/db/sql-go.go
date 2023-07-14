@@ -1,4 +1,4 @@
-//go:build go_sqlite
+//go:build !(wasm_sqlite || cgo_sqlite)
 
 package db
 

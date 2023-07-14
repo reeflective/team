@@ -7,7 +7,10 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/db"
+	"github.com/reeflective/team/internal/log"
+	"gorm.io/gorm"
 )
 
 const (
@@ -15,11 +18,20 @@ const (
 	maxOpenConns = 100
 )
 
+func (ts *Server) DatabaseConfig() *db.Config {
+	cfg, err := ts.getDatabaseConfig()
+	if err != nil {
+		return cfg
+	}
+
+	return cfg
+}
+
 // GetDatabaseConfigPath - File path to config.json.
 func (ts *Server) dbConfigPath() string {
-	appDir := ts.AppDir()
+	appDir := ts.TeamDir()
 	log := ts.NamedLogger("config", "database")
-	databaseConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name()+"_database", configFileExt))
+	databaseConfigPath := filepath.Join(appDir, "configs", fmt.Sprintf("%s.%s", ts.Name()+"_database", command.ServerConfigExt))
 	log.Debugf("Loading config from %s", databaseConfigPath)
 
 	return databaseConfigPath
@@ -32,15 +44,15 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 		return nil
 	}
 
-	log := ts.NamedLogger("config", "database")
+	dblog := ts.NamedLogger("config", "database")
 
 	configPath := ts.dbConfigPath()
 	configDir := path.Dir(configPath)
 
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		log.Debugf("Creating config dir %s", configDir)
+		dblog.Debugf("Creating config dir %s", configDir)
 
-		err := os.MkdirAll(configDir, dirWriteModePerm)
+		err := os.MkdirAll(configDir, log.DirPerm)
 		if err != nil {
 			return err
 		}
@@ -51,9 +63,9 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 		return err
 	}
 
-	log.Infof("Saving config to %s", configPath)
+	dblog.Debugf("Saving config to %s", configPath)
 
-	return os.WriteFile(configPath, data, FileWriteModePerm)
+	return os.WriteFile(configPath, data, log.FileReadPerm)
 }
 
 // getDatabaseConfig returns a working database configuration,
@@ -63,7 +75,11 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 	log := ts.NamedLogger("config", "database")
 
-	config := ts.getDefaultDatabaseConfig()
+	// Don't fetch anything if running in-memory only.
+	config := ts.opts.dbConfig
+	if config.Database == db.SQLiteInMemoryHost {
+		return config, nil
+	}
 
 	configPath := ts.dbConfigPath()
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
@@ -77,7 +93,7 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 			return nil, fmt.Errorf("Failed to parse config file %w", err)
 		}
 	} else {
-		log.Warnf("Config file does not exist, using defaults")
+		log.Warnf("Database: no config file found, using and saving defaults")
 	}
 
 	if config.MaxIdleConns < 1 {
@@ -108,10 +124,39 @@ func (ts *Server) getDefaultDatabaseConfig() *db.Config {
 	}
 
 	if ts.opts.inMemory {
-		cfg.Database = ":memory:"
+		cfg.Database = db.SQLiteInMemoryHost
 	} else {
-		cfg.Database = filepath.Join(ts.AppDir(), fmt.Sprintf("%s.teamserver.db", ts.name))
+		cfg.Database = filepath.Join(ts.TeamDir(), fmt.Sprintf("%s.teamserver.db", ts.name))
 	}
 
 	return cfg
+}
+
+// initDatabase should be called once when a teamserver is created.
+func (ts *Server) initDatabase() (err error) {
+	ts.dbInitOnce.Do(func() {
+		dbLogger := ts.NamedLogger("database", "database")
+
+		if ts.db != nil {
+			return
+		}
+
+		ts.opts.dbConfig, err = ts.getDatabaseConfig()
+		if err != nil {
+			return
+		}
+
+		ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
+		if err != nil {
+			return
+		}
+	})
+
+	return nil
+}
+
+func (ts *Server) dbSession() *gorm.DB {
+	return ts.db.Session(&gorm.Session{
+		FullSaveAssociations: true,
+	})
 }

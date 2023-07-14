@@ -19,13 +19,13 @@ package client
 */
 
 import (
-	"fmt"
-	"io"
-	"os"
+	"io/fs"
+	"os/user"
+	"path/filepath"
 	"sync"
 
 	"github.com/reeflective/team"
-	"github.com/reeflective/team/internal/log"
+	"github.com/reeflective/team/internal/assets"
 	"github.com/sirupsen/logrus"
 )
 
@@ -33,14 +33,17 @@ import (
 // It offers the core functionality of any team client.
 type Client struct {
 	name         string
-	connected    bool
 	opts         *opts
 	fileLogger   *logrus.Logger
 	stdoutLogger *logrus.Logger
-	logFile      *os.File
-	connect      *sync.Once
-	dialer       Dialer[any]
-	client       team.Client
+	logFile      fs.File
+	fs           *assets.FS
+
+	dialer  Dialer[any]
+	connect *sync.Once
+
+	mutex  *sync.RWMutex
+	client team.Client
 }
 
 type Dialer[clientConn any] interface {
@@ -50,15 +53,21 @@ type Dialer[clientConn any] interface {
 }
 
 func New(application string, teamclient team.Client, options ...Options) (*Client, error) {
-	// Client has default logfile path, logging options.
 	client := &Client{
 		name:    application,
-		connect: &sync.Once{},
+		opts:    defaultOpts(),
 		client:  teamclient,
+		connect: &sync.Once{},
+		mutex:   &sync.RWMutex{},
+		fs:      &assets.FS{},
 	}
-	client.opts = client.defaultOpts()
 
 	client.apply(options...)
+
+	// Filesystem (in-memory or on disk)
+	user, _ := user.Current()
+	root := filepath.Join(user.HomeDir, "."+client.name)
+	client.fs = assets.NewFileSystem(root, client.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := client.initLogging(); err != nil {
@@ -156,109 +165,28 @@ func (tc *Client) Name() string {
 
 // Disconnect disconnects the client from the server, closing the connection
 // and the client log file.Any errors are logged to the this file, not returned.
-func (tc *Client) Disconnect() {
+func (tc *Client) Disconnect() error {
 	if tc.opts.console {
-		return
-	}
-
-	// if tc.conn != nil {
-	// 	if err := tc.conn.Close(); err != nil {
-	// 		tc.log.Error(fmt.Sprintf("error closing connection: %v", err))
-	// 	}
-	// }
-	//
-	if tc.logFile != nil {
-		tc.logFile.Close()
-	}
-	//
-	// // Decrement the counter, should be back to 0.
-	// tc.connected = false
-	// tc.conn = nil
-	// tc.connectedT = &sync.Once{}
-}
-
-// IsConnected returns true if a working teamclient to server connection
-// is bound to this precise client. Given that each client register may register
-// as many other RPC client services to its connection, this client can't however
-// reconnect to/with a different connection/stream.
-func (tc *Client) IsConnected() bool {
-	return tc.connected
-}
-
-// NamedLogger returns a new logging "thread" which should grossly
-// indicate the package/general domain, and a more precise flow/stream.
-func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
-	return tc.log().WithFields(logrus.Fields{
-		log.PackageFieldKey: pkg,
-		"stream":            stream,
-	})
-}
-
-// WithLoggerStdout sets the source to which the stdout logger (not any file logger) should write to.
-// This option is used by the teamserver/teamclient cobra command tree to coordinate its basic I/O/err.
-func (tc *Client) SetLogWriter(stdout, stderr io.Writer) {
-	tc.stdoutLogger.Out = stdout
-	// TODO: Pass stderr to log internals.
-}
-
-// SetLogLevel is a utility to change the logging level of the stdout logger.
-func (tc *Client) SetLogLevel(level int) {
-	if tc.stdoutLogger == nil {
-		return
-	}
-
-	if uint32(level) > uint32(logrus.TraceLevel) {
-		level = int(logrus.TraceLevel)
-	}
-
-	tc.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
-
-	if tc.fileLogger != nil {
-		tc.fileLogger.SetLevel(logrus.Level(uint32(level)))
-	}
-}
-
-// Initialize loggers in files/stdout according to options.
-func (tc *Client) initLogging() (err error) {
-	// No logging means only stdout with warn level
-	if tc.opts.noLogs {
-		tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
 		return nil
 	}
 
-	// If user supplied a logger, use it in place of the
-	// file-based logger, since the file logger is optional.
-	if tc.opts.logger != nil {
-		tc.fileLogger = tc.opts.logger
+	// The client can reconnect..
+	defer func() {
+		tc.connect = &sync.Once{}
+	}()
+
+	if tc.dialer == nil {
+		return nil
 	}
 
-	// Either use default logfile or user-specified one.
-	tc.fileLogger, tc.stdoutLogger, err = log.NewClient(tc.opts.logFile, logrus.InfoLevel)
+	err := tc.dialer.Close()
 	if err != nil {
-		return err
+		tc.log().Error(err)
 	}
 
-	return nil
+	return err
 }
 
-// log returns a non-nil logger for the client:
-// if file logging is disabled, it returns the stdout-only logger,
-// otherwise returns the file logger equipped with a stdout hook.
-func (tc *Client) log() *logrus.Logger {
-	if tc.fileLogger != nil {
-		return tc.fileLogger
-	}
-
-	if tc.stdoutLogger == nil {
-		tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
-	}
-
-	return tc.stdoutLogger
-}
-
-func (tc *Client) errorf(msg string, format ...any) error {
-	logged := fmt.Errorf(msg, format...)
-	tc.log().Error(logged)
-
-	return logged
+func (tc *Client) Filesystem() *assets.FS {
+	return tc.fs
 }

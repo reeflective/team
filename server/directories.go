@@ -1,5 +1,23 @@
 package server
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"fmt"
 	"os"
@@ -13,27 +31,42 @@ import (
 
 const (
 	teamserverDir = "teamserver"
+	logsDir       = "logs"
+	certsDir      = "certs"
 )
 
-// AppDir returns the directory of the team server app (named ~/.<application>-server),
-// creating the directory if needed, or logging a fatal event if failing to create it.
-func (ts *Server) AppDir() string {
+func (ts *Server) HomeDir() string {
 	value := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(ts.name)))
 
 	var dir string
 
-	if len(value) == 0 {
-		user, _ := user.Current()
-		dir = filepath.Join(user.HomeDir, fmt.Sprintf(".%s", ts.name), teamserverDir)
+	if !ts.opts.inMemory {
+		if len(value) == 0 {
+			user, _ := user.Current()
+			dir = filepath.Join(user.HomeDir, "."+ts.name)
+		} else {
+			dir = value
+		}
 	} else {
-		dir = value
+		dir = "." + ts.name
 	}
 
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, dirWriteModePerm)
-		if err != nil {
-			ts.log().Errorf("Cannot write to %s root dir: %s", dir, err)
-		}
+	err := ts.fs.MkdirAll(dir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s root dir: %s", dir, err)
+	}
+
+	return dir
+}
+
+// TeamDir returns the directory of the team server app (named ~/.<app>/teamserver/),
+// creating the directory if needed, or logging a fatal event if failing to create it.
+func (ts *Server) TeamDir() string {
+	dir := path.Join(ts.HomeDir(), teamserverDir)
+
+	err := ts.fs.MkdirAll(dir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s root dir: %s", dir, err)
 	}
 
 	return dir
@@ -42,24 +75,25 @@ func (ts *Server) AppDir() string {
 // LogsDir returns the directory of the client (~/.app-server/logs), creating
 // the directory if needed, or logging a fatal event if failing to create it.
 func (ts *Server) LogsDir() string {
-	rootDir := ts.AppDir()
+	logDir := path.Join(ts.TeamDir(), logsDir)
 
-	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
-		err = os.MkdirAll(rootDir, dirWriteModePerm)
-		if err != nil {
-			ts.log().Errorf("Cannot write to %s root dir: %s", rootDir, err)
-		}
-	}
-
-	logDir := path.Join(rootDir, "logs")
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		err = os.MkdirAll(logDir, dirWriteModePerm)
-		if err != nil {
-			ts.log().Errorf("Cannot write logs dir %s: %s", logDir, err)
-		}
+	err := ts.fs.MkdirAll(logDir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s root dir: %s", logDir, err)
 	}
 
 	return logDir
+}
+
+func (ts *Server) CertificatesDir() string {
+	certDir := path.Join(ts.TeamDir(), certsDir)
+
+	err := ts.fs.MkdirAll(certDir, log.DirPerm)
+	if err != nil {
+		ts.log().Errorf("cannot write to %s root dir: %s", certDir, err)
+	}
+
+	return certDir
 }
 
 // When creating a new server, don't write anything to anywhere yet,
@@ -68,10 +102,14 @@ func (ts *Server) LogsDir() string {
 // If any error happens it will returned right away and the creator
 // of the teamserver will know right away that it can't work correctly.
 func (ts *Server) checkWritableFiles() error {
+	if ts.opts.inMemory {
+		return nil
+	}
+
 	// Check home application directory.
 	// If it does not exist but we don't have write permission
 	// on /user/home, we return an error as we can't work.
-	appDirWrite, err := log.IsWritable(ts.AppDir())
+	appDirWrite, err := log.IsWritable(ts.TeamDir())
 
 	switch {
 	case os.IsNotExist(err):
@@ -80,7 +118,7 @@ func (ts *Server) checkWritableFiles() error {
 		}
 	case err != nil:
 		return fmt.Errorf("Cannot write to %w", err)
-	case appDirWrite:
+	case !appDirWrite:
 		return ErrDirectoryUnwritable
 	}
 

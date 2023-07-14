@@ -11,6 +11,7 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/server"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -21,7 +22,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -41,18 +42,24 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		if system {
 			user, err := user.Current()
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to get current OS user: %s\n", err)
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to get current OS user: %s\n", err)
 				return
 			}
 
 			name = user.Username
 			filename = fmt.Sprintf("%s_%s_default", serv.Name(), user.Username)
 			saveTo = cli.ConfigsDir()
+
+			err = os.MkdirAll(saveTo, log.DirPerm)
+			if err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"cannot write to %s root dir: %s\n", saveTo, err)
+				return
+			}
 		} else {
 			saveTo, _ = filepath.Abs(save)
 			userFile, err := os.Stat(saveTo)
 			if !os.IsNotExist(err) && !userFile.IsDir() {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"File already exists %s\n", err)
+				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"File already exists %s\n", err)
 				return
 			}
 
@@ -65,15 +72,15 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		configJSON, err := serv.NewUserConfig(name, lhost, lport)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"%s\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err)
 			return
 		}
 
 		saveTo = filepath.Join(saveTo, filename+".teamclient.cfg")
 
-		err = ioutil.WriteFile(saveTo, configJSON, server.FileWriteModePerm)
+		err = ioutil.WriteFile(saveTo, configJSON, log.FileReadPerm)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to write config to %s: %s\n", saveTo, err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to write config to %s: %s\n", saveTo, err)
 			return
 		}
 
@@ -86,7 +93,7 @@ func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -96,7 +103,7 @@ func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		err := serv.DeleteUser(user)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to remove the user certificate: %v \n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to remove the user certificate: %v\n", err)
 			return
 		}
 
@@ -109,7 +116,7 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -117,12 +124,12 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		fi, err := os.Stat(load)
 		if os.IsNotExist(err) || fi.IsDir() {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Cannot load file %s\n", load)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Cannot load file %s\n", load)
 		}
 
 		data, err := os.ReadFile(load)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Cannot read file: %v\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Cannot read file: %v\n", err)
 		}
 
 		// CA - Exported CA format
@@ -133,9 +140,11 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		importCA := &CA{}
 		err = json.Unmarshal(data, importCA)
+
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Failed to parse file: %s\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to parse file: %s\n", err)
 		}
+
 		cert := []byte(importCA.Certificate)
 		key := []byte(importCA.PrivateKey)
 		serv.SaveUsersCA(cert, key)
@@ -147,7 +156,7 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -162,7 +171,7 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		certificateData, privateKeyData, err := serv.GetUsersCA()
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Error reading CA %s\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Error reading CA %s\n", err)
 			return
 		}
 
@@ -178,19 +187,23 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		}
 
 		saveTo, _ := filepath.Abs(save)
-		fi, err := os.Stat(saveTo)
-		if !os.IsNotExist(err) && !fi.IsDir() {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"File already exists: %s\n", err)
+
+		caFile, err := os.Stat(saveTo)
+		if !os.IsNotExist(err) && !caFile.IsDir() {
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"File already exists: %s\n", err)
 			return
 		}
-		if !os.IsNotExist(err) && fi.IsDir() {
-			filename := fmt.Sprintf("%s.ca", filepath.Base("user"))
+
+		if !os.IsNotExist(err) && caFile.IsDir() {
+			filename := fmt.Sprintf("%s-%s.teamserver.ca", serv.Name(), "users")
 			saveTo = filepath.Join(saveTo, filename)
 		}
+
 		data, _ := json.Marshal(exportedCA)
-		err = os.WriteFile(saveTo, data, 0o600)
+
+		err = os.WriteFile(saveTo, data, log.FileWritePerm)
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), command.Warn+"Write failed: %s (%s)\n", saveTo, err)
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Write failed: %s (%s)\n", saveTo, err)
 			return
 		}
 	}

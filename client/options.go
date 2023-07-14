@@ -19,9 +19,7 @@ package client
 */
 
 import (
-	"fmt"
 	"io"
-	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 )
@@ -30,21 +28,21 @@ import (
 type Options func(opts *opts)
 
 type opts struct {
-	noLogs  bool
-	logFile string
-	console bool
-	local   bool
-	stdout  io.Writer
-	config  *Config
-	logger  *logrus.Logger
-	dialer  Dialer[any]
-	hooks   []func(s any) error
+	noLogs   bool
+	logFile  string
+	inMemory bool
+	console  bool
+	local    bool
+	stdout   io.Writer
+	config   *Config
+	logger   *logrus.Logger
+	dialer   Dialer[any]
+	hooks    []func(s any) error
 }
 
-func (tc *Client) defaultOpts() *opts {
+func defaultOpts() *opts {
 	return &opts{
-		config:  &Config{},
-		logFile: filepath.Join(tc.LogsDir(), fmt.Sprintf("%s.teamclient.log", tc.Name())),
+		config: &Config{},
 	}
 }
 
@@ -66,19 +64,20 @@ func (tc *Client) apply(options ...Options) {
 // *** General options ***
 //
 
-// WithConfig sets the client to use a given teamserver configuration for
-// connection, instead of using default user/application configurations.
-func WithConfig(config *Config) Options {
-	return func(opts *opts) {
-		opts.config = config
-	}
-}
-
 // WithInMemory deactivates all interactions of the client with the filesystem.
 // This applies to logging, but will also to any forward feature using files.
 func WithInMemory() Options {
 	return func(opts *opts) {
 		opts.noLogs = true
+		opts.inMemory = true
+	}
+}
+
+// WithConfig sets the client to use a given teamserver configuration for
+// connection, instead of using default user/application configurations.
+func WithConfig(config *Config) Options {
+	return func(opts *opts) {
+		opts.config = config
 	}
 }
 
@@ -113,31 +112,10 @@ func WithLogger(logger *logrus.Logger) Options {
 // *** Client network/RPC options ***
 //
 
-// WithNoDisconnect is meant to be used when the teamclient commands are used
-// in your application and that you happen to ALSO have a readline/console style
-// application which might reuse commands.
-// If this is the case, this option will ensure that any cobra client command
-// runners produced by this library will not disconnect after each execution.
-func WithNoDisconnect() Options {
-	return func(opts *opts) {
-		opts.console = true
-	}
-}
-
 // WithDialer sets a custom dialer to connect to the teamserver.
 func WithDialer(dialer Dialer[any]) Options {
 	return func(opts *opts) {
 		opts.dialer = dialer
-	}
-}
-
-// WithPostConnectHooks adds a list of hooks to run on the generic RPC client
-// returned by the Teamclient/Dialer Dial() method. This client object can be
-// pretty much any client-side RPC connection, or just raw connection.
-// You will have to typecast this conn in your hooks.
-func WithPostConnectHooks(hooks ...func(conn any) error) Options {
-	return func(opts *opts) {
-		opts.hooks = append(opts.hooks, hooks...)
 	}
 }
 
@@ -150,5 +128,26 @@ func WithPostConnectHooks(hooks ...func(conn any) error) Options {
 func WithLocalDialer() Options {
 	return func(opts *opts) {
 		opts.local = true
+	}
+}
+
+// WithNoDisconnect is meant to be used when the teamclient commands are used
+// in your application and that you happen to ALSO have a readline/console style
+// application which might reuse commands.
+// If this is the case, this option will ensure that any cobra client command
+// runners produced by this library will not disconnect after each execution.
+func WithNoDisconnect() Options {
+	return func(opts *opts) {
+		opts.console = true
+	}
+}
+
+// WithPostConnectHooks adds a list of hooks to run on the generic RPC client
+// returned by the Teamclient/Dialer Dial() method. This client object can be
+// pretty much any client-side RPC connection, or just raw connection.
+// You will have to typecast this conn in your hooks.
+func WithPostConnectHooks(hooks ...func(conn any) error) Options {
+	return func(opts *opts) {
+		opts.hooks = append(opts.hooks, hooks...)
 	}
 }

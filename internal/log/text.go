@@ -2,24 +2,25 @@ package log
 
 import (
 	"errors"
+	"io"
 	"path/filepath"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 )
 
-// txtHook - Hook in a textual version of the logs
+// txtHook - Hook in a textual version of the logs.
 type txtHook struct {
 	Name   string
 	app    string
 	logger *logrus.Logger
 }
 
-// newTxtHook - returns a new txt hook
-func newTxtHook(logFile string, level logrus.Level, log *logrus.Logger) *txtHook {
+// newTxtHook - returns a new txt hook.
+func newTxtHook(fs io.Writer, level logrus.Level, log *logrus.Logger) *txtHook {
 	hook := &txtHook{}
 
-	logger, err := NewText(logFile)
+	logger, err := NewText(fs)
 	if err != nil {
 		log.Error(err)
 	}
@@ -30,7 +31,7 @@ func newTxtHook(logFile string, level logrus.Level, log *logrus.Logger) *txtHook
 	return hook
 }
 
-// Fire - Implements the fire method of the Logrus hook
+// Fire - Implements the fire method of the Logrus hook.
 func (hook *txtHook) Fire(entry *logrus.Entry) error {
 	if hook.logger == nil {
 		return errors.New("no txt logger")
@@ -72,7 +73,7 @@ func (hook *txtHook) Fire(entry *logrus.Entry) error {
 	return nil
 }
 
-// Levels - Hook all levels
+// Levels - Hook all levels.
 func (hook *txtHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }

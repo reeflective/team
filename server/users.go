@@ -10,60 +10,23 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"runtime"
-	"strings"
 	"sync"
+	"time"
 
-	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
-	"github.com/reeflective/team/internal/version"
+	"github.com/reeflective/team/internal/transport"
 )
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
 
-// GetVersion returns the server binary version information.
-func (ts *Server) GetVersion() team.Version {
-	dirty := version.GitDirty != ""
-	semVer := version.Semantic()
-	compiled, _ := version.Compiled()
-
-	return team.Version{
-		Major:      int32(semVer[0]),
-		Minor:      int32(semVer[1]),
-		Patch:      int32(semVer[2]),
-		Commit:     strings.TrimSuffix(version.GitCommit, "\n"),
-		Dirty:      dirty,
-		CompiledAt: compiled.Unix(),
-		OS:         runtime.GOOS,
-		Arch:       runtime.GOARCH,
-	}
-}
-
-// GetUsers returns the list of users in the teamserver database, and their information.
-func (ts *Server) GetUsers() ([]team.User, error) {
-	usersDB := []*db.User{}
-	err := ts.db.Distinct("Name").Find(&usersDB).Error
-
-	users := make([]team.User, len(usersDB))
-
-	if err != nil && len(usersDB) == 0 {
-		return users, ts.errorf("%w: %w", ErrDatabase, err)
-	}
-
-	for i, user := range users {
-		users[i] = team.User{
-			Name: user.Name,
-			// TODO: online && num clients.
-		}
-	}
-
-	return users, nil
-}
-
 // NewUserConfig generates a new user client connection configuration.
 func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]byte, error) {
+	if err := ts.initDatabase(); err != nil {
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
 	if !namePattern.MatchString(userName) {
 		return nil, ts.errorf("%w: invalid user name (alphanumerics only)", ErrUserConfig)
 	}
@@ -91,7 +54,7 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 		Token: hex.EncodeToString(digest[:]),
 	}
 
-	err = ts.db.Save(dbuser).Error
+	err = ts.dbSession().Save(dbuser).Error
 	if err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -118,19 +81,29 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 // DeleteUser deletes a user from the teamserver database, in fact forbidding
 // it to ever reconnect with the user's credentials (client configuration file).
 func (ts *Server) DeleteUser(name string) error {
-	err := ts.db.Where(&db.User{
+	if err := ts.initDatabase(); err != nil {
+		return ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
+	err := ts.dbSession().Where(&db.User{
 		Name: name,
 	}).Delete(&db.User{}).Error
 	if err != nil {
 		return err
 	}
 
+	// Clear the token cache so that all requests from
+	// connected clients of this user are now refused.
 	ts.userTokens = &sync.Map{}
 
 	return ts.certs.UserClientRemoveCertificate(name)
 }
 
 func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized bool, err error) {
+	if err := ts.initDatabase(); err != nil {
+		return "", false, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
 	log := ts.NamedLogger("server", "auth")
 	log.Debugf("Authorization-checking user token ...")
 
@@ -140,6 +113,7 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 
 	if name, ok := ts.userTokens.Load(token); ok {
 		log.Debugf("Token in cache!")
+		ts.updateLastSeen(name.(string))
 		return name.(string), true, nil
 	}
 
@@ -148,27 +122,42 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 		return "", false, ts.errorf("%w: %w", ErrUnauthenticated, err)
 	}
 
+	ts.updateLastSeen(user.Name)
+
 	log.Debugf("Valid user token for %s", user.Name)
 	ts.userTokens.Store(token, user.Name)
 
 	return user.Name, true, nil
 }
 
+func (ts *Server) updateLastSeen(name string) {
+	lastSeen := time.Now().Round(1 * time.Second)
+	ts.dbSession().Model(&db.User{}).Where("name", name).Update("LastSeen", lastSeen)
+}
+
 // GetUsersCA returns the bytes of a PEM-encoded certificate authority,
 // which may contain multiple teamserver users and their master.
 func (ts *Server) GetUsersCA() ([]byte, []byte, error) {
+	if err := ts.initDatabase(); err != nil {
+		return nil, nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
 	return ts.certs.GetUsersCAPEM()
 }
 
 // SaveUsersCA accepts the public and private parts of a Certificate
 // Authority containing one or more users to add to the teamserver.
 func (ts *Server) SaveUsersCA(cert, key []byte) {
+	if err := ts.initDatabase(); err != nil {
+		return
+	}
+
 	ts.certs.SaveUsersCA(cert, key)
 }
 
 // newUserToken - Generate a new user authentication token.
 func (ts *Server) newUserToken() (string, error) {
-	buf := make([]byte, identifierLength)
+	buf := make([]byte, transport.TokenLength)
 
 	n, err := rand.Read(buf)
 	if err != nil || n != len(buf) {
@@ -187,7 +176,7 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 	}
 
 	user := &db.User{}
-	err := ts.db.Where(&db.User{
+	err := ts.dbSession().Where(&db.User{
 		Token: value,
 	}).First(user).Error
 
@@ -198,6 +187,10 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 // to specify any TLS parameters, we choose sensible defaults instead.
 func (ts *Server) GetUserTLSConfig() (*tls.Config, error) {
 	log := ts.NamedLogger("certs", "mtls")
+
+	if err := ts.initDatabase(); err != nil {
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
 
 	caCertPtr, _, err := ts.certs.GetUsersCA()
 	if err != nil {

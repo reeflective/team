@@ -48,7 +48,7 @@ func (hook *stdioHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 
-// Fire - Implements the fire method of the Logrus hook
+// Fire - Implements the fire method of the Logrus hook.
 func (hook *stdioHook) Fire(entry *logrus.Entry) error {
 	switch entry.Level {
 	case logrus.PanicLevel:
@@ -106,7 +106,7 @@ func (hook *stdoutHook) Levels() []logrus.Level {
 	}
 }
 
-// Fire - Implements the fire method of the Logrus hook
+// Fire - Implements the fire method of the Logrus hook.
 func (hook *stdoutHook) Fire(entry *logrus.Entry) error {
 	switch entry.Level {
 	case logrus.PanicLevel:
@@ -212,7 +212,7 @@ func newLoggerStderr() *stdoutHook {
 	return hook
 }
 
-// Fire - Implements the fire method of the Logrus hook
+// Fire - Implements the fire method of the Logrus hook.
 func (hook *stderrHook) Fire(entry *logrus.Entry) error {
 	switch entry.Level {
 	case logrus.PanicLevel:

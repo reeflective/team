@@ -20,13 +20,16 @@ package commands
 
 import (
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/systemd"
 	"github.com/reeflective/team/server"
 	"github.com/sirupsen/logrus"
@@ -38,7 +41,7 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -69,7 +72,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -83,7 +86,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
 
 			if persistent {
-				serv.AddListener("", lhost, lport)
+				serv.AddListener(ltype, lhost, lport)
 			}
 		} else {
 			return fmt.Errorf(command.Warn+"Failed to start job %w", err)
@@ -98,7 +101,27 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+			}
+		}
+
+		listeners := serv.Listeners()
+		cfg := serv.GetConfig()
+
+		for _, arg := range args {
+			if arg == "" {
+				continue
+			}
+
+			for _, ln := range listeners {
+				if strings.HasPrefix(ln.ID, arg) {
+					err := serv.CloseListener(arg)
+					if err != nil {
+						fmt.Fprintln(cmd.ErrOrStderr(), command.Warn, err)
+					} else {
+						fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Closed %s listener (%s) [%s]\n", ln.Name, formatSmallID(ln.ID), ln.Description)
+					}
+				}
 			}
 		}
 
@@ -107,14 +130,13 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 				continue
 			}
 
-			for _, ln := range serv.Listeners() {
-				if strings.HasPrefix(ln.ID, arg) {
-					err := serv.CloseListener(arg)
-					if err != nil {
-						fmt.Fprintln(cmd.ErrOrStderr(), command.Warn, err)
-					} else {
-						fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Closed %s listener (%s) [%s]", ln.Name, formatSmallID(ln.ID), ln.Description)
-					}
+			for _, saved := range cfg.Listeners {
+				if strings.HasPrefix(saved.ID, arg) {
+					serv.RemoveListener(saved.ID)
+					id := formatSmallID(saved.ID)
+					fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Deleted %s listener (%s) from saved jobs\n", saved.Name, id)
+
+					continue
 				}
 			}
 		}
@@ -126,7 +148,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -185,55 +207,116 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
-		// General options, available listeners, etc
-		fmt.Fprintln(cmd.OutOrStdout(), formatSection("General"))
-
-		// Logging files/level/status
-		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Logging"))
-
-		// Listeners (excluding in-memory ones, BUT INCLUDING PERSISTENT NON-RUNNING ONES)
-		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Listeners"))
-
-		listeners := serv.Listeners()
 		cfg := serv.GetConfig()
 
-		tbl := &table.Table{}
-		tbl.SetStyle(teamserverTableStyle)
+		dbCfg := serv.DatabaseConfig()
+		database := fmt.Sprintf("%s - %s [%s:%d] ", dbCfg.Dialect, dbCfg.Database, dbCfg.Host, dbCfg.Port)
 
-		tbl.AppendHeader(table.Row{
-			"ID",
-			"Name",
-			"Description",
-			"State",
-			"Persistent",
-		})
+		// General options, in-memory, default port, config path, database, etc
+		fmt.Fprintln(cmd.OutOrStdout(), formatSection("General"))
+		fmt.Fprint(cmd.OutOrStdout(), displayGroup([]string{
+			"Home", serv.HomeDir(),
+			"Port", strconv.Itoa(cfg.DaemonMode.Port),
+			"Database", database,
+			"Config", serv.ConfigPath(),
+		}))
 
-		for _, ln := range listeners {
-			persist := false
+		// Logging files/level/status
+		fakeLog := serv.NamedLogger("", "")
 
-			for _, saved := range cfg.Listeners {
-				if saved.ID == ln.ID {
-					persist = true
+		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Logging"))
+		fmt.Fprint(cmd.OutOrStdout(), displayGroup([]string{
+			"Level", fakeLog.Level.String(),
+			"Root", log.FileName(filepath.Join(serv.LogsDir(), serv.Name()), true),
+			"Audit", filepath.Join(serv.LogsDir(), "audit.json"),
+		}))
+
+		// Certificate files.
+		certsPath := serv.CertificatesDir()
+		if dir, err := os.Stat(certsPath); err == nil && dir.IsDir() {
+			files, err := fs.ReadDir(os.DirFS(certsPath), ".")
+			if err == nil || len(files) > 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), formatSection("Certificate files"))
+
+				for _, file := range files {
+					fmt.Fprintln(cmd.OutOrStdout(), filepath.Join(certsPath, file.Name()))
 				}
 			}
-
-			tbl.AppendRow(table.Row{
-				formatSmallID(ln.ID),
-				ln.Name,
-				ln.Description,
-				command.Green + command.Bold + "Up" + command.Normal,
-				persist,
-			})
 		}
 
-		if len(listeners) > 0 {
-			fmt.Fprintln(cmd.OutOrStdout(), tbl.Render())
+		// Listeners
+		listenersTable := listenersTable(serv, cfg)
+
+		if listenersTable != "" {
+			fmt.Fprintln(cmd.OutOrStdout(), formatSection("Listeners"))
+			fmt.Fprintln(cmd.OutOrStdout(), listenersTable)
 		}
 	}
+}
+
+func listenersTable(serv *server.Server, cfg *server.Config) string {
+	listeners := serv.Listeners()
+
+	tbl := &table.Table{}
+	tbl.SetStyle(command.TableStyle)
+
+	tbl.AppendHeader(table.Row{
+		"ID",
+		"Name",
+		"Description",
+		"State",
+		"Persistent",
+	})
+
+	for _, listener := range listeners {
+		persist := false
+
+		for _, saved := range cfg.Listeners {
+			if saved.ID == listener.ID {
+				persist = true
+			}
+		}
+
+		tbl.AppendRow(table.Row{
+			formatSmallID(listener.ID),
+			listener.Name,
+			listener.Description,
+			command.Green + command.Bold + "Up" + command.Normal,
+			persist,
+		})
+	}
+
+next:
+	for _, saved := range cfg.Listeners {
+
+		for _, ln := range listeners {
+			if saved.ID == ln.ID {
+				continue next
+			}
+		}
+
+		tbl.AppendRow(table.Row{
+			formatSmallID(saved.ID),
+			saved.Name,
+			fmt.Sprintf("%s:%d", saved.Host, saved.Port),
+			command.Red + command.Bold + "Down" + command.Normal,
+			true,
+		})
+	}
+
+	if len(listeners) > 0 {
+		return tbl.Render()
+	}
+
+	return ""
+}
+
+func fieldName(name string) string {
+	return command.Blue + command.Bold + name + command.Normal
 }
 
 func callerArgs(cmd *cobra.Command) []string {
@@ -248,47 +331,6 @@ func callerArgs(cmd *cobra.Command) []string {
 	return args
 }
 
-var teamserverTableStyle = table.Style{
-	Name: "TeamServerDefault",
-	Box: table.BoxStyle{
-		BottomLeft:       " ",
-		BottomRight:      " ",
-		BottomSeparator:  " ",
-		Left:             " ",
-		LeftSeparator:    " ",
-		MiddleHorizontal: "=",
-		MiddleSeparator:  " ",
-		MiddleVertical:   " ",
-		PaddingLeft:      " ",
-		PaddingRight:     " ",
-		Right:            " ",
-		RightSeparator:   " ",
-		TopLeft:          " ",
-		TopRight:         " ",
-		TopSeparator:     " ",
-		UnfinishedRow:    "~~",
-	},
-	Color: table.ColorOptions{
-		IndexColumn:  text.Colors{},
-		Footer:       text.Colors{},
-		Header:       text.Colors{},
-		Row:          text.Colors{},
-		RowAlternate: text.Colors{},
-	},
-	Format: table.FormatOptions{
-		Footer: text.FormatDefault,
-		Header: text.FormatTitle,
-		Row:    text.FormatDefault,
-	},
-	Options: table.Options{
-		DrawBorder:      false,
-		SeparateColumns: true,
-		SeparateFooter:  false,
-		SeparateHeader:  true,
-		SeparateRows:    false,
-	},
-}
-
 func formatSection(msg string, args ...any) string {
 	return "\n" + command.Bold + command.Orange + fmt.Sprintf(msg, args...) + command.Normal
 }
@@ -300,4 +342,31 @@ func formatSmallID(id string) string {
 	}
 
 	return id[:8]
+}
+
+func displayGroup(values []string) string {
+	var maxLength int
+	var group string
+
+	// Get the padding for headers
+	for i, head := range values {
+		if i%2 != 0 {
+			continue
+		}
+
+		if len(head) > maxLength {
+			maxLength = len(head)
+		}
+	}
+
+	for i := 0; i < len(values)-1; i += 2 {
+		field := values[i]
+		value := values[i+1]
+
+		headName := fmt.Sprintf("%*s", maxLength, field)
+		fieldName := command.Blue + command.Bold + headName + command.Normal + " "
+		group += fmt.Sprintf("%s: %s\n", fieldName, value)
+	}
+
+	return group
 }

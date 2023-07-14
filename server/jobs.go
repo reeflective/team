@@ -72,6 +72,10 @@ func (ts *Server) AddListener(name, host string, port uint16) error {
 		ID:   getRandomID(),
 	}
 
+	if listener.Name == "" && ts.self != nil {
+		listener.Name = ts.self.Name()
+	}
+
 	ts.opts.config.Listeners = append(ts.opts.config.Listeners, listener)
 
 	return ts.SaveConfig(ts.opts.config)
@@ -161,10 +165,19 @@ func (ts *Server) addListenerJob(listenerID, host string, port int, ln Handler[a
 		listenerID = getRandomID()
 	}
 
+	laddr := host
+	if port != 0 {
+		laddr = fmt.Sprintf("%s:%d", laddr, port)
+	}
+
+	if laddr == "" {
+		laddr = "runtime"
+	}
+
 	listener := &job{
 		ID:          listenerID,
 		Name:        ln.Name(),
-		Description: fmt.Sprintf("%s:%d", host, port),
+		Description: laddr,
 		kill:        make(chan bool),
 	}
 
