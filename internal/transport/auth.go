@@ -27,6 +27,8 @@ const (
 	TokenLength = 32
 )
 
+// TokenAuth extracts authentication metadata from contexts,
+// specifically the "Authorization": "Bearer" key:value pair.
 type TokenAuth string
 
 // Return value is mapped to request headers.
@@ -36,6 +38,7 @@ func (t TokenAuth) GetRequestMetadata(ctx context.Context, in ...string) (map[st
 	}, nil
 }
 
+// RequireTransportSecurity always return true.
 func (TokenAuth) RequireTransportSecurity() bool {
 	return true
 }

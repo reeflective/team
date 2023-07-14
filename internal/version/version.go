@@ -53,7 +53,8 @@ const (
 	semVerLen = 3
 )
 
-// Semantic - Get the structured sematic version.
+// Semantic - Get the structured semantic
+// version of the application binary.
 func Semantic() []int {
 	semVer := make([]int, semVerLen)
 	version := strings.TrimSuffix(Version, "\n")

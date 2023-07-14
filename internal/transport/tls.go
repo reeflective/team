@@ -30,6 +30,7 @@ const (
 	DefaultPort = 31416
 )
 
+// GetTLSConfig returns a prepared TLS configuration struct from certificate/key bytes.
 func GetTLSConfig(caCertificate string, certificate string, privateKey string) (*tls.Config, error) {
 	certPEM, err := tls.X509KeyPair([]byte(certificate), []byte(privateKey))
 	if err != nil {
