@@ -18,33 +18,13 @@ const (
 	maxOpenConns = 100
 )
 
-func (ts *Server) dbSession() *gorm.DB {
-	return ts.db.Session(&gorm.Session{
-		FullSaveAssociations: true,
-	})
-}
+func (ts *Server) DatabaseConfig() *db.Config {
+	cfg, err := ts.getDatabaseConfig()
+	if err != nil {
+		return cfg
+	}
 
-// initDatabase should be called once when a teamserver is created.
-func (ts *Server) initDatabase() (err error) {
-	ts.dbInitOnce.Do(func() {
-		dbLogger := ts.NamedLogger("database", "database")
-
-		if ts.db != nil {
-			return
-		}
-
-		ts.opts.dbConfig, err = ts.getDatabaseConfig()
-		if err != nil {
-			return
-		}
-
-		ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
-		if err != nil {
-			return
-		}
-	})
-
-	return nil
+	return cfg
 }
 
 // GetDatabaseConfigPath - File path to config.json.
@@ -83,7 +63,7 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 		return err
 	}
 
-	dblog.Infof("Saving config to %s", configPath)
+	dblog.Debugf("Saving config to %s", configPath)
 
 	return os.WriteFile(configPath, data, log.FileReadPerm)
 }
@@ -95,7 +75,8 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 	log := ts.NamedLogger("config", "database")
 
-	config := ts.getDefaultDatabaseConfig()
+	// Don't fetch anything if running in-memory only.
+	config := ts.opts.dbConfig
 	if config.Database == db.SQLiteInMemoryHost {
 		return config, nil
 	}
@@ -149,4 +130,33 @@ func (ts *Server) getDefaultDatabaseConfig() *db.Config {
 	}
 
 	return cfg
+}
+
+// initDatabase should be called once when a teamserver is created.
+func (ts *Server) initDatabase() (err error) {
+	ts.dbInitOnce.Do(func() {
+		dbLogger := ts.NamedLogger("database", "database")
+
+		if ts.db != nil {
+			return
+		}
+
+		ts.opts.dbConfig, err = ts.getDatabaseConfig()
+		if err != nil {
+			return
+		}
+
+		ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
+		if err != nil {
+			return
+		}
+	})
+
+	return nil
+}
+
+func (ts *Server) dbSession() *gorm.DB {
+	return ts.db.Session(&gorm.Session{
+		FullSaveAssociations: true,
+	})
 }

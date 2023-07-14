@@ -92,17 +92,15 @@ func New(application string, options ...Options) (*Server, error) {
 
 	// Ensure we have a working database configuration,
 	// and at least an in-memory sqlite database.
-	server.opts.dbConfig = server.getDefaultDatabaseConfig()
+	if server.opts.dbConfig == nil {
+		server.opts.dbConfig = server.getDefaultDatabaseConfig()
+	}
+
 	if server.opts.dbConfig.Database == db.SQLiteInMemoryHost && server.db == nil {
 		if err := server.initDatabase(); err != nil {
 			return nil, server.errorf("%w: %w", ErrDatabase, err)
 		}
 	}
-
-	// Default listener.
-
-	// Store given handlers.
-	// server.handlers[listener.Name()] = listener
 
 	return server, nil
 }

@@ -211,21 +211,29 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 			}
 		}
 
+		cfg := serv.GetConfig()
+
+		dbCfg := serv.DatabaseConfig()
+		database := fmt.Sprintf("%s - %s [%s:%d] ", dbCfg.Dialect, dbCfg.Database, dbCfg.Host, dbCfg.Port)
+
 		// General options, in-memory, default port, config path, database, etc
 		fmt.Fprintln(cmd.OutOrStdout(), formatSection("General"))
-		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Home"), serv.HomeDir())
-		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Default port"))
-		fmt.Fprintf(cmd.OutOrStdout(), fmtField("In-memory"))
-		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Database"))
-		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Config"))
+		fmt.Fprint(cmd.OutOrStdout(), displayGroup([]string{
+			"Home", serv.HomeDir(),
+			"Port", strconv.Itoa(cfg.DaemonMode.Port),
+			"Database", database,
+			"Config", serv.ConfigPath(),
+		}))
 
 		// Logging files/level/status
 		fakeLog := serv.NamedLogger("", "")
 
 		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Logging"))
-		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Level"), fakeLog.Level.String())
-		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Root"), log.FileName(filepath.Join(serv.LogsDir(), serv.Name()), true))
-		fmt.Fprintf(cmd.OutOrStdout(), fmtField("Audit"), filepath.Join(serv.LogsDir(), "audit.json"))
+		fmt.Fprint(cmd.OutOrStdout(), displayGroup([]string{
+			"Level", fakeLog.Level.String(),
+			"Root", log.FileName(filepath.Join(serv.LogsDir(), serv.Name()), true),
+			"Audit", filepath.Join(serv.LogsDir(), "audit.json"),
+		}))
 
 		// Certificate files.
 		certsPath := serv.CertificatesDir()
@@ -240,67 +248,75 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 			}
 		}
 
-		// Listeners (excluding in-memory ones, BUT INCLUDING PERSISTENT NON-RUNNING ONES)
-		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Listeners"))
+		// Listeners
+		listenersTable := listenersTable(serv, cfg)
 
-		listeners := serv.Listeners()
-		cfg := serv.GetConfig()
-
-		tbl := &table.Table{}
-		tbl.SetStyle(command.TableStyle)
-
-		tbl.AppendHeader(table.Row{
-			"ID",
-			"Name",
-			"Description",
-			"State",
-			"Persistent",
-		})
-
-		for _, listener := range listeners {
-			persist := false
-
-			for _, saved := range cfg.Listeners {
-				if saved.ID == listener.ID {
-					persist = true
-				}
-			}
-
-			tbl.AppendRow(table.Row{
-				formatSmallID(listener.ID),
-				listener.Name,
-				listener.Description,
-				command.Green + command.Bold + "Up" + command.Normal,
-				persist,
-			})
-		}
-
-	next:
-		for _, saved := range cfg.Listeners {
-
-			for _, ln := range listeners {
-				if saved.ID == ln.ID {
-					continue next
-				}
-			}
-
-			tbl.AppendRow(table.Row{
-				formatSmallID(saved.ID),
-				saved.Name,
-				fmt.Sprintf("%s:%d", saved.Host, saved.Port),
-				command.Red + command.Bold + "Down" + command.Normal,
-				true,
-			})
-		}
-
-		if len(listeners) > 0 {
-			fmt.Fprintln(cmd.OutOrStdout(), tbl.Render())
+		if listenersTable != "" {
+			fmt.Fprintln(cmd.OutOrStdout(), formatSection("Listeners"))
+			fmt.Fprintln(cmd.OutOrStdout(), listenersTable)
 		}
 	}
 }
 
-func fmtField(name string) string {
-	return command.Blue + command.Bold + name + command.Normal + ": %s\n"
+func listenersTable(serv *server.Server, cfg *server.Config) string {
+	listeners := serv.Listeners()
+
+	tbl := &table.Table{}
+	tbl.SetStyle(command.TableStyle)
+
+	tbl.AppendHeader(table.Row{
+		"ID",
+		"Name",
+		"Description",
+		"State",
+		"Persistent",
+	})
+
+	for _, listener := range listeners {
+		persist := false
+
+		for _, saved := range cfg.Listeners {
+			if saved.ID == listener.ID {
+				persist = true
+			}
+		}
+
+		tbl.AppendRow(table.Row{
+			formatSmallID(listener.ID),
+			listener.Name,
+			listener.Description,
+			command.Green + command.Bold + "Up" + command.Normal,
+			persist,
+		})
+	}
+
+next:
+	for _, saved := range cfg.Listeners {
+
+		for _, ln := range listeners {
+			if saved.ID == ln.ID {
+				continue next
+			}
+		}
+
+		tbl.AppendRow(table.Row{
+			formatSmallID(saved.ID),
+			saved.Name,
+			fmt.Sprintf("%s:%d", saved.Host, saved.Port),
+			command.Red + command.Bold + "Down" + command.Normal,
+			true,
+		})
+	}
+
+	if len(listeners) > 0 {
+		return tbl.Render()
+	}
+
+	return ""
+}
+
+func fieldName(name string) string {
+	return command.Blue + command.Bold + name + command.Normal
 }
 
 func callerArgs(cmd *cobra.Command) []string {
@@ -326,4 +342,31 @@ func formatSmallID(id string) string {
 	}
 
 	return id[:8]
+}
+
+func displayGroup(values []string) string {
+	var maxLength int
+	var group string
+
+	// Get the padding for headers
+	for i, head := range values {
+		if i%2 != 0 {
+			continue
+		}
+
+		if len(head) > maxLength {
+			maxLength = len(head)
+		}
+	}
+
+	for i := 0; i < len(values)-1; i += 2 {
+		field := values[i]
+		value := values[i+1]
+
+		headName := fmt.Sprintf("%*s", maxLength, field)
+		fieldName := command.Blue + command.Bold + headName + command.Normal + " "
+		group += fmt.Sprintf("%s: %s\n", fieldName, value)
+	}
+
+	return group
 }
