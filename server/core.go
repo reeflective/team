@@ -119,9 +119,13 @@ func (ts *Server) Version() (team.Version, error) {
 	semVer := version.Semantic()
 	compiled, _ := version.Compiled()
 
-	major := int32(semVer[0])
-	minor := int32(semVer[1])
-	patch := int32(semVer[2])
+	var major, minor, patch int32
+
+	if len(semVer) == 3 {
+		major = int32(semVer[0])
+		minor = int32(semVer[1])
+		patch = int32(semVer[2])
+	}
 
 	return team.Version{
 		Major:      major,
