@@ -25,6 +25,9 @@ import (
 )
 
 // Options are client options.
+// You can set or modify the behavior of a teamclient at various
+// steps with these options, which are a variadic parameter of
+// several client.Client methods.
 type Options func(opts *opts)
 
 type opts struct {
@@ -64,8 +67,10 @@ func (tc *Client) apply(options ...Options) {
 // *** General options ***
 //
 
-// WithInMemory deactivates all interactions of the client with the filesystem.
-// This applies to logging, but will also to any forward feature using files.
+// WithInMemory deactivates all interactions of the client with the on-disk filesystem.
+// This will in effect use in-memory files for all file-based logging and database data.
+// This might be useful for testing, or if you happen to embed a teamclient in a program
+// without the intent of using it now, etc.
 func WithInMemory() Options {
 	return func(opts *opts) {
 		opts.noLogs = true
@@ -73,8 +78,8 @@ func WithInMemory() Options {
 	}
 }
 
-// WithConfig sets the client to use a given teamserver configuration for
-// connection, instead of using default user/application configurations.
+// WithConfig sets the client to use a given remote teamserver configuration which
+// to connect to, instead of using default on-disk user/application configurations.
 func WithConfig(config *Config) Options {
 	return func(opts *opts) {
 		opts.config = config
@@ -113,6 +118,7 @@ func WithLogger(logger *logrus.Logger) Options {
 //
 
 // WithDialer sets a custom dialer to connect to the teamserver.
+// See the Dialer type documentation for implementation/usage details.
 func WithDialer(dialer Dialer[any]) Options {
 	return func(opts *opts) {
 		opts.dialer = dialer
@@ -132,8 +138,8 @@ func WithLocalDialer() Options {
 }
 
 // WithNoDisconnect is meant to be used when the teamclient commands are used
-// in your application and that you happen to ALSO have a readline/console style
-// application which might reuse commands.
+// in a closed-loop (readline-style) application, where the connection is used
+// more than once in the lifetime of the Go program.
 // If this is the case, this option will ensure that any cobra client command
 // runners produced by this library will not disconnect after each execution.
 func WithNoDisconnect() Options {
@@ -142,10 +148,12 @@ func WithNoDisconnect() Options {
 	}
 }
 
-// WithPostConnectHooks adds a list of hooks to run on the generic RPC client
-// returned by the Teamclient/Dialer Dial() method. This client object can be
-// pretty much any client-side RPC connection, or just raw connection.
-// You will have to typecast this conn in your hooks.
+// WithPostConnectHooks adds a list of hooks to run on the generic clientConn
+// returned by the client.Dialer Dial() method (see Dialer doc for details).
+//
+// This client object can be pretty much any client-side conn/RPC object.
+// You will have to typecast this conn in your hooks, casting it to the type
+// that your teamclient Dialer.Dial() method returns.
 func WithPostConnectHooks(hooks ...func(conn any) error) Options {
 	return func(opts *opts) {
 		opts.hooks = append(opts.hooks, hooks...)

@@ -19,8 +19,11 @@ package client
 */
 
 import (
+	"fmt"
+	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 
 	"github.com/reeflective/team/internal/log"
 )
@@ -30,12 +33,27 @@ const (
 	teamserverClientDir = "teamclient"
 	logsDirName         = "logs"
 	configsDirName      = "configs"
-	logFileExt          = "teamclient"
 )
 
+// HomeDir returns the root application directory (~/.app/ by default).
+// This directory can be set with the environment variable <APP>_ROOT_DIR.
+// This directory is not to be confused with the ~/.app/teamclient directory
+// returned by the client.TeamDir(), which is specific to the app teamclient.
 func (tc *Client) HomeDir() string {
-	user, _ := user.Current()
-	dir := filepath.Join(user.HomeDir, "."+tc.name)
+	value := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(tc.name)))
+
+	var dir string
+
+	if !tc.opts.inMemory {
+		if len(value) == 0 {
+			user, _ := user.Current()
+			dir = filepath.Join(user.HomeDir, "."+tc.name)
+		} else {
+			dir = value
+		}
+	} else {
+		dir = "." + tc.name
+	}
 
 	err := tc.fs.MkdirAll(dir, log.DirPerm)
 	if err != nil {
@@ -47,6 +65,7 @@ func (tc *Client) HomeDir() string {
 
 // TeamDir returns the teamclient directory of the app (named ~/.<app>/teamclient/),
 // creating the directory if needed, or logging an error event if failing to create it.
+// This directory is used to store teamclient logs and remote server configs.
 func (tc *Client) TeamDir() string {
 	dir := filepath.Join(tc.HomeDir(), teamserverClientDir)
 
@@ -58,7 +77,7 @@ func (tc *Client) TeamDir() string {
 	return dir
 }
 
-// LogsDir returns the directory of the client (~/.app/logs), creating
+// LogsDir returns the directory of the teamclient logs (~/.app/logs), creating
 // the directory if needed, or logging a fatal event if failing to create it.
 func (tc *Client) LogsDir() string {
 	logsDir := filepath.Join(tc.TeamDir(), logsDirName)
@@ -71,7 +90,9 @@ func (tc *Client) LogsDir() string {
 	return logsDir
 }
 
-// GetConfigDir - Returns the path to the config dir.
+// GetConfigDir returns the path to the remote teamserver configs directory
+// for this application (~/.app/teamclient/configs), creating the directory
+// if needed, or logging a fatal event if failing to create it.
 func (tc *Client) ConfigsDir() string {
 	rootDir, _ := filepath.Abs(tc.TeamDir())
 	dir := filepath.Join(rootDir, configsDirName)
