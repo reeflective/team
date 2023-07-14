@@ -55,9 +55,6 @@ func (tc *Client) SetLogLevel(level int) {
 
 	tc.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
 
-	// Also Change the file-based logging level:
-	// - If they app runs a memfs, this wont have any effect.
-	// - If the user wants to debug anyway, better two sources than one.
 	if tc.fileLogger != nil {
 		tc.fileLogger.SetLevel(logrus.Level(uint32(level)))
 	}

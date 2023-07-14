@@ -112,7 +112,7 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 			return nil, fmt.Errorf("Failed to parse config file %w", err)
 		}
 	} else {
-		log.Warnf("Config file does not exist, using defaults")
+		log.Warnf("Database: no config file found, using and saving defaults")
 	}
 
 	if config.MaxIdleConns < 1 {

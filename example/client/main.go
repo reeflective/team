@@ -15,7 +15,7 @@ func main() {
 	// Create a new teamserver client, without any working
 	// gRPC connection at this stage. We could pass some options
 	// to it if we want to customize behavior.
-	teamclient, err := teamclient.New("teamserver", client, teamclient.WithDialer(dialer), teamclient.WithInMemory())
+	teamclient, err := teamclient.New("teamserver", client, teamclient.WithDialer(dialer))
 	if err != nil {
 		log.Fatal(err)
 	}

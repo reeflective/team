@@ -80,8 +80,6 @@ func NewManager(fs *assets.FS, db *gorm.DB, logger *logrus.Entry, appName, appDi
 		fs:      fs,
 	}
 
-	// Ensure CAs are initialized.
-	certs.generateCA(mtlsCA, "mtls")
 	certs.generateCA(userCA, "teamusers")
 
 	return certs

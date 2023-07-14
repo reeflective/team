@@ -62,7 +62,7 @@ func (ts *Server) AuditLogger() (*logrus.Logger, error) {
 func (ts *Server) initLogging() (err error) {
 	// By default, the stdout logger is never nil.
 	// We might overwrite it below if using our defaults.
-	ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
+	// ts.stdoutLogger = log.NewStdio(logrus.WarnLevel)
 
 	logFile := filepath.Join(ts.LogsDir(), log.FileName(ts.Name(), true))
 

@@ -80,7 +80,7 @@ func (ts *Server) GetConfig() *Config {
 			return ts.opts.config
 		}
 	} else {
-		cfgLog.Warnf("Config file does not exist, using defaults")
+		cfgLog.Warnf("Teamserver: no config file found, using and saving defaults")
 	}
 
 	if ts.opts.config.Log.Level < 0 {

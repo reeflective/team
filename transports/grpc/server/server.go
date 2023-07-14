@@ -108,7 +108,7 @@ func (h *handler) Listen(addr string) (net.Listener, error) {
 		return h.conn, nil
 	}
 
-	rpcLog.Debugf("Starting gRPC TLS listener on %s", addr)
+	rpcLog.Infof("Starting gRPC TLS listener on %s", addr)
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {

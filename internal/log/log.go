@@ -28,25 +28,25 @@ func Init(fs *assets.FS, file string, level logrus.Level) (*logrus.Logger, *logr
 	}
 
 	// Text-format logger, writing to file.
-	fileLog := logrus.New()
-	fileLog.Formatter = &stdoutHook{
+	textLogger := logrus.New()
+	textLogger.Formatter = &stdoutHook{
 		DisableColors: false,
 		ShowTimestamp: false,
 		Colors:        defaultFieldsFormat(),
 	}
-	fileLog.Out = io.Discard
+	textLogger.Out = io.Discard
 
-	fileLog.SetLevel(logrus.InfoLevel)
-	fileLog.SetReportCaller(true)
+	textLogger.SetLevel(logrus.InfoLevel)
+	textLogger.SetReportCaller(true)
 
 	// File output
-	fileLog.AddHook(newTxtHook(logFile, level, fileLog))
+	textLogger.AddHook(newTxtHook(logFile, level, textLogger))
 
 	// Stdout/err output, with special formatting.
 	stdioHook := newStdioHook()
-	fileLog.AddHook(stdioHook)
+	textLogger.AddHook(stdioHook)
 
-	return fileLog, stdioHook.logger, nil
+	return textLogger, stdioHook.logger, nil
 }
 
 // NewStdio returns a logger configured to output its events to the system stdio:
@@ -62,15 +62,15 @@ func NewStdio(level logrus.Level) *logrus.Logger {
 
 	stdLogger.SetLevel(level)
 	stdLogger.SetReportCaller(true)
-	stdLogger.Out = io.Discard
+	stdLogger.Out = os.Stdout
 
 	// Info/debug/trace is given to a stdout logger.
-	stdoutHook := newLoggerStdout()
-	stdLogger.AddHook(stdoutHook)
-
-	// Warn/error/panics/fatals are given to stderr.
-	stderrHook := newLoggerStderr()
-	stdLogger.AddHook(stderrHook)
+	// stdoutHook := newLoggerStdout()
+	// stdLogger.AddHook(stdoutHook)
+	//
+	// // Warn/error/panics/fatals are given to stderr.
+	// stderrHook := newLoggerStderr()
+	// stdLogger.AddHook(stderrHook)
 
 	return stdLogger
 }
