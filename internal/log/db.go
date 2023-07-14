@@ -26,6 +26,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// gorm middleware for database queries/results logging.
 type gormWriter struct {
 	log *logrus.Entry
 }

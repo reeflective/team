@@ -55,9 +55,6 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 // makes this runner able to be ran in closed-loop consoles.
 func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
-		// Server specific settings.
-		teamserver.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
-
 		// And connect the client locally, only needed.
 		return teamserver.Serve(teamclient)
 	}
