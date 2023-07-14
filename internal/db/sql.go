@@ -19,6 +19,7 @@ package db
 */
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -34,8 +35,13 @@ const (
 	SQLiteInMemoryHost = ":memory:"
 )
 
-// ErrRecordNotFound - Record not found error.
-var ErrRecordNotFound = gorm.ErrRecordNotFound
+var (
+	// ErrRecordNotFound - Record not found error.
+	ErrRecordNotFound = gorm.ErrRecordNotFound
+
+	// ErrUnsupportedDialect - An invalid dialect was specified.
+	ErrUnsupportedDialect = errors.New("Unknown/unsupported DB Dialect")
+)
 
 // NewClient initializes a database client connection to a backend specified in config.
 func NewClient(dbConfig *Config, dbLogger *logrus.Entry) (*gorm.DB, error) {
@@ -52,24 +58,29 @@ func NewClient(dbConfig *Config, dbLogger *logrus.Entry) (*gorm.DB, error) {
 	switch dbConfig.Dialect {
 	case Sqlite:
 		dbLogger.Infof("Connecting to SQLite database %s", dsn)
+
 		dbClient, err = sqliteClient(dsn, dbLog)
 		if err != nil {
 			return nil, fmt.Errorf("Database connection failed: %w", err)
 		}
+
 	case Postgres:
 		dbLogger.Infof("Connecting to PostgreSQL database %s", dsn)
+
 		dbClient, err = postgresClient(dsn, dbLog)
 		if err != nil {
 			return nil, fmt.Errorf("Database connection failed: %w", err)
 		}
+
 	case MySQL:
 		dbLogger.Infof("Connecting to MySQL database %s", dsn)
+
 		dbClient, err = mySQLClient(dsn, dbLog)
 		if err != nil {
 			return nil, fmt.Errorf("Database connection failed: %w", err)
 		}
 	default:
-		return nil, fmt.Errorf("Unknown/unsupported DB Dialect: '%s'", dbConfig.Dialect)
+		return nil, fmt.Errorf("%w: '%s'", ErrUnsupportedDialect, dbConfig.Dialect)
 	}
 
 	err = dbClient.AutoMigrate(

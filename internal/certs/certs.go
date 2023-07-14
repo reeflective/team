@@ -76,13 +76,13 @@ type Manager struct {
 // Any critical error happening at initialization time will send a log.Fatal event to the
 // provided logger. If the latter has no modified log.ExitFunc, this will make the server
 // panic and exit.
-func NewManager(fs *assets.FS, db *gorm.DB, logger *logrus.Entry, appName, appDir string) *Manager {
+func NewManager(filesystem *assets.FS, db *gorm.DB, logger *logrus.Entry, appName, appDir string) *Manager {
 	certs := &Manager{
 		appName: appName,
 		appDir:  appDir,
 		log:     logger,
 		db:      db,
-		fs:      fs,
+		fs:      filesystem,
 	}
 
 	certs.generateCA(userCA, "teamusers")

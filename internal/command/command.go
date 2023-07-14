@@ -30,8 +30,8 @@ type (
 )
 
 const (
-	ClientConfigExt = "teamclient.cfg"
-	ServerConfigExt = "teamserver.json"
+	ClientConfigExt = "teamclient.cfg"  // Client remote server config file extension.
+	ServerConfigExt = "teamserver.json" // Server backend config file extension.
 )
 
 const (
@@ -65,6 +65,7 @@ const (
 	Debugl = Purple + "[-] " + Normal
 )
 
+// TableStyle is a default table style for users and listeners.
 var TableStyle = table.Style{
 	Name: "TeamServerDefault",
 	Box: table.BoxStyle{
