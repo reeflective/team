@@ -1,3 +1,5 @@
+//go:build !(wasm_sqlite || cgo_sqlite)
+
 package db
 
 // Wiregost - Post-Exploitation & Implant Framework
