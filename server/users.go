@@ -54,7 +54,7 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 		Token: hex.EncodeToString(digest[:]),
 	}
 
-	err = ts.db.Save(dbuser).Error
+	err = ts.dbSession().Save(dbuser).Error
 	if err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -85,13 +85,15 @@ func (ts *Server) DeleteUser(name string) error {
 		return ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
-	err := ts.db.Where(&db.User{
+	err := ts.dbSession().Where(&db.User{
 		Name: name,
 	}).Delete(&db.User{}).Error
 	if err != nil {
 		return err
 	}
 
+	// Clear the token cache so that all requests from
+	// connected clients of this user are now refused.
 	ts.userTokens = &sync.Map{}
 
 	return ts.certs.UserClientRemoveCertificate(name)
@@ -130,7 +132,7 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 
 func (ts *Server) updateLastSeen(name string) {
 	lastSeen := time.Now().Round(1 * time.Second)
-	ts.db.Model(&db.User{}).Where("name", name).Update("LastSeen", lastSeen)
+	ts.dbSession().Model(&db.User{}).Where("name", name).Update("LastSeen", lastSeen)
 }
 
 // GetUsersCA returns the bytes of a PEM-encoded certificate authority,
@@ -174,7 +176,7 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 	}
 
 	user := &db.User{}
-	err := ts.db.Where(&db.User{
+	err := ts.dbSession().Where(&db.User{
 		Token: value,
 	}).First(user).Error
 

@@ -47,6 +47,8 @@ func NewTeam(opts ...grpc.ServerOption) (teamserver.Handler[any], team.Client, t
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
 	)
 
+	listener.options = append(listener.options, opts...)
+
 	client, dialer := NewTeamClientFrom(listener)
 
 	return listener, client, dialer

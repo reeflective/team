@@ -10,12 +10,19 @@ import (
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/log"
+	"gorm.io/gorm"
 )
 
 const (
 	maxIdleConns = 10
 	maxOpenConns = 100
 )
+
+func (ts *Server) dbSession() *gorm.DB {
+	return ts.db.Session(&gorm.Session{
+		FullSaveAssociations: true,
+	})
+}
 
 // initDatabase should be called once when a teamserver is created.
 func (ts *Server) initDatabase() (err error) {

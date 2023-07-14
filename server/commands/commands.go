@@ -28,26 +28,13 @@ import (
 //   - Connect the client more than once to the teamserver.
 //   - Start persistent listeners, excluding the daemon command.
 func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Command {
-	serveAndConnect := func(cmd *cobra.Command, args []string) error {
-		// If the server is already serving us with an in-memory con, return.
-		// Also, the daemon command does not need a teamclient connection.
-		// if teamclient.IsConnected() {
-		// 	return nil
-		// }
-		// Server specific settings.
-		teamserver.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
-
-		// And connect the client locally, only needed.
-		return teamserver.Serve(teamclient)
-	}
-
 	// Server-only commands always need to have open log
 	// files, most of the time access to the database, etc.
 	// On top, they need a listener in memory.
 	servCmds := serverCommands(teamserver, teamclient)
 
 	for _, cmd := range servCmds.Commands() {
-		cmd.PersistentPreRunE = serveAndConnect
+		cmd.PersistentPreRunE = PreRun(teamserver, teamclient)
 	}
 
 	// We bind the same runners to the client-side commands.
@@ -55,7 +42,7 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 	cliCmds.Use = "client"
 
 	for _, cmd := range cliCmds.Commands() {
-		cmd.PersistentPreRunE = serveAndConnect
+		cmd.PersistentPreRunE = PreRun(teamserver, teamclient)
 	}
 
 	servCmds.AddCommand(cliCmds)
@@ -70,8 +57,6 @@ func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraR
 	return func(cmd *cobra.Command, args []string) error {
 		// Server specific settings.
 		teamserver.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
-
-		// TODO: use the client pre-runners ?
 
 		// And connect the client locally, only needed.
 		return teamserver.Serve(teamclient)

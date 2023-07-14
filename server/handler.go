@@ -11,7 +11,6 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
-	"gorm.io/gorm"
 )
 
 // Handler represents a teamserver listener stack.
@@ -212,6 +211,7 @@ func (ts *Server) init(opts ...Options) error {
 		if err = ts.initDatabase(); err != nil {
 			return
 		}
+
 		// Database configuration.
 		// At creation time, we ensured that server had
 		// a valid database configuration, but we might
@@ -238,16 +238,8 @@ func (ts *Server) init(opts ...Options) error {
 
 		// Certificate infrastructure, will make the code panic if unable to work properly.
 		certsLog := ts.NamedLogger("certs", "certificates")
-		ts.certs = certs.NewManager(ts.fs, ts.db.Session(&gorm.Session{}), certsLog, ts.Name(), ts.TeamDir())
+		ts.certs = certs.NewManager(ts.fs, ts.dbSession(), certsLog, ts.Name(), ts.TeamDir())
 	})
 
 	return err
 }
-
-// func (ts *Server[_]) newServer() *Server {
-//
-// 	// One session per listener should be enough for now.
-// 	serv.db = ts.db.Session(&gorm.Session{
-// 		FullSaveAssociations: true,
-// 	})
-// }

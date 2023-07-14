@@ -158,6 +158,8 @@ func (c *Manager) RemoveCertificate(caType string, keyType string, commonName st
 		return fmt.Errorf("Invalid key type '%s'", keyType)
 	}
 
+	c.log.Infof("Deleting certificate for cn = '%s'", commonName)
+
 	err := c.db.Where(&db.Certificate{
 		CAType:     caType,
 		KeyType:    keyType,

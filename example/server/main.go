@@ -10,6 +10,30 @@ import (
 	"github.com/rsteube/carapace"
 )
 
+func main() {
+	listener, client, dialer := grpc.NewTeam()
+
+	teamserver, err := teamserver.New("teamserver", teamserver.WithListener(listener))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	teamclient, err := teamclient.New(teamserver.Name(), client, teamclient.WithDialer(dialer))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Commands
+	serverCmds := commands.Generate(teamserver, teamclient)
+	carapace.Gen(serverCmds)
+
+	// Run
+	err = serverCmds.Execute()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func mainGrpc() {
 	// Create a teamserver.
 	// This server can handle any number of remote clients for a given application
@@ -86,28 +110,3 @@ func mainSmallest() {
 func mainCustom() {}
 
 func mainNoCommands() {}
-
-func main() {
-	listener, client, dialer := grpc.NewTeam()
-
-	teamserver, err := teamserver.New("grpcserver", teamserver.WithListener(listener))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	teamclient, err := teamclient.New(teamserver.Name(), client, teamclient.WithDialer(dialer))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Commands
-	serverCmds := commands.Generate(teamserver, teamclient)
-	serverCmds.Use = "grpcserver"
-	carapace.Gen(serverCmds)
-
-	// Run
-	err = serverCmds.Execute()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
