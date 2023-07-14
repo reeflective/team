@@ -119,10 +119,14 @@ func (ts *Server) Version() (team.Version, error) {
 	semVer := version.Semantic()
 	compiled, _ := version.Compiled()
 
+	major := int32(semVer[0])
+	minor := int32(semVer[1])
+	patch := int32(semVer[2])
+
 	return team.Version{
-		Major:      int32(semVer[0]),
-		Minor:      int32(semVer[1]),
-		Patch:      int32(semVer[2]),
+		Major:      major,
+		Minor:      minor,
+		Patch:      patch,
 		Commit:     strings.TrimSuffix(version.GitCommit, "\n"),
 		Dirty:      dirty,
 		CompiledAt: compiled.Unix(),
