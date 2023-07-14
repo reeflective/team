@@ -8,26 +8,38 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_tags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"github.com/reeflective/team/server"
 	"github.com/reeflective/team/transports/grpc/common"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
-// initMiddleware - Initialize middleware logger.
-func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
+func CoreOpts() (options []grpc.ServerOption) {
+	options = append(options,
+		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
+		grpc.MaxSendMsgSize(ServerMaxMessageSize),
+	)
+
+	return
+}
+
+func LogMiddleware(s *server.Server) ([]grpc.ServerOption, error) {
 	var requestOpts []grpc.UnaryServerInterceptor
 	var streamOpts []grpc.StreamServerInterceptor
 
+	cfg := s.GetConfig()
+
 	// Audit-log all requests. Any failure to audit-log the requests
 	// of this server will themselves be logged to the root teamserver log.
-	auditLog, err := ts.AuditLogger()
+	auditLog, err := s.AuditLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	requestOpts = append(requestOpts, ts.auditLogUnaryServerInterceptor(auditLog))
+	requestOpts = append(requestOpts, auditLogUnaryServerInterceptor(s, auditLog))
 
 	requestOpts = append(requestOpts,
 		grpc_tags.UnaryServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
@@ -38,7 +50,7 @@ func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 	)
 
 	// Logging interceptors
-	logrusEntry := ts.NamedLogger("transport", "grpc")
+	logrusEntry := s.NamedLogger("transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
 		grpc_logrus.WithLevels(common.CodeToLevel),
 	}
@@ -47,13 +59,42 @@ func (ts *handler) initMiddleware() ([]grpc.ServerOption, error) {
 
 	requestOpts = append(requestOpts,
 		grpc_logrus.UnaryServerInterceptor(logrusEntry, logrusOpts...),
-		grpc_logrus.PayloadUnaryServerInterceptor(logrusEntry, ts.deciderUnary),
+		grpc_logrus.PayloadUnaryServerInterceptor(logrusEntry, func(ctx context.Context, fullMethodName string, servingObject interface{}) bool {
+			return cfg.Log.GRPCUnaryPayloads
+		}),
 	)
 
 	streamOpts = append(streamOpts,
 		grpc_logrus.StreamServerInterceptor(logrusEntry, logrusOpts...),
-		grpc_logrus.PayloadStreamServerInterceptor(logrusEntry, ts.deciderStream),
+		grpc_logrus.PayloadStreamServerInterceptor(logrusEntry, func(ctx context.Context, fullMethodName string, servingObject interface{}) bool {
+			return cfg.Log.GRPCStreamPayloads
+		}),
 	)
+
+	return []grpc.ServerOption{
+		grpc_middleware.WithUnaryServerChain(requestOpts...),
+		grpc_middleware.WithStreamServerChain(streamOpts...),
+	}, nil
+}
+
+func TLSAuthMiddleware(s *server.Server) ([]grpc.ServerOption, error) {
+	var options []grpc.ServerOption
+
+	tlsConfig, err := s.GetUserTLSConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	creds := credentials.NewTLS(tlsConfig)
+	options = append(options, grpc.Creds(creds))
+
+	return options, nil
+}
+
+// initAuthMiddleware - Initialize middleware logger.
+func (ts *handler) initAuthMiddleware() ([]grpc.ServerOption, error) {
+	var requestOpts []grpc.UnaryServerInterceptor
+	var streamOpts []grpc.StreamServerInterceptor
 
 	// Authentication interceptors.
 	if ts.conn == nil {
@@ -112,20 +153,12 @@ func (ts *handler) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 	return newCtx, nil
 }
 
-func (ts *handler) deciderUnary(_ context.Context, _ string, _ interface{}) bool {
-	return ts.sconfig.Log.GRPCUnaryPayloads
-}
-
-func (ts *handler) deciderStream(_ context.Context, _ string, _ interface{}) bool {
-	return ts.sconfig.Log.GRPCStreamPayloads
-}
-
 type auditUnaryLogMsg struct {
 	Request string `json:"request"`
 	Method  string `json:"method"`
 }
 
-func (ts *handler) auditLogUnaryServerInterceptor(auditLog *logrus.Logger) grpc.UnaryServerInterceptor {
+func auditLogUnaryServerInterceptor(ts *server.Server, auditLog *logrus.Logger) grpc.UnaryServerInterceptor {
 	log := ts.NamedLogger("grpc", "audit")
 
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (_ interface{}, err error) {

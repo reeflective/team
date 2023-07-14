@@ -33,6 +33,7 @@ const (
 type handler struct {
 	*client.Client
 	target  string
+	conn    *grpc.ClientConn
 	rpc     proto.TeamClient
 	options []grpc.DialOption
 }
@@ -90,18 +91,18 @@ func (h *handler) Dial() (rpcClient any, err error) {
 
 	host := fmt.Sprintf("%s:%d", h.Config().Host, h.Config().Port)
 
-	conn, err := grpc.DialContext(ctx, host, h.options...)
+	h.conn, err = grpc.DialContext(ctx, host, h.options...)
 	if err != nil {
 		return nil, err
 	}
 
-	h.rpc = proto.NewTeamClient(conn)
+	h.rpc = proto.NewTeamClient(h.conn)
 
 	return h.rpc, nil
 }
 
 func (h *handler) Close() error {
-	return nil
+	return h.conn.Close()
 }
 
 // Users returns a list of all users registered to the application server.

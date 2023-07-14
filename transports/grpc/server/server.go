@@ -12,7 +12,6 @@ import (
 	clientConn "github.com/reeflective/team/transports/grpc/client"
 	"github.com/reeflective/team/transports/grpc/proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -29,23 +28,33 @@ const (
 
 type handler struct {
 	*teamserver.Server
-	sconfig *teamserver.Config
 
 	options []grpc.ServerOption
 	conn    *bufconn.Listener
 	mutex   *sync.RWMutex
 }
 
+// type inMemory struct {
+// 	*handler
+// 	conn *bufconn.Listener
+// }
+//
+// func (h *inMemory) Init(serv *teamserver.Server) (err error) {
+// 	return
+// }
+//
+// func (h *inMemory) Serve(ln net.Listener) (any, error) {
+// 	return nil, nil
+// }
+//
+// func (h *inMemory) Listen(addr string) (net.Listener, error) {
+// 	return nil, nil
+// }
+
 func NewTeam(opts ...grpc.ServerOption) (teamserver.Handler[any], team.Client, teamclient.Dialer[any]) {
 	listener := &handler{
 		mutex: &sync.RWMutex{},
 	}
-
-	// Buffering
-	listener.options = append(listener.options,
-		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
-		grpc.MaxSendMsgSize(ServerMaxMessageSize),
-	)
 
 	listener.options = append(listener.options, opts...)
 
@@ -85,10 +94,14 @@ func (h *handler) Name() string {
 // done as long as it's for ensuring that the rest will work.
 func (h *handler) Init(serv *teamserver.Server) (err error) {
 	h.Server = serv
-	h.sconfig = h.Server.GetConfig()
+
+	h.options, err = LogMiddleware(h.Server)
+	if err != nil {
+		return err
+	}
 
 	// Logging/authentication/audit
-	serverOptions, err := h.initMiddleware()
+	serverOptions, err := h.initAuthMiddleware()
 	if err != nil {
 		return err
 	}
@@ -127,15 +140,14 @@ func (h *handler) Serve(listener net.Listener) (any, error) {
 	// Encryption.
 	h.mutex.Lock()
 	if h.conn == nil {
-		rpcLog.Infof("Serving gRPC teamserver on %s", listener.Addr())
-
-		tlsConfig, err := h.GetUserTLSConfig()
+		tlsOptions, err := TLSAuthMiddleware(h.Server)
 		if err != nil {
 			return nil, err
 		}
 
-		creds := credentials.NewTLS(tlsConfig)
-		h.options = append(h.options, grpc.Creds(creds))
+		h.options = append(h.options, tlsOptions...)
+
+		rpcLog.Infof("Serving gRPC teamserver on %s", listener.Addr())
 	}
 	h.mutex.Unlock()
 
