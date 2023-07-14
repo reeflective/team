@@ -42,8 +42,8 @@ func Semantic() []int {
 	version = strings.TrimPrefix(version, "v")
 
 	for i, part := range strings.Split(version, ".") {
-		number, _ := strconv.Atoi(part)
-		semVer[i] = number
+		number, _ := strconv.ParseInt(part, 10, 32)
+		semVer[i] = int(number)
 	}
 
 	return semVer
