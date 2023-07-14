@@ -225,8 +225,8 @@ func (ts *Server) GetUserTLSConfig() (*tls.Config, error) {
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	if keyLogger := ts.certs.NewKeyLogger(); keyLogger != nil {
-		tlsConfig.KeyLogWriter = ts.certs.NewKeyLogger()
+	if keyLogger := ts.certs.OpenTLSKeyLogFile(); keyLogger != nil {
+		tlsConfig.KeyLogWriter = ts.certs.OpenTLSKeyLogFile()
 	}
 
 	return tlsConfig, nil

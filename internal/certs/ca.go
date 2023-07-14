@@ -33,19 +33,6 @@ import (
 //  CERTIFICATE AUTHORITY
 // -----------------------
 
-// TODO: Check this directory on the server checkwritable.
-func (c *Manager) getCertDir() string {
-	rootDir := c.appDir
-	certDir := filepath.Join(rootDir, "certs")
-
-	err := c.fs.MkdirAll(certDir, log.DirPerm)
-	if err != nil {
-		c.log.Fatalf("Failed to create cert dir: %s", err)
-	}
-
-	return certDir
-}
-
 const (
 	certFileExt = "teamserver.pem"
 )

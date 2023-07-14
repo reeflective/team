@@ -24,11 +24,9 @@ import (
 	"github.com/reeflective/team/internal/log"
 )
 
-const (
-	mtlsCA = "mtls-server"
-)
-
-func (c *Manager) NewKeyLogger() *os.File {
+// OpenTLSKeyLogFile returns an open file to the TLS keys log file,
+// if the environment variable SSLKEYLOGFILE is defined.
+func (c *Manager) OpenTLSKeyLogFile() *os.File {
 	keyFilePath, present := os.LookupEnv("SSLKEYLOGFILE")
 	if present {
 		keyFile, err := os.OpenFile(keyFilePath, log.FileWriteOpenMode, log.FileReadPerm)
