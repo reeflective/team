@@ -41,7 +41,7 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -72,7 +72,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -101,7 +101,7 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -148,7 +148,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -207,7 +207,7 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 

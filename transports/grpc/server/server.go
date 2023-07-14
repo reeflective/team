@@ -183,6 +183,14 @@ func (h *handler) Serve(listener net.Listener) (any, error) {
 	return grpcServer, nil
 }
 
+// Close implements server.Handler.Close().
+//
+// In this implementation, the function does nothing. Thus the underlying
+// *grpc.Server .Shutdown() method is not called, and only the listener
+// will be closed by the server automatically.
+//
+// This is probably not optimal from a resource usage standpoint, but currently it
+// fits most use cases. Feel free to reimplement or propose changes to this lib.
 func (h *handler) Close() error {
 	return nil
 }

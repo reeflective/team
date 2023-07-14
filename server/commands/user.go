@@ -22,7 +22,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -93,7 +93,7 @@ func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -116,7 +116,7 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
@@ -156,7 +156,7 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.ErrorLevel))
+				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
 			}
 		}
 
