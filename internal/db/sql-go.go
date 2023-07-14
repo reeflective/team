@@ -1,5 +1,3 @@
-//go:build go_sqlite
-
 package db
 
 // Wiregost - Post-Exploitation & Implant Framework
