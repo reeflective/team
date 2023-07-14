@@ -1,5 +1,23 @@
 package log
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"errors"
 	"fmt"
@@ -28,19 +46,18 @@ const (
 	MinimumPackagePad = 11
 )
 
+// stdioHook combines a stdout hook (info/debug/trace),
+// and a stderr hook (warn/error/fatal/panic).
+type stdioHook struct {
+	logger *logrus.Logger
+}
+
 func newStdioHook() *stdioHook {
 	hook := &stdioHook{
 		logger: NewStdio(logrus.WarnLevel),
 	}
 
 	return hook
-}
-
-// stdioHook combines a stdout hook (info/debug/trace),
-// and a stderr hook (warn/error/fatal/panic).
-type stdioHook struct {
-	name   string
-	logger *logrus.Logger
 }
 
 // The stdout hooks only outputs info, debug and trace.
@@ -88,8 +105,8 @@ func newLoggerStdout() *stdoutHook {
 	return hook
 }
 
+// stderrHook only logs info events and less.
 type stdoutHook struct {
-	name            string
 	DisableColors   bool
 	ShowTimestamp   bool
 	TimestampFormat string
@@ -129,20 +146,21 @@ func (hook *stdoutHook) Fire(entry *logrus.Entry) error {
 }
 
 // Format is a custom formatter for all stdout/text logs, with better format and coloring.
-func (f *stdoutHook) Format(entry *logrus.Entry) ([]byte, error) {
+func (hook *stdoutHook) Format(entry *logrus.Entry) ([]byte, error) {
 	// Basic information.
-	sign, signColor := f.getLevelFieldColor(entry.Level)
+	sign, signColor := hook.getLevelFieldColor(entry.Level)
 	levelLog := fmt.Sprintf("%s%s%s", color(signColor), sign, color(style.Default))
 
-	timestamp := entry.Time.Format(f.TimestampFormat)
-	timestampLog := fmt.Sprintf("%s%s%s", color(f.Colors[FieldTimestamp]), timestamp, color(style.Default))
+	timestamp := entry.Time.Format(hook.TimestampFormat)
+	timestampLog := fmt.Sprintf("%s%s%s", color(hook.Colors[FieldTimestamp]), timestamp, color(style.Default))
 
 	var pkgLogF string
+
 	pkg := entry.Data[PackageFieldKey]
 	if pkg != nil {
 		pkgLog := fmt.Sprintf(" %v ", pkg)
 		pkgLog = fmt.Sprintf("%-*s", MinimumPackagePad, pkgLog)
-		pkgLogF = strings.ReplaceAll(pkgLog, fmt.Sprintf("%s", pkg), fmt.Sprintf("%s%s%s", color(f.Colors[FieldPackage]), pkg, color(style.Default)))
+		pkgLogF = strings.ReplaceAll(pkgLog, fmt.Sprintf("%s", pkg), fmt.Sprintf("%s%s%s", color(hook.Colors[FieldPackage]), pkg, color(style.Default)))
 	}
 
 	// Always try to unwrap the error at least once, and colorize it.
@@ -153,14 +171,15 @@ func (f *stdoutHook) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	messageLog := fmt.Sprintf("%s%s%s", color(f.Colors[FieldMessage]), message, color(style.Default))
+	messageLog := fmt.Sprintf("%s%s%s", color(hook.Colors[FieldMessage]), message, color(style.Default))
 
 	// Assemble the log message
 	var logMessage string
 
-	if f.ShowTimestamp {
+	if hook.ShowTimestamp {
 		logMessage += timestampLog + " "
 	}
+
 	logMessage += pkgLogF + " "
 	logMessage += levelLog + " "
 	logMessage += messageLog + "\n"
@@ -168,24 +187,24 @@ func (f *stdoutHook) Format(entry *logrus.Entry) ([]byte, error) {
 	return []byte(logMessage), nil
 }
 
-func (f *stdoutHook) getLevelFieldColor(level logrus.Level) (string, string) {
+func (hook *stdoutHook) getLevelFieldColor(level logrus.Level) (string, string) {
 	// Builtin configurations.
 	signs := defaultLevelFields()
-	colors := defaultLevelFieldsColored(signs)
+	colors := defaultLevelFieldsColored()
 
 	if sign, ok := signs[level]; ok {
 		if color, ok := colors[sign]; ok {
 			return sign, color
-		} else {
-			return sign, style.Default
 		}
+
+		return sign, style.Default
 	}
 
 	return signs[logrus.InfoLevel], style.Default
 }
 
+// stderrHook only logs warning events and worst.
 type stderrHook struct {
-	name            string
 	DisableColors   bool
 	ShowTimestamp   bool
 	TimestampFormat string
@@ -193,7 +212,7 @@ type stderrHook struct {
 	logger          *logrus.Logger
 }
 
-func newLoggerStderr() *stdoutHook {
+func newLoggerStderr() *stderrHook {
 	stdLogger := logrus.New()
 	stdLogger.SetLevel(logrus.WarnLevel)
 	stdLogger.SetReportCaller(true)
@@ -205,7 +224,7 @@ func newLoggerStderr() *stdoutHook {
 		Colors:        defaultFieldsFormat(),
 	}
 
-	hook := &stdoutHook{
+	hook := &stderrHook{
 		logger: stdLogger,
 	}
 
@@ -264,7 +283,7 @@ func defaultLevelFields() map[logrus.Level]string {
 	}
 }
 
-func defaultLevelFieldsColored(l map[logrus.Level]string) map[string]string {
+func defaultLevelFieldsColored() map[string]string {
 	return map[string]string{
 		"▪":  style.BrightBlack,
 		"▫":  style.Dim,

@@ -32,13 +32,18 @@ const (
 	DirPerm       = 0o700 // DirPerm is the permission bit given to teamserver/client directories.
 	FileWritePerm = 0o644 // FileWritePerm is the permission bit given to the OS when writing files.
 
-	FileWriteOpenMode = os.O_APPEND | os.O_CREATE | os.O_WRONLY // Opening log files in append/create/write-only mode.
+	// FileWriteOpenMode is used when opening log files in append/create/write-only mode.
+	FileWriteOpenMode = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 )
 
 // FS is a filesystem abstraction for teamservers and teamclients.
 // When either of them are configured to run in memory only, this
 // filesystem is initialized accordingly, otherwise it will forward
 // its calls to the on-disk filesystem.
+//
+// This type currently exists because the stdlib io/fs.FS type is read-only,
+// and that in order to provide a unique abstraction to the teamclient/server
+// filesystems, this filesystem type adds writing methods.
 type FS struct {
 	mem  *memfs.FS
 	root string
@@ -57,6 +62,13 @@ func NewFileSystem(root string, inMemory bool) *FS {
 	return filesystem
 }
 
+// MkdirAll creates a directory named path, along with any necessary parents,
+// and returns nil, or else returns an error.
+// The permission bits perm (before umask) are used for all directories that MkdirAll creates.
+// If path is already a directory, MkdirAll does nothing and returns nil.
+//
+// If the filesystem is in-memory, the teamclient/server application root
+// is trimmed from this path, if the latter contains it.
 func (f *FS) MkdirAll(path string, perm fs.FileMode) error {
 	if f.mem == nil {
 		return os.MkdirAll(path, perm)
@@ -67,6 +79,11 @@ func (f *FS) MkdirAll(path string, perm fs.FileMode) error {
 	return f.mem.MkdirAll(path, perm)
 }
 
+// Sub returns a file system (an fs.FS) for the tree of files rooted at the directory dir,
+// or an error if it failed. When the teamclient fs is on disk, os.Stat() and os.DirFS() are used.
+//
+// If the filesystem is in-memory, the teamclient/server application root
+// is trimmed from this path, if the latter contains it.
 func (f *FS) Sub(path string) (fs fs.FS, err error) {
 	if f.mem == nil {
 		_, err = os.Stat(path)
@@ -79,6 +96,10 @@ func (f *FS) Sub(path string) (fs fs.FS, err error) {
 	return f.mem.Sub(path)
 }
 
+// Open is like fs.Open().
+//
+// If the filesystem is in-memory, the teamclient/server application root
+// is trimmed from this path, if the latter contains it.
 func (f *FS) Open(name string) (fs.File, error) {
 	if f.mem == nil {
 		return os.Open(name)
@@ -89,6 +110,8 @@ func (f *FS) Open(name string) (fs.File, error) {
 	return f.mem.Open(name)
 }
 
+// OpenFile is like os.OpenFile(), but returns a custom *File type implementing
+// the io.WriteCloser interface, so that it can be written to and closed more easily.
 func (f *FS) OpenFile(name string, flag int, perm fs.FileMode) (*File, error) {
 	inFile := &File{
 		name: name,
@@ -110,6 +133,7 @@ func (f *FS) OpenFile(name string, flag int, perm fs.FileMode) (*File, error) {
 	return inFile, nil
 }
 
+// WriteFile is like os.WriteFile().
 func (f *FS) WriteFile(path string, data []byte, perm fs.FileMode) error {
 	if f.mem == nil {
 		return os.WriteFile(path, data, perm)
@@ -120,6 +144,7 @@ func (f *FS) WriteFile(path string, data []byte, perm fs.FileMode) error {
 	return f.mem.WriteFile(path, data, perm)
 }
 
+// ReadFile is like os.ReadFile().
 func (f *FS) ReadFile(path string) (b []byte, err error) {
 	if f.mem == nil {
 		return os.ReadFile(path)

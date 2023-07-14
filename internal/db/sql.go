@@ -1,22 +1,25 @@
 package db
 
-// Wiregost - Post-Exploitation & Implant Framework
-// Copyright © 2020 Para
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -32,8 +35,13 @@ const (
 	SQLiteInMemoryHost = ":memory:"
 )
 
-// ErrRecordNotFound - Record not found error.
-var ErrRecordNotFound = gorm.ErrRecordNotFound
+var (
+	// ErrRecordNotFound - Record not found error.
+	ErrRecordNotFound = gorm.ErrRecordNotFound
+
+	// ErrUnsupportedDialect - An invalid dialect was specified.
+	ErrUnsupportedDialect = errors.New("Unknown/unsupported DB Dialect")
+)
 
 // NewClient initializes a database client connection to a backend specified in config.
 func NewClient(dbConfig *Config, dbLogger *logrus.Entry) (*gorm.DB, error) {
@@ -50,24 +58,29 @@ func NewClient(dbConfig *Config, dbLogger *logrus.Entry) (*gorm.DB, error) {
 	switch dbConfig.Dialect {
 	case Sqlite:
 		dbLogger.Infof("Connecting to SQLite database %s", dsn)
+
 		dbClient, err = sqliteClient(dsn, dbLog)
 		if err != nil {
 			return nil, fmt.Errorf("Database connection failed: %w", err)
 		}
+
 	case Postgres:
 		dbLogger.Infof("Connecting to PostgreSQL database %s", dsn)
+
 		dbClient, err = postgresClient(dsn, dbLog)
 		if err != nil {
 			return nil, fmt.Errorf("Database connection failed: %w", err)
 		}
+
 	case MySQL:
 		dbLogger.Infof("Connecting to MySQL database %s", dsn)
+
 		dbClient, err = mySQLClient(dsn, dbLog)
 		if err != nil {
 			return nil, fmt.Errorf("Database connection failed: %w", err)
 		}
 	default:
-		return nil, fmt.Errorf("Unknown/unsupported DB Dialect: '%s'", dbConfig.Dialect)
+		return nil, fmt.Errorf("%w: '%s'", ErrUnsupportedDialect, dbConfig.Dialect)
 	}
 
 	err = dbClient.AutoMigrate(

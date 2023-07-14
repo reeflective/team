@@ -1,5 +1,23 @@
 package log
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"fmt"
 	"io"
@@ -21,6 +39,9 @@ const (
 	ServerLogFileExt = "teamserver.log" // Log files of all teamserver have this extension by default.
 )
 
+// Init is the main constructor that is (and should be) used for teamserver and teamclient logging.
+// It hooks a normal logger with a sublogger writing to a file in text version, and another logger
+// writing to stdout/stderr with enhanced formatting/coloring support.
 func Init(fs *assets.FS, file string, level logrus.Level) (*logrus.Logger, *logrus.Logger, error) {
 	logFile, err := fs.OpenFile(file, FileWriteOpenMode, FileWritePerm)
 	if err != nil {
@@ -62,15 +83,15 @@ func NewStdio(level logrus.Level) *logrus.Logger {
 
 	stdLogger.SetLevel(level)
 	stdLogger.SetReportCaller(true)
-	stdLogger.Out = os.Stdout
+	stdLogger.Out = io.Discard
 
 	// Info/debug/trace is given to a stdout logger.
-	// stdoutHook := newLoggerStdout()
-	// stdLogger.AddHook(stdoutHook)
-	//
-	// // Warn/error/panics/fatals are given to stderr.
-	// stderrHook := newLoggerStderr()
-	// stdLogger.AddHook(stderrHook)
+	stdoutHook := newLoggerStdout()
+	stdLogger.AddHook(stdoutHook)
+
+	// Warn/error/panics/fatals are given to stderr.
+	stderrHook := newLoggerStderr()
+	stdLogger.AddHook(stderrHook)
 
 	return stdLogger
 }
@@ -94,7 +115,7 @@ func NewJSON(fs *assets.FS, file string, level logrus.Level) (*logrus.Logger, er
 	return rootLogger, nil
 }
 
-// NewAudit returns a new client gRPC connections audit logger, JSON-encoded.
+// NewAudit returns a logger writing to an audit file in JSON format.
 func NewAudit(fs *assets.FS, logDir string) (*logrus.Logger, error) {
 	auditLogger := logrus.New()
 	auditLogger.Formatter = &logrus.JSONFormatter{}
@@ -112,6 +133,8 @@ func NewAudit(fs *assets.FS, logDir string) (*logrus.Logger, error) {
 }
 
 // NewText returns a new logger writing to a given file.
+// The formatting is enhanced for informative debugging and call
+// stack reporting, but without any special coloring/formatting.
 func NewText(file io.Writer) (*logrus.Logger, error) {
 	txtLogger := logrus.New()
 	txtLogger.Formatter = &logrus.TextFormatter{
@@ -128,25 +151,27 @@ func NewText(file io.Writer) (*logrus.Logger, error) {
 // LevelFrom - returns level from int.
 func LevelFrom(level int) logrus.Level {
 	switch level {
-	case 0:
+	case int(logrus.PanicLevel):
 		return logrus.PanicLevel
-	case 1:
+	case int(logrus.FatalLevel):
 		return logrus.FatalLevel
-	case 2:
+	case int(logrus.ErrorLevel):
 		return logrus.ErrorLevel
-	case 3:
+	case int(logrus.WarnLevel):
 		return logrus.WarnLevel
-	case 4:
+	case int(logrus.InfoLevel):
 		return logrus.InfoLevel
-	case 5:
+	case int(logrus.DebugLevel):
 		return logrus.DebugLevel
-	case 6:
+	case int(logrus.TraceLevel):
 		return logrus.TraceLevel
 	}
 
 	return logrus.DebugLevel
 }
 
+// FileName take a filename without extension and adds
+// the corresponding teamserver/teamclient logfile extension.
 func FileName(name string, server bool) string {
 	if server {
 		return fmt.Sprintf("%s.%s", name, ServerLogFileExt)

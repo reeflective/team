@@ -1,34 +1,51 @@
 package commands
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
-	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
-	"github.com/reeflective/team/internal/version"
 	"github.com/rsteube/carapace"
 	"github.com/rsteube/carapace/pkg/style"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-// Generate initliazes and returns a command tree to embed in client applications
-// connecting to a teamserver. It requires only the client to use its functions.
+// Generate returns a command tree to embed in client applications connecting
+// to a teamserver. It requires only the client to use its functions.
+//
+// This tree is safe to embed within closed loop applications provided that the
+// client *Client was created with WithNoDisconnect(), so that commands can reuse
+// their connections more than once before closing.
 func Generate(cli *client.Client) *cobra.Command {
 	clientCmds := clientCommands(cli)
 	return clientCmds
 }
 
 // PreRun returns a cobra command runner which connects the client to its teamserver.
-// If the client is connected, nothing happens and its current connection reused, which
-// makes this runner able to be ran in closed-loop consoles.
+// If the client is connected, nothing happens and its current connection reused.
 func PreRun(teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
 		// Client settings.
@@ -39,12 +56,25 @@ func PreRun(teamclient *client.Client) command.CobraRunnerE {
 	}
 }
 
-// PostRun is a cobra command runner that disconnects the client from its server.
-// It does so unconditionally, so this is not suited for being included in consoles.
+// PreRunNoDisconnect is a pre-runner that will connect the teamclient with the
+// client.WithNoDisconnect() option, so that after each execution, the client
+// connection is kept open. This pre-runner is thus useful for console apps.
+func PreRunNoDisconnect(teamclient *client.Client) command.CobraRunnerE {
+	return func(cmd *cobra.Command, args []string) error {
+		// Client settings.
+		teamclient.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
+
+		// The NoDisconnect will prevent teamclient.Disconnect() to close the conn.
+		return teamclient.Connect(client.WithNoDisconnect())
+	}
+}
+
+// PostRun is a cobra command runner that simply calls client.Disconnect() to close
+// the client connection from its teamserver. If the client/commands was configured
+// with WithNoDisconnect, this pre-runner will do nothing.
 func PostRun(client *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, _ []string) error {
-		client.Disconnect()
-		return nil
+		return client.Disconnect()
 	}
 }
 
@@ -63,36 +93,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print teamserver client version",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("verbosity") {
-				logLevel, err := cmd.Flags().GetCount("verbosity")
-				if err == nil {
-					cli.SetLogLevel(logLevel + int(logrus.ErrorLevel))
-				}
-			}
-
-			if err := cli.Connect(); err != nil {
-				return err
-			}
-
-			// Server
-			serverVer, err := cli.ServerVersion()
-			if err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Server error: %s\n", err)
-			}
-
-			dirty := ""
-			if serverVer.Dirty {
-				dirty = fmt.Sprintf(" - %sDirty%s", command.Bold, command.Normal)
-			}
-			serverSemVer := fmt.Sprintf("%d.%d.%d", serverVer.Major, serverVer.Minor, serverVer.Patch)
-			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Server v%s - %s%s\n", serverSemVer, serverVer.Commit, dirty)
-
-			// Client
-			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Client %s\n", version.Full())
-
-			return nil
-		},
+		RunE:  versionCmd(cli),
 	}
 
 	teamCmd.AddCommand(versionCmd)
@@ -100,34 +101,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	importCmd := &cobra.Command{
 		Use:   "import",
 		Short: fmt.Sprintf("Import a teamserver client configuration file for %s", cli.Name()),
-		Run: func(cmd *cobra.Command, args []string) {
-			if cmd.Flags().Changed("verbosity") {
-				logLevel, err := cmd.Flags().GetCount("verbosity")
-				if err == nil {
-					cli.SetLogLevel(logLevel + int(logrus.ErrorLevel))
-				}
-			}
-
-			if 0 < len(args) {
-				for _, arg := range args {
-					conf, err := cli.ReadConfig(arg)
-					if jsonErr, ok := err.(*json.SyntaxError); ok {
-						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", jsonErr.Error())
-					} else if err != nil {
-						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err.Error())
-						continue
-					}
-
-					if err = cli.SaveConfig(conf); err == nil {
-						fmt.Fprintln(cmd.OutOrStdout(), command.Info+"Saved new client config in ", cli.ConfigsDir())
-					} else {
-						fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err.Error())
-					}
-				}
-			} else {
-				fmt.Fprintln(cmd.OutOrStdout(), "Missing config file path, see --help")
-			}
-		},
+		Run:   importCmd(cli),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return []string{}, cobra.ShellCompDirectiveDefault
 		},
@@ -150,63 +124,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	usersCmd := &cobra.Command{
 		Use:   "users",
 		Short: "Display a table of teamserver users and their status",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("verbosity") {
-				logLevel, err := cmd.Flags().GetCount("verbosity")
-				if err == nil {
-					cli.SetLogLevel(logLevel + int(logrus.ErrorLevel))
-				}
-			}
-
-			if err := cli.Connect(); err != nil {
-				return err
-			}
-
-			// Server
-			users, err := cli.Users()
-			if err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Server error: %s\n", err)
-			}
-
-			tbl := &table.Table{}
-			tbl.SetStyle(command.TableStyle)
-
-			tbl.AppendHeader(table.Row{
-				"Name",
-				"Status",
-				"Last seen",
-			})
-
-			for _, user := range users {
-				lastSeen := user.LastSeen.Format(time.RFC1123)
-
-				if !user.LastSeen.IsZero() {
-					lastSeen = fmt.Sprintf("%s", time.Since(user.LastSeen).Round(1*time.Second))
-				}
-
-				var status string
-				if user.Online {
-					status = command.Bold + command.Green + "Online" + command.Normal
-				} else {
-					status = command.Bold + command.Red + "Offline" + command.Normal
-				}
-
-				tbl.AppendRow(table.Row{
-					user.Name,
-					status,
-					lastSeen,
-				})
-
-			}
-
-			if len(users) > 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), tbl.Render())
-			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), command.Info+"The %s teamserver has no users\n", cli.Name())
-			}
-
-			return nil
-		},
+		RunE:  usersCmd(cli),
 	}
 
 	teamCmd.AddCommand(usersCmd)
@@ -234,19 +152,7 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool
 		var results []string
 
 		for _, dir := range dirs {
-			if !strings.HasPrefix(dir.Name(), ".") {
-				continue
-			}
-
-			if !dir.IsDir() {
-				continue
-			}
-
-			if strings.TrimPrefix(dir.Name(), ".") != cli.Name() {
-				continue
-			}
-
-			if noSelf {
+			if !isConfigDir(cli, dir, noSelf) {
 				continue
 			}
 
@@ -278,8 +184,32 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool
 
 		configsAction := carapace.ActionValuesDescribed(results...).StyleF(getConfigStyle(ext))
 
+		if len(compErrors) > 0 {
+			return carapace.Batch(append(compErrors, configsAction)...).ToA()
+		}
+
 		return configsAction.Tag(tag)
 	}
+}
+
+func isConfigDir(cli *client.Client, dir fs.DirEntry, noSelf bool) bool {
+	if !strings.HasPrefix(dir.Name(), ".") {
+		return false
+	}
+
+	if !dir.IsDir() {
+		return false
+	}
+
+	if strings.TrimPrefix(dir.Name(), ".") != cli.Name() {
+		return false
+	}
+
+	if noSelf {
+		return false
+	}
+
+	return true
 }
 
 func getConfigStyle(ext string) func(s string, sc style.Context) string {
@@ -287,22 +217,7 @@ func getConfigStyle(ext string) func(s string, sc style.Context) string {
 		if strings.HasSuffix(s, ext) {
 			return style.Red
 		}
+
 		return s
 	}
-}
-
-func isNoConnect(cmd *cobra.Command) bool {
-	noConnectCmds := []string{
-		"import",
-		"__complete",
-		"_carapace",
-	}
-
-	for _, name := range noConnectCmds {
-		if name == cmd.Name() {
-			return true
-		}
-	}
-
-	return false
 }

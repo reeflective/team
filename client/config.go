@@ -27,12 +27,12 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/log"
 	"gopkg.in/AlecAivazis/survey.v1"
 )
 
 const (
-	configFileExt     = "teamclient"
 	fileWriteModePerm = 0o600
 )
 
@@ -53,6 +53,13 @@ type Config struct {
 func (tc *Client) initConfig() error {
 	cfg := tc.opts.config
 
+	// We assume that any configuration passed with WithConfig()
+	// has a non-empty user name, even if its the server itself.
+	if cfg.User != "" {
+		return nil
+	}
+
+	// Else fetch the unique config or prompt user for which.
 	if !tc.opts.local {
 		configs := tc.GetConfigs()
 		if len(configs) == 0 {
@@ -62,6 +69,7 @@ func (tc *Client) initConfig() error {
 		cfg = tc.SelectConfig()
 	}
 
+	// We must have a config.
 	if cfg == nil {
 		return ErrNoConfig
 	}
@@ -71,8 +79,10 @@ func (tc *Client) initConfig() error {
 	return nil
 }
 
-// GetConfigs returns a list of available configs in
-// the application config directory (~/.app/configs).
+// GetConfigs returns a list of available configs in the application
+// teamclient remote server configs directory (~/.app/teamclient/configs/).
+//
+// This uses the on-disk filesystem even if the teamclient is in memory mode.
 func (tc *Client) GetConfigs() map[string]*Config {
 	configDir := tc.ConfigsDir()
 
@@ -101,6 +111,8 @@ func (tc *Client) GetConfigs() map[string]*Config {
 
 // ReadConfig loads a client config into a struct.
 // Errors are returned as is: users can check directly for JSON/encoding/filesystem errors.
+//
+// This uses the on-disk filesystem even if the teamclient is in memory mode.
 func (tc *Client) ReadConfig(confFilePath string) (*Config, error) {
 	confFile, err := os.Open(confFilePath)
 	if err != nil {
@@ -124,6 +136,8 @@ func (tc *Client) ReadConfig(confFilePath string) (*Config, error) {
 }
 
 // SaveConfig saves a client config to disk.
+//
+// This uses the on-disk filesystem even if the teamclient is in memory mode.
 func (tc *Client) SaveConfig(config *Config) error {
 	if config.User == "" {
 		return ErrConfigNoUser
@@ -138,7 +152,7 @@ func (tc *Client) SaveConfig(config *Config) error {
 		}
 	}
 
-	filename := fmt.Sprintf("%s_%s.%s", filepath.Base(config.User), filepath.Base(config.Host), configFileExt)
+	filename := fmt.Sprintf("%s_%s.%s", filepath.Base(config.User), filepath.Base(config.Host), command.ClientConfigExt)
 	saveTo, _ := filepath.Abs(filepath.Join(configDir, filename))
 
 	configJSON, err := json.Marshal(config)
@@ -156,9 +170,11 @@ func (tc *Client) SaveConfig(config *Config) error {
 	return nil
 }
 
-// SelectConfig either returns the only configuration found in the
-// application client configs directory, or prompts the user to select one.
+// SelectConfig either returns the only configuration found in the app
+// client remote configs directory, or prompts the user to select one.
 // This call might thus be blocking, and expect user input.
+//
+// This uses the on-disk filesystem even if the teamclient is in memory mode.
 func (tc *Client) SelectConfig() *Config {
 	configs := tc.GetConfigs()
 
@@ -184,30 +200,12 @@ func (tc *Client) SelectConfig() *Config {
 	return configs[answer.Config]
 }
 
-// Config returns the current teamclient server configuration.
+// Config returns the currently used teamclient server configuration.
+// This configuration might be empty (not nil), if no specific server
+// configuration was loaded by the client yet.
 func (tc *Client) Config() *Config {
 	return tc.opts.config
 }
-
-// defaultUserConfig returns the default user configuration for this application.
-// the file is of the following form: ~/.app/configs/app_USERNAME_default.cfg.
-// If the latter is found, it returned, otherwise no config is returned.
-// func (tc *Client) defaultUserConfig() (cfg *Config) {
-// 	user, err := user.Current()
-// 	if err != nil {
-// 		return nil
-// 	}
-//
-// 	filename := fmt.Sprintf("%s_%s_default", tc.Name(), user.Username)
-// 	saveTo := tc.ConfigsDir()
-//
-// 	configPath := filepath.Join(saveTo, filename+".teamclient.cfg")
-// 	if _, err := os.Stat(configPath); err == nil {
-// 		cfg, _ = tc.ReadConfig(configPath)
-// 	}
-//
-// 	return cfg
-// }
 
 func getPromptForConfigs(configs map[string]*Config) []*survey.Question {
 	keys := []string{}

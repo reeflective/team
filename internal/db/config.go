@@ -1,7 +1,24 @@
 package db
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
-	"errors"
 	"fmt"
 	"net/url"
 )
@@ -13,14 +30,9 @@ const (
 	Postgres = "postgresql"
 	// MySQL - MySQL protocol.
 	MySQL = "mysql"
-
-	databaseConfigFileName = "database.json"
 )
 
-// ErrInvalidDialect - An invalid dialect was specified.
-var ErrInvalidDialect = errors.New("invalid SQL Dialect")
-
-// Config - Server config.
+// Config - Server database configuration.
 type Config struct {
 	Dialect  string `json:"dialect"`
 	Database string `json:"database"`
@@ -44,14 +56,18 @@ func (c *Config) DSN() (string, error) {
 	case Sqlite:
 		filePath := c.Database
 		params := encodeParams(c.Params)
+
 		return fmt.Sprintf("file:%s?%s", filePath, params), nil
+
 	case MySQL:
 		user := url.QueryEscape(c.Username)
 		password := url.QueryEscape(c.Password)
 		db := url.QueryEscape(c.Database)
 		host := fmt.Sprintf("%s:%d", url.QueryEscape(c.Host), c.Port)
 		params := encodeParams(c.Params)
+
 		return fmt.Sprintf("%s:%s@tcp(%s)/%s?%s", user, password, host, db, params), nil
+
 	case Postgres:
 		user := url.QueryEscape(c.Username)
 		password := url.QueryEscape(c.Password)
@@ -59,9 +75,11 @@ func (c *Config) DSN() (string, error) {
 		host := url.QueryEscape(c.Host)
 		port := c.Port
 		params := encodeParams(c.Params)
+
 		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s %s", host, port, user, password, db, params), nil
+
 	default:
-		return "", ErrInvalidDialect
+		return "", ErrUnsupportedDialect
 	}
 }
 
@@ -70,5 +88,6 @@ func encodeParams(rawParams map[string]string) string {
 	for key, value := range rawParams {
 		params.Add(key, value)
 	}
+
 	return params.Encode()
 }

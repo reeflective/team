@@ -1,20 +1,22 @@
 package certs
 
-// Wiregost - Post-Exploitation & Implant Framework
-// Copyright © 2020 Para
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 import (
 	"bytes"
@@ -31,10 +33,12 @@ import (
 	"math/big"
 	insecureRand "math/rand"
 	"net"
+	"path/filepath"
 	"time"
 
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/db"
+	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
@@ -57,6 +61,7 @@ const (
 var ErrCertDoesNotExist = errors.New("Certificate does not exist")
 
 // Manager is used to manage the certificate infrastructure for a given teamserver.
+// Has access to a given database for storage, a logger and an abstract filesystem.
 type Manager struct {
 	appName string
 	appDir  string
@@ -71,47 +76,18 @@ type Manager struct {
 // Any critical error happening at initialization time will send a log.Fatal event to the
 // provided logger. If the latter has no modified log.ExitFunc, this will make the server
 // panic and exit.
-func NewManager(fs *assets.FS, db *gorm.DB, logger *logrus.Entry, appName, appDir string) *Manager {
+func NewManager(filesystem *assets.FS, db *gorm.DB, logger *logrus.Entry, appName, appDir string) *Manager {
 	certs := &Manager{
 		appName: appName,
 		appDir:  appDir,
 		log:     logger,
 		db:      db,
-		fs:      fs,
+		fs:      filesystem,
 	}
 
 	certs.generateCA(userCA, "teamusers")
 
 	return certs
-}
-
-// saveCertificate - Save the certificate and the key to the filesystem.
-func (c *Manager) saveCertificate(caType string, keyType string, commonName string, cert []byte, key []byte) error {
-	if keyType != ECCKey && keyType != RSAKey {
-		return fmt.Errorf("Invalid key type '%s'", keyType)
-	}
-
-	c.log.Infof("Saving certificate for cn = '%s'", commonName)
-
-	certModel := &db.Certificate{
-		CommonName:     commonName,
-		CAType:         caType,
-		KeyType:        keyType,
-		CertificatePEM: string(cert),
-		PrivateKeyPEM:  string(key),
-	}
-
-	result := c.db.Create(&certModel)
-
-	return result.Error
-}
-
-// TeamServerGenerateECCCertificate - Generate a server certificate signed with a given CA.
-func (c *Manager) TeamServerGenerateECCCertificate(host string) ([]byte, []byte, error) {
-	cert, key := c.GenerateECCCertificate(mtlsCA, host, false, false)
-	err := c.saveCertificate(mtlsCA, ECCKey, host, cert, key)
-
-	return cert, key, err
 }
 
 // GetECCCertificate - Get an ECC certificate.
@@ -308,6 +284,39 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 	pem.Encode(keyOut, c.pemBlockForKey(privateKey))
 
 	return certOut.Bytes(), keyOut.Bytes()
+}
+
+func (c *Manager) saveCertificate(caType string, keyType string, commonName string, cert []byte, key []byte) error {
+	if keyType != ECCKey && keyType != RSAKey {
+		return fmt.Errorf("Invalid key type '%s'", keyType)
+	}
+
+	c.log.Infof("Saving certificate for cn = '%s'", commonName)
+
+	certModel := &db.Certificate{
+		CommonName:     commonName,
+		CAType:         caType,
+		KeyType:        keyType,
+		CertificatePEM: string(cert),
+		PrivateKeyPEM:  string(key),
+	}
+
+	result := c.db.Create(&certModel)
+
+	return result.Error
+}
+
+// getCertDir returns the directory (and makes it if needed) for writing certificate backups.
+func (c *Manager) getCertDir() string {
+	rootDir := c.appDir
+	certDir := filepath.Join(rootDir, "certs")
+
+	err := c.fs.MkdirAll(certDir, log.DirPerm)
+	if err != nil {
+		c.log.Fatalf("Failed to create cert dir: %s", err)
+	}
+
+	return certDir
 }
 
 func (c *Manager) pemBlockForKey(priv interface{}) *pem.Block {
