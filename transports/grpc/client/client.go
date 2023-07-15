@@ -1,4 +1,4 @@
-package grpc
+package client
 
 /*
    team - Embedded teamserver for Go programs and CLI applications
@@ -20,19 +20,14 @@ package grpc
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/internal/transport"
-	"github.com/reeflective/team/transports/grpc/common"
 	"github.com/reeflective/team/transports/grpc/proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
@@ -67,10 +62,10 @@ var (
 // It also has a few internal types (clientConns, options) for working.
 //
 // Note that this teamclient is not able to be used as an in-memory dialer.
-// See the counterpart team/transports/grpc/server package for creating one.
+// See the counterpart `team/transports/grpc/server` package for creating one.
 // Also note that this example transport has been made for a single use-case,
 // and that your program might require more elaborated behavior.
-// In this case, please use this simple code as a reference for what-not to do.
+// In this case, please use this simple code as a reference for what/not to do.
 type Teamclient struct {
 	*client.Client
 	conn    *grpc.ClientConn
@@ -78,10 +73,10 @@ type Teamclient struct {
 	options []grpc.DialOption
 }
 
-// NewTeamClient creates a new gRPC-based teamclient RPC client and dialer backend.
-// This client has by default only a few options, with message buffer size.
+// NewTeamClient creates a new gRPC-based RPC teamclient and dialer backend.
+// This client has by default only a few options, like max message buffer size.
 // All options passed to this call are stored as is and will be used later.
-func NewTeamClient(opts ...grpc.DialOption) (team.Client, client.Dialer[any]) {
+func NewTeamClient(opts ...grpc.DialOption) *Teamclient {
 	client := &Teamclient{
 		options: opts,
 	}
@@ -90,7 +85,7 @@ func NewTeamClient(opts ...grpc.DialOption) (team.Client, client.Dialer[any]) {
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(ClientMaxReceiveMessageSize)),
 	)
 
-	return client, client
+	return client
 }
 
 // Init implements client.Dialer.Init(c).
@@ -190,57 +185,5 @@ func (h *Teamclient) Version() (version team.Version, err error) {
 		CompiledAt: ver.CompiledAt,
 		OS:         ver.OS,
 		Arch:       ver.Arch,
-	}, nil
-}
-
-// LogMiddleware is an example list of gRPC options with logging middleware set up.
-// This function uses the core teamclient loggers to log the gRPC stack/requests events.
-func LogMiddleware(cli *client.Client) []grpc.DialOption {
-	logrusEntry := cli.NamedLogger("transport", "grpc")
-	logrusOpts := []grpc_logrus.Option{
-		grpc_logrus.WithLevels(common.CodeToLevel),
-	}
-
-	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
-
-	// Intercepting client requests.
-	requestIntercept := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		rawRequest, err := json.Marshal(req)
-		if err != nil {
-			logrusEntry.Errorf("Failed to serialize: %s", err)
-			return invoker(ctx, method, req, reply, cc, opts...)
-		}
-
-		logrusEntry.Debugf("Raw request: %s", string(rawRequest))
-
-		return invoker(ctx, method, req, reply, cc, opts...)
-	}
-
-	options := []grpc.DialOption{
-		grpc.WithBlock(),
-		grpc.WithUnaryInterceptor(grpc_logrus.UnaryClientInterceptor(logrusEntry, logrusOpts...)),
-		grpc.WithUnaryInterceptor(requestIntercept),
-	}
-
-	return options
-}
-
-func tlsAuthMiddleware(cli *client.Client) ([]grpc.DialOption, error) {
-	config := cli.Config()
-	if config.PrivateKey == "" {
-		return nil, ErrNoTLSCredentials
-	}
-
-	tlsConfig, err := transport.GetTLSConfig(config.CACertificate, config.Certificate, config.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	transportCreds := credentials.NewTLS(tlsConfig)
-	callCreds := credentials.PerRPCCredentials(transport.TokenAuth(config.Token))
-
-	return []grpc.DialOption{
-		grpc.WithTransportCredentials(transportCreds),
-		grpc.WithPerRPCCredentials(callCreds),
 	}, nil
 }

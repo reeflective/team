@@ -1,13 +1,29 @@
 package server
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"context"
 	"net"
 	"runtime/debug"
 	"sync"
 
-	"github.com/reeflective/team"
-	teamclient "github.com/reeflective/team/client"
 	teamserver "github.com/reeflective/team/server"
 	clientConn "github.com/reeflective/team/transports/grpc/client"
 	"github.com/reeflective/team/transports/grpc/proto"
@@ -26,7 +42,16 @@ const (
 	ServerMaxMessageSize = 2*gb - 1
 )
 
-type handler struct {
+// Teamserver is a simple example gRPC teamserver listener and server backend.
+// This server can handle both remote and local (in-memory) connections, provided
+// that it is being created with the correct grpc.Server options.
+//
+// This teamserver embeds a team/server.Server core driver and uses it for fetching
+// server-side TLS configurations, use its loggers and access its database/users/list.
+//
+// By default, the server has no grpc.Server options attached.
+// Please see the other functions of this package for pre-configured option sets.
+type Teamserver struct {
 	*teamserver.Server
 
 	options []grpc.ServerOption
@@ -34,68 +59,53 @@ type handler struct {
 	mutex   *sync.RWMutex
 }
 
-// type inMemory struct {
-// 	*handler
-// 	conn *bufconn.Listener
-// }
-//
-// func (h *inMemory) Init(serv *teamserver.Server) (err error) {
-// 	return
-// }
-//
-// func (h *inMemory) Serve(ln net.Listener) (any, error) {
-// 	return nil, nil
-// }
-//
-// func (h *inMemory) Listen(addr string) (net.Listener, error) {
-// 	return nil, nil
-// }
-
-func NewTeam(opts ...grpc.ServerOption) (teamserver.Listener[any], team.Client, teamclient.Dialer[any]) {
-	listener := &handler{
+// NewListener is a simple constructor returning a teamserver loaded with the
+// provided list of server options. By default the server does not come with any.
+func NewListener(opts ...grpc.ServerOption) *Teamserver {
+	listener := &Teamserver{
 		mutex: &sync.RWMutex{},
 	}
 
 	listener.options = append(listener.options, opts...)
 
-	client, dialer := NewTeamClientFrom(listener)
-
-	return listener, client, dialer
+	return listener
 }
 
-// NewTeamClientFrom generates an in-memory, unauthenticated client dialer and server.
-func NewTeamClientFrom(server *handler) (client team.Client, dialer teamclient.Dialer[any]) {
+// NewClientFrom requires an existing grpc Teamserver to create an in-memory
+// connection bound to both the teamserver and the teamclient backends.
+// It returns a teamclient meant to be ran in memory, with TLS credentials disabled.
+func NewClientFrom(server *Teamserver, opts ...grpc.DialOption) *clientConn.Teamclient {
 	conn := bufconn.Listen(bufSize)
 
 	ctxDialer := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 		return conn.Dial()
 	})
 
-	dialOpts := []grpc.DialOption{
+	opts = append(opts, []grpc.DialOption{
 		ctxDialer,
 		grpc.WithInsecure(),
-	}
+	}...)
 
 	// The server will use this conn as a listener.
 	// The reference is dropped after server start.
 	server.conn = conn
 
-	// Call the grpc client package for a dialer.
-	return clientConn.NewTeamClient(dialOpts...)
+	return clientConn.NewTeamClient(opts...)
 }
 
-// Name immplements server.Handler.Name(), and indicates the transport/rpc stack.
-func (h *handler) Name() string {
+// Name immplements server.Handler.Name().
+// It indicates the transport/rpc stack, in this case "gRPC".
+func (h *Teamserver) Name() string {
 	return "gRPC"
 }
 
-// Init implements server.Handler.Init(), and is used to initialize
-// the server handler. Logging, connection options, anything can be
-// done as long as it's for ensuring that the rest will work.
-func (h *handler) Init(serv *teamserver.Server) (err error) {
+// Init implements server.Handler.Init().
+// It is used to initialize the listener with the correct TLS credentials
+// middleware (or absence of if about to serve an in-memory connection).
+func (h *Teamserver) Init(serv *teamserver.Server) (err error) {
 	h.Server = serv
 
-	h.options, err = LogMiddleware(h.Server)
+	h.options, err = LogMiddlewareOptions(h.Server)
 	if err != nil {
 		return err
 	}
@@ -113,8 +123,9 @@ func (h *handler) Init(serv *teamserver.Server) (err error) {
 
 // Listen implements server.Handler.Listen().
 // It starts listening on a network address for incoming gRPC clients.
-// This connection CANNOT initiate in-memory connections.
-func (h *handler) Listen(addr string) (net.Listener, error) {
+// If the teamserver has previously been given an in-memory connection,
+// it returns it as the listener without errors.
+func (h *Teamserver) Listen(addr string) (net.Listener, error) {
 	rpcLog := h.NamedLogger("transport", "mTLS")
 
 	if h.conn != nil {
@@ -132,15 +143,16 @@ func (h *handler) Listen(addr string) (net.Listener, error) {
 }
 
 // Serve implements server.Handler.Serve().
-// It accepts a network listener that will be served by a gRPC server.
-// This also registers the Teamclient RPC service.
-func (h *handler) Serve(listener net.Listener) (any, error) {
+// The listener function argument is the one this Teamserver returned with Listen().
+// Once acquired and the gRPC server started around this listener, the proto.TeamServer
+// is registered to it and served to incoming clients.
+func (h *Teamserver) Serve(listener net.Listener) (any, error) {
 	rpcLog := h.NamedLogger("transport", "grpc")
 
 	// Encryption.
 	h.mutex.Lock()
 	if h.conn == nil {
-		tlsOptions, err := TLSAuthMiddleware(h.Server)
+		tlsOptions, err := TLSAuthMiddlewareOptions(h.Server)
 		if err != nil {
 			return nil, err
 		}
@@ -187,10 +199,10 @@ func (h *handler) Serve(listener net.Listener) (any, error) {
 //
 // In this implementation, the function does nothing. Thus the underlying
 // *grpc.Server .Shutdown() method is not called, and only the listener
-// will be closed by the server automatically.
+// will be closed by the server automatically when using CloseListener().
 //
 // This is probably not optimal from a resource usage standpoint, but currently it
 // fits most use cases. Feel free to reimplement or propose changes to this lib.
-func (h *handler) Close() error {
+func (h *Teamserver) Close() error {
 	return nil
 }

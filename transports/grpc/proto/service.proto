@@ -9,6 +9,5 @@ import "client.proto";
 // and streaming their output/console logs.
 service Team {
   rpc GetVersion(Empty) returns (Version);
-  rpc ClientLog(stream LogData) returns (Empty);
   rpc GetUsers(Empty) returns (Users);
 }

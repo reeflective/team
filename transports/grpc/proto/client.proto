@@ -35,13 +35,6 @@ message Version {
   string Arch = 8;
 }
 
-// [ Client Logs ] 
-message LogData {
-  string Level = 1;
-  string Stream = 2;
-  bytes Data = 3;
-}
-
 // [ Others ]
 message Empty {}
 
