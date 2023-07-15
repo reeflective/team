@@ -171,7 +171,7 @@ func (ts *Server) ListenerStartPersistents() error {
 			continue
 		}
 
-		err := ts.ServeListener(handler, ln.ID, ln.Host, ln.Port)
+		err := ts.serve(handler, ln.ID, ln.Host, ln.Port)
 
 		if err == nil {
 			continue

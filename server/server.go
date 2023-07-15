@@ -76,8 +76,10 @@ type Listener[serverConn any] interface {
 	// Serve should/may bind, register, setup and/or serve an application-specific service.
 	// The listener passed as argument is the one returned by the listener Listen() method,
 	// thus can be nil or any type that your listener implementation has decided.
-	// The `serverConn` returned is then passed to the teamserver WithPostServerHooks()
-	// registered for this given listener stack, unless the error returned is not nil.
+	//
+	// The `serverConn` returned is then passed to all hook functions passed
+	// with the listener when using the server.WithListener(ln, hooks...),
+	// unless the error returned is not nil.
 	Serve(net.Listener) (conn serverConn, err error)
 
 	// Close should close the listener stack.
@@ -85,74 +87,6 @@ type Listener[serverConn any] interface {
 	// - It can simply close the "listener" layer without shutting down the "server/RPC" layer.
 	// - It can shutdown anything, thus in effect disconnecting all of its clients from server.
 	Close() error
-}
-
-// ServeListener will attempt to serve a given listener/server stack to a given (host:port) address.
-// If the ID parameter is empty, a job ID for this listener will be automatically generated.
-// Any errors raised by the listener itself are considered critical and returned wrapped in a ListenerErr.
-func (ts *Server) ServeListener(ln Listener[any], ID, host string, port uint16, opts ...Options) error {
-	log := ts.NamedLogger("teamserver", "handler")
-
-	// If server was not initialized yet, do it.
-	err := ts.init(opts...)
-	if err != nil {
-		return ts.errorf("%w: %w", ErrTeamServer, err)
-	}
-
-	// Let the handler initialize itself: load everything it needs from
-	// the server, configuration, fetch certificates, log stuff, etc.
-	err = ln.Init(ts)
-	if err != nil {
-		return ts.errorWith(log, "%w: %w", ErrListener, err)
-	}
-
-	// Now let the handler start listening on somewhere.
-	laddr := fmt.Sprintf("%s:%d", host, port)
-
-	listener, err := ln.Listen(laddr)
-	if err != nil {
-		return ts.errorWith(log, "%s: %w", ErrListener, err)
-	}
-
-	// The previous is not blocking, serve the listener immediately.
-	serverConn, err := ln.Serve(listener)
-	if err != nil {
-		return ts.errorWith(log, "%w: %w", ErrListener, err)
-	}
-
-	// The server is running, so add a job anyway.
-	ts.addListenerJob(ID, host, int(port), ln)
-
-	// Run provided server hooks on the server interface.
-	// Any error arising from this is returned as is, for
-	// users can directly compare it with their own errors.
-	for _, hook := range ts.opts.hooks[ln.Name()] {
-		if err := hook(serverConn); err != nil {
-			return ts.errorWith(log, "%w: %w", ErrTeamServer, err)
-		}
-	}
-
-	return nil
-}
-
-// ServeAddr attempts to serve a listener stack identified by "name" (the listener should have been registered
-// with the teamserver with the WithListener() option), on a given host:port address, with any provided option.
-// If returns either a critical error raised by the listener, or the ID of the listener job, for control.
-func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jobID string, err error) {
-	handler := ts.handlers[name]
-
-	// The default handler can never be nil, as even the
-	// default one is a pure fake in-memory teamclient.
-	if handler == nil {
-		handler = ts.self
-	}
-
-	// Generate the listener ID now so we can return it.
-	listenerID := getRandomID()
-
-	err = ts.ServeListener(handler, listenerID, host, port, opts...)
-
-	return listenerID, err
 }
 
 // ServeDaemon is a blocking call which starts the teamserver as daemon process, using
@@ -221,6 +155,36 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) (err er
 	return err
 }
 
+// ServeAddr attempts to serve a listener stack identified by "name" (the listener should be registered
+// with the teamserver with WithListener() option), on a given host:port address, with any provided option.
+// If returns either a critical error raised by the listener, or the ID of the listener job, for control.
+func (ts *Server) ServeAddr(name string, host string, port uint16, opts ...Options) (id string, err error) {
+	// If server was not initialized yet, do it.
+	// This at least will update any listener/server-specific options.
+	err = ts.init(opts...)
+	if err != nil {
+		return "", ts.errorf("%w: %w", ErrTeamServer, err)
+	}
+
+	// Ensure we have at least one available listener.
+	handler := ts.handlers[name]
+
+	if handler == nil {
+		handler = ts.self
+	}
+
+	if handler == nil {
+		return "", ErrNoListener
+	}
+
+	// Generate the listener ID now so we can return it.
+	listenerID := getRandomID()
+
+	err = ts.serve(handler, listenerID, host, port, opts...)
+
+	return listenerID, err
+}
+
 // Serve attempts to serve a runtime teamclient of this teamserver.
 // If the teamserver has not listener backend available, it will just
 // ignore that fact and let the teamclient run its connection process.
@@ -238,7 +202,7 @@ func (ts *Server) Serve(cli *client.Client, opts ...Options) error {
 		// Some errors might come from user-provided hooks,
 		// so we don't wrap errors again, our own errors
 		// have been prepared accordingly in this call.
-		err := ts.ServeListener(ts.self, "", host, port, opts...)
+		err := ts.serve(ts.self, "", host, port, opts...)
 		if err != nil {
 			return err
 		}
@@ -249,6 +213,55 @@ func (ts *Server) Serve(cli *client.Client, opts ...Options) error {
 	err := cli.Connect(client.WithLocalDialer())
 	if err != nil {
 		return ts.errorf(err.Error())
+	}
+
+	return nil
+}
+
+// serve will attempt to serve a given listener/server stack to a given (host:port) address.
+// If the ID parameter is empty, a job ID for this listener will be automatically generated.
+// Any errors raised by the listener itself are considered critical and returned wrapped in a ListenerErr.
+func (ts *Server) serve(ln Listener[any], ID, host string, port uint16, opts ...Options) error {
+	log := ts.NamedLogger("teamserver", "handler")
+
+	// If server was not initialized yet, do it.
+	// This has no effect redundant with the ServeAddr() method.
+	err := ts.init(opts...)
+	if err != nil {
+		return ts.errorf("%w: %w", ErrTeamServer, err)
+	}
+
+	// Let the handler initialize itself: load everything it needs from
+	// the server, configuration, fetch certificates, log stuff, etc.
+	err = ln.Init(ts)
+	if err != nil {
+		return ts.errorWith(log, "%w: %w", ErrListener, err)
+	}
+
+	// Now let the handler start listening on somewhere.
+	laddr := fmt.Sprintf("%s:%d", host, port)
+
+	listener, err := ln.Listen(laddr)
+	if err != nil {
+		return ts.errorWith(log, "%w: %w", ErrListener, err)
+	}
+
+	// The previous is not blocking, serve the listener immediately.
+	serverConn, err := ln.Serve(listener)
+	if err != nil {
+		return ts.errorWith(log, "%w: %w", ErrListener, err)
+	}
+
+	// The server is running, so add a job anyway.
+	ts.addListenerJob(ID, host, int(port), ln)
+
+	// Run provided server hooks on the server interface.
+	// Any error arising from this is returned as is, for
+	// users can directly compare it with their own errors.
+	for _, hook := range ts.opts.hooks[ln.Name()] {
+		if err := hook(serverConn); err != nil {
+			return ts.errorWith(log, "%w: %w", ErrTeamServer, err)
+		}
 	}
 
 	return nil
