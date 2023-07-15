@@ -26,15 +26,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/log"
 )
 
-const (
-	teamserverDir = "teamserver"
-	logsDir       = "logs"
-	certsDir      = "certs"
-)
-
+// HomeDir returns the root application directory (~/.app/ by default).
+// This directory can be set with the environment variable <APP>_ROOT_DIR.
+// This directory is not to be confused with the ~/.app/teamserver directory
+// returned by the server.TeamDir(), which is specific to the app teamserver.
 func (ts *Server) HomeDir() string {
 	value := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(ts.name)))
 
@@ -59,10 +58,11 @@ func (ts *Server) HomeDir() string {
 	return dir
 }
 
-// TeamDir returns the directory of the team server app (named ~/.<app>/teamserver/),
-// creating the directory if needed, or logging a fatal event if failing to create it.
+// TeamDir returns the teamserver directory of the app (named ~/.<app>/teamserver/),
+// creating the directory if needed, or logging an error event if failing to create it.
+// This directory is used to store teamserver certificates, database, logs, and configs.
 func (ts *Server) TeamDir() string {
-	dir := path.Join(ts.HomeDir(), teamserverDir)
+	dir := path.Join(ts.HomeDir(), assets.DirServer)
 
 	err := ts.fs.MkdirAll(dir, log.DirPerm)
 	if err != nil {
@@ -75,7 +75,7 @@ func (ts *Server) TeamDir() string {
 // LogsDir returns the directory of the client (~/.app-server/logs), creating
 // the directory if needed, or logging a fatal event if failing to create it.
 func (ts *Server) LogsDir() string {
-	logDir := path.Join(ts.TeamDir(), logsDir)
+	logDir := path.Join(ts.TeamDir(), assets.DirLogs)
 
 	err := ts.fs.MkdirAll(logDir, log.DirPerm)
 	if err != nil {
@@ -85,8 +85,10 @@ func (ts *Server) LogsDir() string {
 	return logDir
 }
 
+// CertificatesDir returns the directory storing users CA PEM files as backup,
+// (~/.app/teamserver/certs), either on-disk or in-memory if the teamserver is.
 func (ts *Server) CertificatesDir() string {
-	certDir := path.Join(ts.TeamDir(), certsDir)
+	certDir := path.Join(ts.TeamDir(), assets.DirCerts)
 
 	err := ts.fs.MkdirAll(certDir, log.DirPerm)
 	if err != nil {

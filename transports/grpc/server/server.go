@@ -51,7 +51,7 @@ type handler struct {
 // 	return nil, nil
 // }
 
-func NewTeam(opts ...grpc.ServerOption) (teamserver.Handler[any], team.Client, teamclient.Dialer[any]) {
+func NewTeam(opts ...grpc.ServerOption) (teamserver.Listener[any], team.Client, teamclient.Dialer[any]) {
 	listener := &handler{
 		mutex: &sync.RWMutex{},
 	}

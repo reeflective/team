@@ -80,7 +80,7 @@ func LogMiddleware(s *server.Server) ([]grpc.ServerOption, error) {
 func TLSAuthMiddleware(s *server.Server) ([]grpc.ServerOption, error) {
 	var options []grpc.ServerOption
 
-	tlsConfig, err := s.GetUserTLSConfig()
+	tlsConfig, err := s.UsersTLSConfig()
 	if err != nil {
 		return nil, err
 	}

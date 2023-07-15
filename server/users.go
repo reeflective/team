@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -21,17 +20,21 @@ import (
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
 
-// NewUserConfig generates a new user client connection configuration.
-func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]byte, error) {
+// NewUser creates a new teamserver user, with all cryptographic material and server remote
+// endpoints needed by this user to connect to us.
+//
+// Certificate files and the API authentication token are saved into the teamserver database,
+// conformingly to its configured backend/filesystem (can be in-memory or on filesystem).
+func (ts *Server) NewUser(name string, lhost string, lport uint16) (*client.Config, error) {
 	if err := ts.initDatabase(); err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
-	if !namePattern.MatchString(userName) {
+	if !namePattern.MatchString(name) {
 		return nil, ts.errorf("%w: invalid user name (alphanumerics only)", ErrUserConfig)
 	}
 
-	if userName == "" {
+	if name == "" {
 		return nil, ts.errorf("%w: user name required ", ErrUserConfig)
 	}
 
@@ -50,7 +53,7 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 
 	digest := sha256.Sum256([]byte(rawToken))
 	dbuser := &db.User{
-		Name:  userName,
+		Name:  name,
 		Token: hex.EncodeToString(digest[:]),
 	}
 
@@ -59,14 +62,14 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
-	publicKey, privateKey, err := ts.certs.UserClientGenerateCertificate(userName)
+	publicKey, privateKey, err := ts.certs.UserClientGenerateCertificate(name)
 	if err != nil {
 		return nil, ts.errorf("%w: failed to generate certificate %w", ErrCertificate, err)
 	}
 
 	caCertPEM, _, _ := ts.certs.GetUsersCAPEM()
 	config := client.Config{
-		User:          userName,
+		User:          name,
 		Token:         rawToken,
 		Host:          lhost,
 		Port:          int(lport),
@@ -75,11 +78,24 @@ func (ts *Server) NewUserConfig(userName string, lhost string, lport uint16) ([]
 		Certificate:   string(publicKey),
 	}
 
-	return json.Marshal(config)
+	return &config, nil
 }
 
-// DeleteUser deletes a user from the teamserver database, in fact forbidding
-// it to ever reconnect with the user's credentials (client configuration file).
+// DeleteUser deletes a user and its cryptographic materials from
+// the teamserver database, clearing the API auth tokens cache.
+//
+// WARN: This function has two very precise effects/consequences:
+//  1. The server-side Mutual TLS configuration obtained with server.GetUserTLSConfig()
+//     will refuse all connections using the deleted user TLS credentials, returning
+//     an authentication failure.
+//  2. The server.AuthenticateUser(token) method will always return an ErrUnauthenticated
+//     error from the call, because the delete user is not in the database anymore.
+//
+// Thus, it is up to the users of this library to use the builting teamserver TLS
+// configurations in their teamserver listener / teamclient dialer implementations.
+//
+// Certificate files, API authentication token are deleted from the teamserver database,
+// conformingly to its configured backend/filesystem (can be in-memory or on filesystem).
 func (ts *Server) DeleteUser(name string) error {
 	if err := ts.initDatabase(); err != nil {
 		return ts.errorf("%w: %w", ErrDatabase, err)
@@ -99,6 +115,15 @@ func (ts *Server) DeleteUser(name string) error {
 	return ts.certs.UserClientRemoveCertificate(name)
 }
 
+// AuthenticateUser accepts a raw 128-bits long API Authentication token belonging to the
+// user of a connected/connecting teamclient. The token is hashed and checked against the
+// teamserver users database for the matching user.
+// This function shall alternatively return:
+// - The name of the authenticated user, true for authenticated and no error.
+// - No name, false for authenticated, and an ErrUnauthenticated error.
+// - No name, false for authenticated, and a database error, if was ignited now.
+//
+// This call updates the last time the user has been seen by the server.
 func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized bool, err error) {
 	if err := ts.initDatabase(); err != nil {
 		return "", false, ts.errorf("%w: %w", ErrDatabase, err)
@@ -130,13 +155,61 @@ func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized boo
 	return user.Name, true, nil
 }
 
-func (ts *Server) updateLastSeen(name string) {
-	lastSeen := time.Now().Round(1 * time.Second)
-	ts.dbSession().Model(&db.User{}).Where("name", name).Update("LastSeen", lastSeen)
+// UsersTLSConfig returns a server-side Mutual TLS configuration struct, ready to run.
+// The configuration performs all and every verifications that the teamserver should do,
+// and peer TLS clients (teamclient.Config) are not allowed to choose any TLS parameters.
+//
+// This should be used by team/server.Listeners at the net.Listener/net.Conn level.
+// As for all errors of the teamserver API, any error returned here is defered-logged.
+func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
+	log := ts.NamedLogger("certs", "mtls")
+
+	if err := ts.initDatabase(); err != nil {
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+
+	caCertPtr, _, err := ts.certs.GetUsersCA()
+	if err != nil {
+		return nil, ts.errorWith(log, "%w: failed to get users certificate authority: %w", ErrCertificate, err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AddCert(caCertPtr)
+
+	_, _, err = ts.certs.UserServerGetCertificate()
+	if errors.Is(err, certs.ErrCertDoesNotExist) {
+		if _, _, err := ts.certs.UserServerGenerateCertificate(); err != nil {
+			return nil, ts.errorWith(log, err.Error())
+		}
+	}
+
+	certPEM, keyPEM, err := ts.certs.UserServerGetCertificate()
+	if err != nil {
+		return nil, ts.errorWith(log, "%w: failed to generated or fetch user certificate: %w", ErrCertificate, err)
+	}
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, ts.errorWith(log, "%w: failed to load server certificate: %w", ErrCertificate, err)
+	}
+
+	tlsConfig := &tls.Config{
+		RootCAs:      caCertPool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caCertPool,
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13,
+	}
+
+	if keyLogger := ts.certs.OpenTLSKeyLogFile(); keyLogger != nil {
+		tlsConfig.KeyLogWriter = ts.certs.OpenTLSKeyLogFile()
+	}
+
+	return tlsConfig, nil
 }
 
 // GetUsersCA returns the bytes of a PEM-encoded certificate authority,
-// which may contain multiple teamserver users and their master.
+// which contains certificates of all users of this teamserver.
 func (ts *Server) GetUsersCA() ([]byte, []byte, error) {
 	if err := ts.initDatabase(); err != nil {
 		return nil, nil, ts.errorf("%w: %w", ErrDatabase, err)
@@ -183,51 +256,7 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 	return user, err
 }
 
-// getUserTLSConfig - Generate the TLS configuration, we do now allow the end user
-// to specify any TLS parameters, we choose sensible defaults instead.
-func (ts *Server) GetUserTLSConfig() (*tls.Config, error) {
-	log := ts.NamedLogger("certs", "mtls")
-
-	if err := ts.initDatabase(); err != nil {
-		return nil, ts.errorf("%w: %w", ErrDatabase, err)
-	}
-
-	caCertPtr, _, err := ts.certs.GetUsersCA()
-	if err != nil {
-		return nil, ts.errorWith(log, "%w: failed to get users certificate authority: %w", ErrCertificate, err)
-	}
-
-	caCertPool := x509.NewCertPool()
-	caCertPool.AddCert(caCertPtr)
-
-	_, _, err = ts.certs.UserServerGetCertificate()
-	if errors.Is(err, certs.ErrCertDoesNotExist) {
-		if _, _, err := ts.certs.UserServerGenerateCertificate(); err != nil {
-			return nil, ts.errorWith(log, err.Error())
-		}
-	}
-
-	certPEM, keyPEM, err := ts.certs.UserServerGetCertificate()
-	if err != nil {
-		return nil, ts.errorWith(log, "%w: failed to generated or fetch user certificate: %w", ErrCertificate, err)
-	}
-
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, ts.errorWith(log, "%w: failed to load server certificate: %w", ErrCertificate, err)
-	}
-
-	tlsConfig := &tls.Config{
-		RootCAs:      caCertPool,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    caCertPool,
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS13,
-	}
-
-	if keyLogger := ts.certs.OpenTLSKeyLogFile(); keyLogger != nil {
-		tlsConfig.KeyLogWriter = ts.certs.OpenTLSKeyLogFile()
-	}
-
-	return tlsConfig, nil
+func (ts *Server) updateLastSeen(name string) {
+	lastSeen := time.Now().Round(1 * time.Second)
+	ts.dbSession().Model(&db.User{}).Where("name", name).Update("LastSeen", lastSeen)
 }

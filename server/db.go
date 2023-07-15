@@ -18,6 +18,9 @@ const (
 	maxOpenConns = 100
 )
 
+// DatabaseConfig returns the server database backend configuration struct.
+// If configuration could be found on disk, the default Sqlite file-based
+// database is returned, with app-corresponding file paths.
 func (ts *Server) DatabaseConfig() *db.Config {
 	cfg, err := ts.getDatabaseConfig()
 	if err != nil {

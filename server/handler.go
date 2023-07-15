@@ -13,34 +13,78 @@ import (
 	"github.com/reeflective/team/internal/certs"
 )
 
-// Handler represents a teamserver listener stack.
-// It must be satisfied by any type aiming to be used
-// as a transport and RPC backend of the teamserver.
+// Listener represents a teamserver listener stack.
+// Any type implementing this interface can be served and controlled
+// by a team/server.Server core, and remote clients can connect to it
+// with the appropriate/corresponding team/client.Dialer backend.
 //
-// The server type parameter represents the server-side of a connection
-// between a teamclient and the teamserver. It may or may not offer the
-// RPC services to the client yet. Implementations are free to decide.
-// TODO: Write about the Options(hooks) to use with this generic type.
-type Handler[server any] interface {
+// The type parameter `serverConn` of this interface is also a syntactic sugar
+// to indicate that any listener should/may return a user-defined but specific object
+// from its Serve() method.
+// Similarly to the teamclient, library users can register hooks to the teamserver,
+// which will consume/use this listener (with the option WithPreServeHooks(...)).
+//
+// Also similarly to the teamclient, this `serverConn` could be:
+// - A specific but non-idiomatic RPC listener/server stack (ex: a *grpc.Server).
+// - A simple net.Conn over which to serve the core Server version/info/users.
+// - Nothing: A listener is not obliged to return anything, and can work as it wants.
+//
+// Errors: all errors returned by the listener interface methods are considered critical,
+// (except the Close() error one), and thus will stop the listener start/server process
+// when raised. Thus, you should only return errors that are critical to the operation
+// of your listener. You can use the teamserver loggers to log/print non-critical ones.
+type Listener[serverConn any] interface {
+	// Name returns the name of the "listener/server/RPC" stack
+	// of this listener, eg. "gRPC" for a gRPC listener, "myCustomHTTP"
+	// for your quick-and-dirty custom stack, etc.
+	// Note that this name is used as a key by the teamserver to store the
+	// different listener stacks it may use, so this name should be unique
+	// among all listener stacks registered to a given teamserver runtime.
 	Name() string
+
+	// Init is used by the listener to access the core teamserver, needed for:
+	// - Fetching server-side transport/session-level credentials.
+	// - Authenticating users connections/requests.
+	// - Using the builtin teamserver loggers, filesystem and other utilities.
+	// Any non-nil error returned will abort the listener starting process.
 	Init(s *Server) error
+
+	// Listen is used to create and bind a network listener to some address
+	// given as argument. This function is NOT mandated to return a non-nil
+	// listener: the latter is passed as is to the Serve() method, which is
+	// thus free to work with or without a (this) listener.
+	// Any non-nil error returned will abort the listener starting process.
 	Listen(addr string) (ln net.Listener, err error)
-	Serve(net.Listener) (serv server, err error)
+
+	// Serve should/may bind, register, setup and/or serve an application-specific service.
+	// The listener passed as argument is the one returned by the listener Listen() method,
+	// thus can be nil or any type that your listener implementation has decided.
+	// The `serverConn` returned is then passed to the teamserver WithPostServerHooks()
+	// registered for this given listener stack, unless the error returned is not nil.
+	Serve(net.Listener) (conn serverConn, err error)
+
+	// Close should close the listener stack.
+	// This can mean different things depending on use case, but some are not recommended.
+	// - It can simply close the "listener" layer without shutting down the "server/RPC" layer.
+	// - It can shutdown anything, thus in effect disconnecting all of its clients from server.
 	Close() error
 }
 
-func (ts *Server) ServeHandler(handler Handler[any], lnID, host string, port uint16, options ...Options) error {
+// ServeListener will attempt to serve a given listener/server stack to a given (host:port) address.
+// If the ID parameter is empty, a job ID for this listener will be automatically generated.
+// Any errors raised by the listener itself are considered critical and returned wrapped in a ListenerErr.
+func (ts *Server) ServeListener(ln Listener[any], ID, host string, port uint16, opts ...Options) error {
 	log := ts.NamedLogger("teamserver", "handler")
 
 	// If server was not initialized yet, do it.
-	err := ts.init(options...)
+	err := ts.init(opts...)
 	if err != nil {
 		return ts.errorf("%w: %w", ErrTeamServer, err)
 	}
 
 	// Let the handler initialize itself: load everything it needs from
 	// the server, configuration, fetch certificates, log stuff, etc.
-	err = handler.Init(ts)
+	err = ln.Init(ts)
 	if err != nil {
 		return ts.errorWith(log, "%w: %w", ErrListener, err)
 	}
@@ -48,24 +92,24 @@ func (ts *Server) ServeHandler(handler Handler[any], lnID, host string, port uin
 	// Now let the handler start listening on somewhere.
 	laddr := fmt.Sprintf("%s:%d", host, port)
 
-	listener, err := handler.Listen(laddr)
+	listener, err := ln.Listen(laddr)
 	if err != nil {
 		return ts.errorWith(log, "%s: %w", ErrListener, err)
 	}
 
 	// The previous is not blocking, serve the listener immediately.
-	serverConn, err := handler.Serve(listener)
+	serverConn, err := ln.Serve(listener)
 	if err != nil {
 		return ts.errorWith(log, "%w: %w", ErrListener, err)
 	}
 
 	// The server is running, so add a job anyway.
-	ts.addListenerJob(lnID, host, int(port), handler)
+	ts.addListenerJob(ID, host, int(port), ln)
 
 	// Run provided server hooks on the server interface.
 	// Any error arising from this is returned as is, for
 	// users can directly compare it with their own errors.
-	for _, hook := range ts.opts.hooks[handler.Name()] {
+	for _, hook := range ts.opts.hooks[ln.Name()] {
 		if err := hook(serverConn); err != nil {
 			return ts.errorWith(log, "%w: %w", ErrTeamServer, err)
 		}
@@ -74,6 +118,9 @@ func (ts *Server) ServeHandler(handler Handler[any], lnID, host string, port uin
 	return nil
 }
 
+// ServeAddr attempts to serve a listener stack identified by "name" (the listener should have been registered
+// with the teamserver with the WithListener() option), on a given host:port address, with any provided option.
+// If returns either a critical error raised by the listener, or the ID of the listener job, for control.
 func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jobID string, err error) {
 	handler := ts.handlers[name]
 
@@ -86,16 +133,20 @@ func (ts *Server) ServeAddr(name, host string, port uint16, opts ...Options) (jo
 	// Generate the listener ID now so we can return it.
 	listenerID := getRandomID()
 
-	err = ts.ServeHandler(handler, listenerID, host, port, opts...)
+	err = ts.ServeListener(handler, listenerID, host, port, opts...)
 
 	return listenerID, err
 }
 
-// ServeDaemon is a blocking call which starts the server as daemon process, using
+// ServeDaemon is a blocking call which starts the teamserver as daemon process, using
 // either the provided host:port arguments, or the ones found in the teamserver config.
-// It also accepts a function that will be called just after starting the server, so
-// that users can still register their per-application services before actually blocking.
-func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
+// This function will also (and is the only one to) start all persistent team listeners.
+//
+// It blocks by waiting for a syscal.SIGTERM (eg. CtrlC on Linux) signal. Upon receival,
+// the teamserver will close the main listener (the daemon one), but not persistent ones.
+//
+// Errors raised by closing the listener are wrapped in an ErrListener, logged and returned.
+func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) (err error) {
 	log := ts.NamedLogger("daemon", "main")
 
 	// cli args take president over config
@@ -129,7 +180,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	// we just serve it for him
 	hostPort := regexp.MustCompile(fmt.Sprintf("%s:%d", host, port))
 
-	err = ts.StartPersistentListeners(ts.opts.continueOnError)
+	err = ts.StartPersistentListeners()
 	if err != nil && hostPort.MatchString(err.Error()) {
 		log.Errorf("Error starting persistent listeners: %s", err)
 	}
@@ -141,33 +192,36 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) error {
 	go func() {
 		<-signals
 		log.Infof("Received SIGTERM, exiting ...")
-		ts.CloseListener(listenerID)
+
+		err = ts.CloseListener(listenerID)
+		if err != nil {
+			log.Errorf("%s: %s", ErrListener, err)
+		}
 		done <- true
 	}()
 	<-done
 
-	return nil
+	return err
 }
 
+// Serve attempts to serve a runtime teamclient of this teamserver.
+// If the teamserver has not listener backend available, it will just
+// ignore that fact and let the teamclient run its connection process.
+//
+// Thus:
+// The given client may or may not be equipped with a given client.Dialer
+// backend, and will init and connect according to the behavior explained
+// in the team/client package. Please see examples of self-served clients.
+// The teamserver.Self() method will create such a stub but working client.
 func (ts *Server) Serve(cli *client.Client, opts ...Options) error {
 	host := cli.Config().Host
 	port := uint16(cli.Config().Port)
-
-	// Now let the handler start listening on somewhere.
-	laddr := host
-	if port != 0 {
-		laddr = fmt.Sprintf("%s:%d", laddr, port)
-	}
-
-	if laddr == "" {
-		laddr = "runtime"
-	}
 
 	if ts.self != nil {
 		// Some errors might come from user-provided hooks,
 		// so we don't wrap errors again, our own errors
 		// have been prepared accordingly in this call.
-		err := ts.ServeHandler(ts.self, "", host, port, opts...)
+		err := ts.ServeListener(ts.self, "", host, port, opts...)
 		if err != nil {
 			return err
 		}
@@ -183,9 +237,12 @@ func (ts *Server) Serve(cli *client.Client, opts ...Options) error {
 	return nil
 }
 
-// Handlers returns a copy of its teamserver handlers map.
-func (ts *Server) Handlers() map[string]Handler[any] {
-	handlers := make(map[string]Handler[any], len(ts.handlers))
+// Handlers returns a copy of its teamserver listeners map.
+// This can be useful if you want to start them with the server ServeListener() method.
+// Or -but this is not recommended by this library- to use those listeners without the
+// teamserver driving the init/start/serve/stop process.
+func (ts *Server) Handlers() map[string]Listener[any] {
+	handlers := make(map[string]Listener[any], len(ts.handlers))
 
 	for name, handler := range ts.handlers {
 		handlers[name] = handler

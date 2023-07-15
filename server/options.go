@@ -20,7 +20,7 @@ type opts[server any] struct {
 	dbConfig  *db.Config
 	db        *gorm.DB
 	logger    *logrus.Logger
-	listeners []Handler[server]
+	listeners []Listener[server]
 
 	hooks map[string][]func(serv server) error
 }
@@ -55,7 +55,7 @@ func (ts *Server) apply(options ...Options) {
 		ts.self = ts.opts.listeners[0]
 	}
 
-	ts.opts.listeners = make([]Handler[any], 0)
+	ts.opts.listeners = make([]Listener[any], 0)
 }
 
 //
@@ -132,7 +132,7 @@ func WithLogger(logger *logrus.Logger) Options {
 // *** Server network/RPC options ***
 //
 
-func WithListener(ln Handler[any]) Options {
+func WithListener(ln Listener[any]) Options {
 	return func(opts *opts[any]) {
 		opts.listeners = append(opts.listeners, ln)
 	}

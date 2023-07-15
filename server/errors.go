@@ -35,7 +35,7 @@ var (
 	// ErrDatabase is an error raised by the database backend.
 	ErrDatabase = errors.New("database")
 
-	// ErrTeamServer is an error raised by the teamserver code.
+	// ErrTeamServer is an error raised by the teamserver core code.
 	ErrTeamServer = errors.New("teamserver")
 
 	// ErrCertificate is an error related to the certificate infrastructure.

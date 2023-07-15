@@ -70,9 +70,15 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Generating new client certificate, please wait ... \n")
 
-		configJSON, err := serv.NewUserConfig(name, lhost, lport)
+		config, err := serv.NewUser(name, lhost, lport)
 		if err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err)
+			return
+		}
+
+		configJSON, err := json.Marshal(config)
+		if err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"JSON marshaling error: %s\n", err)
 			return
 		}
 
