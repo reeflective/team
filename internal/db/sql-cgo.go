@@ -3,7 +3,7 @@
 package db
 
 /*
-   team - Embeded teamserver for Go programs and CLI applications
+   team - Embedded teamserver for Go programs and CLI applications
    Copyright (C) 2023 Reeflective
 
    This program is free software: you can redistribute it and/or modify

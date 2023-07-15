@@ -38,7 +38,7 @@ func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
 
 // SetLogLevel sets the logging level of teamserver loggers (excluding audit ones).
 func (ts *Server) SetLogLevel(level int) {
-	if ts.stdoutLogger == nil {
+	if ts.stdioLog == nil {
 		return
 	}
 
@@ -46,13 +46,13 @@ func (ts *Server) SetLogLevel(level int) {
 		level = int(logrus.TraceLevel)
 	}
 
-	ts.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
+	ts.stdioLog.SetLevel(logrus.Level(uint32(level)))
 
 	// Also Change the file-based logging level:
 	// - If they app runs a memfs, this wont have any effect.
 	// - If the user wants to debug anyway, better two sources than one.
-	if ts.fileLogger != nil {
-		ts.fileLogger.SetLevel(logrus.Level(uint32(level)))
+	if ts.fileLog != nil {
+		ts.fileLog.SetLevel(logrus.Level(uint32(level)))
 	}
 }
 
@@ -95,14 +95,14 @@ func (ts *Server) initLogging() (err error) {
 	// If user supplied a logger, use it in place of the
 	// file-based logger, since the file logger is optional.
 	if ts.opts.logger != nil {
-		ts.fileLogger = ts.opts.logger
+		ts.fileLog = ts.opts.logger
 		return nil
 	}
 
 	level := logrus.Level(ts.opts.config.Log.Level)
 
 	// Create any additional/configured logger and related/missing hooks.
-	ts.fileLogger, ts.stdoutLogger, err = log.Init(ts.fs, logFile, level)
+	ts.fileLog, ts.stdioLog, err = log.Init(ts.fs, logFile, level)
 	if err != nil {
 		return err
 	}
@@ -114,11 +114,11 @@ func (ts *Server) initLogging() (err error) {
 // if file logging is disabled, it returns the stdout-only logger,
 // otherwise returns the file logger equipped with a stdout hook.
 func (ts *Server) log() *logrus.Logger {
-	if ts.fileLogger == nil {
-		return ts.stdoutLogger
+	if ts.fileLog == nil {
+		return ts.stdioLog
 	}
 
-	return ts.fileLogger
+	return ts.fileLog
 }
 
 func (ts *Server) errorf(msg string, format ...any) error {

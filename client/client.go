@@ -50,11 +50,13 @@ import (
 // Please see the Go module example/ directory for a list of them.
 type Client struct {
 	name         string         // Name of the teamclient/teamserver application.
+	homeDir      string         // APP_ROOT_DIR var, evaluated once when creating the server.
 	opts         *opts          // All configurable things for the teamclient.
 	fileLogger   *logrus.Logger // By default, hooked to also provide stdout logging.
 	stdoutLogger *logrus.Logger // Fallback logger.
 	fs           *assets.FS     // Embedded or on-disk application filesystem.
 	mutex        *sync.RWMutex  // Sync access.
+	initOpts     sync.Once      // Some options can only be set once when creating the server.
 
 	dialer  Dialer[any] // Connection backend for the teamclient.
 	connect *sync.Once  // A client can only connect once per run.

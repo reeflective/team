@@ -67,11 +67,22 @@ func (ts *Server) apply(options ...Options) {
 		optFunc(ts.opts)
 	}
 
-	if ts.opts.db != nil {
-		ts.db = ts.opts.db
-	}
+	// The server will apply options multiple times
+	// in its lifetime, but some options can only be
+	// set once when created.
+	ts.initOpts.Do(func() {
+		// Application home directory.
+		if ts.homeDir == "" {
+			ts.homeDir = ts.opts.homeDir
+		}
 
-	// Load any listener backends.
+		// User-defined database.
+		if ts.opts.db != nil {
+			ts.db = ts.opts.db
+		}
+	})
+
+	// Load any listener backends any number of times.
 	for _, listener := range ts.opts.listeners {
 		ts.handlers[listener.Name()] = listener
 	}
@@ -81,6 +92,7 @@ func (ts *Server) apply(options ...Options) {
 		ts.self = ts.opts.listeners[0]
 	}
 
+	// And clear the most recent listeners passed via options.
 	ts.opts.listeners = make([]Listener[any], 0)
 }
 
@@ -97,7 +109,7 @@ func (ts *Server) apply(options ...Options) {
 // and this option will thus trigger an error whenever the option is applied,
 // whether it be at teamserver creation, or when it does start listeners.
 //
-// This option can only be used once, and should be passed to server.New().
+// This option can only be used once, and must be passed to server.New().
 func WithInMemory() Options {
 	return func(opts *opts[any]) {
 		opts.noLogs = true
@@ -109,7 +121,7 @@ func WithInMemory() Options {
 // This default is used in the default daemon configuration, and as command flags defaults.
 // The default port set for teamserver applications is port 31416.
 //
-// This option can only be used once, and should be passed to server.New().
+// This option can only be used once, and must be passed to server.New().
 func WithDefaultPort(port uint16) Options {
 	return func(opts *opts[any]) {
 		opts.config.DaemonMode.Port = int(port)
@@ -119,7 +131,7 @@ func WithDefaultPort(port uint16) Options {
 // WithDatabase sets the server database to an existing database.
 // Note that it will run an automigration of the teamserver types (certificates and users).
 //
-// This option can only be used once, and should be passed to server.New().
+// This option can only be used once, and must be passed to server.New().
 func WithDatabase(db *gorm.DB) Options {
 	return func(opts *opts[any]) {
 		opts.db = db
@@ -128,7 +140,7 @@ func WithDatabase(db *gorm.DB) Options {
 
 // WithDatabaseConfig sets the server to use a database backend with a given configuration.
 //
-// This option can only be used once, and should be passed to server.New().
+// This option can only be used once, and must be passed to server.New().
 func WithDatabaseConfig(config *db.Config) Options {
 	return func(opts *opts[any]) {
 		opts.dbConfig = config
@@ -138,7 +150,7 @@ func WithDatabaseConfig(config *db.Config) Options {
 // WithHomeDirectory sets the default path (~/.app/) of the application directory.
 // This path can still be overridden at the user-level with the env var APP_ROOT_DIR.
 //
-// This option can only be used once, and should be passed to server.New().
+// This option can only be used once, and must be passed to server.New().
 func WithHomeDirectory(path string) Options {
 	return func(opts *opts[any]) {
 		opts.homeDir = path
@@ -152,7 +164,7 @@ func WithHomeDirectory(path string) Options {
 // WithNoLogs deactivates all logging normally done by the teamserver
 // if noLogs is set to true, or keeps/reestablishes them if false.
 //
-// This option can only be used once, and should be passed to server.New().
+// This option can only be used once, and must be passed to server.New().
 func WithNoLogs(noLogs bool) Options {
 	return func(opts *opts[any]) {
 		opts.noLogs = noLogs
@@ -162,7 +174,7 @@ func WithNoLogs(noLogs bool) Options {
 // WithLogFile sets the path to the file where teamserver logging should be done.
 // The default path is ~/.app/teamserver/logs/app.teamserver.log.
 //
-// This option can only be used once, and should be passed to server.New().
+// This option can only be used once, and must be passed to server.New().
 func WithLogFile(filePath string) Options {
 	return func(opts *opts[any]) {
 		opts.logFile = filePath
@@ -172,7 +184,7 @@ func WithLogFile(filePath string) Options {
 // WithLogger sets the teamserver to use a specific logger for
 // all logging, except the audit log which is indenpendent.
 //
-// This option can only be used once, and should be passed to server.New().
+// This option can only be used once, and must be passed to server.New().
 func WithLogger(logger *logrus.Logger) Options {
 	return func(opts *opts[any]) {
 		opts.logger = logger

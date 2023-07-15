@@ -24,7 +24,6 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/log"
@@ -35,16 +34,13 @@ import (
 // This directory is not to be confused with the ~/.app/teamserver directory
 // returned by the server.TeamDir(), which is specific to the app teamserver.
 func (ts *Server) HomeDir() string {
-	value := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(ts.name)))
-
 	var dir string
 
+	// Note: very important not to combine the nested if here.
 	if !ts.opts.inMemory {
-		if len(value) == 0 {
+		if ts.homeDir == "" {
 			user, _ := user.Current()
 			dir = filepath.Join(user.HomeDir, "."+ts.name)
-		} else {
-			dir = value
 		}
 	} else {
 		dir = "." + ts.name

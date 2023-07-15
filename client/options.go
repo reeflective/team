@@ -35,6 +35,7 @@ import (
 type Options func(opts *opts)
 
 type opts struct {
+	homeDir  string
 	noLogs   bool
 	logFile  string
 	inMemory bool
@@ -57,6 +58,16 @@ func (tc *Client) apply(options ...Options) {
 	for _, optFunc := range options {
 		optFunc(tc.opts)
 	}
+
+	// The server will apply options multiple times
+	// in its lifetime, but some options can only be
+	// set once when created.
+	tc.initOpts.Do(func() {
+		// Application home directory.
+		if tc.homeDir == "" {
+			tc.homeDir = tc.opts.homeDir
+		}
+	})
 
 	if tc.opts.dialer != nil {
 		tc.dialer = tc.opts.dialer
@@ -89,6 +100,16 @@ func WithInMemory() Options {
 func WithConfig(config *Config) Options {
 	return func(opts *opts) {
 		opts.config = config
+	}
+}
+
+// WithHomeDirectory sets the default path (~/.app/) of the application directory.
+// This path can still be overridden at the user-level with the env var APP_ROOT_DIR.
+//
+// This option can only be used once, and must be passed to server.New().
+func WithHomeDirectory(path string) Options {
+	return func(opts *opts) {
+		opts.homeDir = path
 	}
 }
 
