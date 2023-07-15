@@ -36,6 +36,19 @@ const (
 	FileWriteOpenMode = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 )
 
+const (
+	// Teamclient.
+
+	DirClient  = "teamclient" // DirClient is the name of the teamclient subdirectory.
+	DirLogs    = "logs"       // DirLogs subdirectory name
+	DirConfigs = "configs"    // DirConfigs subdirectory name
+
+	// Teamserver.
+
+	DirServer = "teamserver" // DirClient is the name of the teamserver subdirectory.
+	DirCerts  = "certs"      // DirCerts subdirectory name
+)
+
 // FS is a filesystem abstraction for teamservers and teamclients.
 // When either of them are configured to run in memory only, this
 // filesystem is initialized accordingly, otherwise it will forward

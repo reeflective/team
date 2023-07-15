@@ -37,9 +37,9 @@ func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
 	})
 }
 
-// WithLoggerStdout sets the to which the stdout logger (not the file logger)
-// should write to. This option is used by the teamclient cobra command tree
-// to coordinate its basic I/O/err with the teamclient backend.
+// SetLogWriter sets the stream to which the stdio logger (not the file logger)
+// should write to. This option is used by the teamclient cobra command tree to
+// synchronize its basic I/O/err with the teamclient backend.
 func (tc *Client) SetLogWriter(stdout, stderr io.Writer) {
 	tc.stdoutLogger.Out = stdout
 	// TODO: Pass stderr to log internals.

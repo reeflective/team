@@ -34,6 +34,7 @@ import (
 //
 // This client object is by default not connected to any teamserver,
 // and has therefore no way of fulfilling its core duties, on purpose.
+// The client also DOES NOT include any teamserver-side code.
 //
 // This teamclient core job is to:
 // - Fetch, configure and use teamserver endpoint configurations.
@@ -42,8 +43,11 @@ import (
 //
 // Additionally, this client offers:
 // - Pre-configured loggers for all client-side related events.
-// - A builtin, app-specific filesystem (in memory or on disk).
 // - Various options to configure its backends and behaviors.
+// - A builtin, abstracted and app-specific filesystem (in memory or on disk).
+//
+// Various combinations of teamclient/teamserver usage are possible.
+// Please see the Go module example/ directory for a list of them.
 type Client struct {
 	name         string         // Name of the teamclient/teamserver application.
 	opts         *opts          // All configurable things for the teamclient.
@@ -66,7 +70,7 @@ type Client struct {
 // remote) to setup, initiate and use a connection to this remote teamserver.
 //
 // The type parameter `clientConn` of this interface is a purely syntactic sugar
-// to indicate that any dialer should return a user-defined but specific object
+// to indicate that any dialer should/may return a user-defined but specific object
 // from its Dial() method. Library users can register hooks to the teamclient.Client
 // using this dialer, and this clientConn will be provided to these hooks.
 //
@@ -84,6 +88,7 @@ type Dialer[clientConn any] interface {
 	// Dial should connect to the endpoint available in the client configuration.
 	// Note that the configuration is not required as a function parameter, since
 	// the dialer has already been provided access to the entire teamclient in Init()
+	// The `clientConn` type is then passed to the teamclient WithPostConnectHooks().
 	Dial() (conn clientConn, err error)
 
 	// Close should close the connection or any related component.
