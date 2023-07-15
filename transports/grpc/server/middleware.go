@@ -141,7 +141,7 @@ func (ts *handler) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
-	user, authorized, err := ts.AuthenticateUser(rawToken)
+	user, authorized, err := ts.UserAuthenticate(rawToken)
 	if err != nil || !authorized || user == "" {
 		log.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")

@@ -38,9 +38,8 @@ import (
 //
 // The type parameter `serverConn` of this interface is also a syntactic sugar
 // to indicate that any listener should/may return a user-defined but specific object
-// from its Serve() method.
-// Similarly to the teamclient, library users can register hooks to the teamserver,
-// which will consume/use this listener (with the option WithPreServeHooks(...)).
+// from its Serve() method. This serverConn will be passed to all hook functions passed
+// along with the listener when using the server.WithListener(ln, hooks...) option.
 //
 // Also similarly to the teamclient, this `serverConn` could be:
 // - A specific but non-idiomatic RPC listener/server stack (ex: a *grpc.Server).
@@ -198,7 +197,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) (err er
 	// we just serve it for him
 	hostPort := regexp.MustCompile(fmt.Sprintf("%s:%d", host, port))
 
-	err = ts.StartPersistentListeners()
+	err = ts.ListenerStartPersistents()
 	if err != nil && hostPort.MatchString(err.Error()) {
 		log.Errorf("Error starting persistent listeners: %s", err)
 	}
@@ -211,7 +210,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) (err er
 		<-signals
 		log.Infof("Received SIGTERM, exiting ...")
 
-		err = ts.CloseListener(listenerID)
+		err = ts.ListenerClose(listenerID)
 		if err != nil {
 			log.Errorf("%s: %s", ErrListener, err)
 		}

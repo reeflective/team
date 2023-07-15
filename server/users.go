@@ -38,12 +38,12 @@ import (
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
 
-// NewUser creates a new teamserver user, with all cryptographic material and server remote
+// UserCreate creates a new teamserver user, with all cryptographic material and server remote
 // endpoints needed by this user to connect to us.
 //
 // Certificate files and the API authentication token are saved into the teamserver database,
 // conformingly to its configured backend/filesystem (can be in-memory or on filesystem).
-func (ts *Server) NewUser(name string, lhost string, lport uint16) (*client.Config, error) {
+func (ts *Server) UserCreate(name string, lhost string, lport uint16) (*client.Config, error) {
 	if err := ts.initDatabase(); err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -99,7 +99,7 @@ func (ts *Server) NewUser(name string, lhost string, lport uint16) (*client.Conf
 	return &config, nil
 }
 
-// DeleteUser deletes a user and its cryptographic materials from
+// UserDelete deletes a user and its cryptographic materials from
 // the teamserver database, clearing the API auth tokens cache.
 //
 // WARN: This function has two very precise effects/consequences:
@@ -114,7 +114,7 @@ func (ts *Server) NewUser(name string, lhost string, lport uint16) (*client.Conf
 //
 // Certificate files, API authentication token are deleted from the teamserver database,
 // conformingly to its configured backend/filesystem (can be in-memory or on filesystem).
-func (ts *Server) DeleteUser(name string) error {
+func (ts *Server) UserDelete(name string) error {
 	if err := ts.initDatabase(); err != nil {
 		return ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -133,7 +133,7 @@ func (ts *Server) DeleteUser(name string) error {
 	return ts.certs.UserClientRemoveCertificate(name)
 }
 
-// AuthenticateUser accepts a raw 128-bits long API Authentication token belonging to the
+// UserAuthenticate accepts a raw 128-bits long API Authentication token belonging to the
 // user of a connected/connecting teamclient. The token is hashed and checked against the
 // teamserver users database for the matching user.
 // This function shall alternatively return:
@@ -142,7 +142,7 @@ func (ts *Server) DeleteUser(name string) error {
 // - No name, false for authenticated, and a database error, if was ignited now.
 //
 // This call updates the last time the user has been seen by the server.
-func (ts *Server) AuthenticateUser(rawToken string) (name string, authorized bool, err error) {
+func (ts *Server) UserAuthenticate(rawToken string) (name string, authorized bool, err error) {
 	if err := ts.initDatabase(); err != nil {
 		return "", false, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -226,9 +226,9 @@ func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// GetUsersCA returns the bytes of a PEM-encoded certificate authority,
+// UsersGetCA returns the bytes of a PEM-encoded certificate authority,
 // which contains certificates of all users of this teamserver.
-func (ts *Server) GetUsersCA() ([]byte, []byte, error) {
+func (ts *Server) UsersGetCA() ([]byte, []byte, error) {
 	if err := ts.initDatabase(); err != nil {
 		return nil, nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -236,9 +236,9 @@ func (ts *Server) GetUsersCA() ([]byte, []byte, error) {
 	return ts.certs.GetUsersCAPEM()
 }
 
-// SaveUsersCA accepts the public and private parts of a Certificate
+// UsersSaveCA accepts the public and private parts of a Certificate
 // Authority containing one or more users to add to the teamserver.
-func (ts *Server) SaveUsersCA(cert, key []byte) {
+func (ts *Server) UsersSaveCA(cert, key []byte) {
 	if err := ts.initDatabase(); err != nil {
 		return
 	}

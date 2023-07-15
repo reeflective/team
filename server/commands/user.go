@@ -70,7 +70,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Generating new client certificate, please wait ... \n")
 
-		config, err := serv.NewUser(name, lhost, lport)
+		config, err := serv.UserCreate(name, lhost, lport)
 		if err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err)
 			return
@@ -107,7 +107,7 @@ func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Removing client certificate(s)/token(s) for %s, please wait ... \n", user)
 
-		err := serv.DeleteUser(user)
+		err := serv.UserDelete(user)
 		if err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to remove the user certificate: %v\n", err)
 			return
@@ -153,7 +153,7 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		cert := []byte(importCA.Certificate)
 		key := []byte(importCA.PrivateKey)
-		serv.SaveUsersCA(cert, key)
+		serv.UsersSaveCA(cert, key)
 	}
 }
 
@@ -175,7 +175,7 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 			save, _ = os.Getwd()
 		}
 
-		certificateData, privateKeyData, err := serv.GetUsersCA()
+		certificateData, privateKeyData, err := serv.UsersGetCA()
 		if err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Error reading CA %s\n", err)
 			return

@@ -81,7 +81,7 @@ func (ts *Server) Listeners() []*job {
 // AddListenerJob adds a teamserver listener job to the teamserver configuration.
 // This function does not start the given listener, and you must call the server
 // ServeAddr(name, host, port) function for this.
-func (ts *Server) AddListener(name, host string, port uint16) error {
+func (ts *Server) ListenerAdd(name, host string, port uint16) error {
 	listener := struct {
 		Name string `json:"name"`
 		Host string `json:"host"`
@@ -106,7 +106,7 @@ func (ts *Server) AddListener(name, host string, port uint16) error {
 // RemoveListenerJob removes a server listener job from the configuration.
 // This function does not stop any running listener for the given ID: you
 // must call server.CloseListener(id) for this.
-func (ts *Server) RemoveListener(listenerID string) {
+func (ts *Server) ListenerRemove(listenerID string) {
 	if ts.opts.config.Listeners == nil {
 		return
 	}
@@ -129,10 +129,10 @@ func (ts *Server) RemoveListener(listenerID string) {
 	ts.opts.config.Listeners = listeners
 }
 
-// CloseListener closes/stops an active teamserver listener by ID.
+// ListenerClose closes/stops an active teamserver listener by ID.
 // This function can only return an ErrListenerNotFound if the ID
 // is invalid: all listener-specific options are logged instead.
-func (ts *Server) CloseListener(id string) error {
+func (ts *Server) ListenerClose(id string) error {
 	listener := ts.jobs.Get(id)
 	if listener == nil {
 		return ts.errorf("%w: %s", ErrListenerNotFound, id)
@@ -143,12 +143,12 @@ func (ts *Server) CloseListener(id string) error {
 	return nil
 }
 
-// StartPersistentListeners attempts to start all listeners saved in the teamserver
+// ListenerStartPersistents attempts to start all listeners saved in the teamserver
 // configuration file, looking up the listener stacks in its map and starting them
 // for each bind target.
 // If the teamserver has been passed the WithContinueOnError() option at some point,
 // it will log all errors raised by listener stacks will still try to start them all.
-func (ts *Server) StartPersistentListeners() error {
+func (ts *Server) ListenerStartPersistents() error {
 	var listenerErrors error
 
 	log := ts.NamedLogger("teamserver", "listeners")

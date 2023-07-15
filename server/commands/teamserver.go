@@ -86,7 +86,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 			fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Teamserver listener started on %s:%d\n", lhost, lport)
 
 			if persistent {
-				serv.AddListener(ltype, lhost, lport)
+				serv.ListenerAdd(ltype, lhost, lport)
 			}
 		} else {
 			return fmt.Errorf(command.Warn+"Failed to start job %w", err)
@@ -115,7 +115,7 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 			for _, ln := range listeners {
 				if strings.HasPrefix(ln.ID, arg) {
-					err := serv.CloseListener(arg)
+					err := serv.ListenerClose(arg)
 					if err != nil {
 						fmt.Fprintln(cmd.ErrOrStderr(), command.Warn, err)
 					} else {
@@ -132,7 +132,7 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 			for _, saved := range cfg.Listeners {
 				if strings.HasPrefix(saved.ID, arg) {
-					serv.RemoveListener(saved.ID)
+					serv.ListenerRemove(saved.ID)
 					id := formatSmallID(saved.ID)
 					fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Deleted %s listener (%s) from saved jobs\n", saved.Name, id)
 

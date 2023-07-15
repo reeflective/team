@@ -88,7 +88,8 @@ type Dialer[clientConn any] interface {
 	// Dial should connect to the endpoint available in the client configuration.
 	// Note that the configuration is not required as a function parameter, since
 	// the dialer has already been provided access to the entire teamclient in Init()
-	// The `clientConn` type is then passed to the teamclient WithPostConnectHooks().
+	// The c`clientConn` type is then passed to all hook functions registered
+	// with the dialer when using the client.WithDialer(dialer, hooks...) option.
 	Dial() (conn clientConn, err error)
 
 	// Close should close the connection or any related component.

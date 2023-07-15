@@ -107,6 +107,7 @@ func mainSmallest() {
 	}
 }
 
-func mainCustom() {}
+func mainCustom() {
+}
 
 func mainNoCommands() {}
