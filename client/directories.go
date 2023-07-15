@@ -25,14 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/log"
-)
-
-const (
-	// configsDirName - Directory name containing config files.
-	teamserverClientDir = "teamclient"
-	logsDirName         = "logs"
-	configsDirName      = "configs"
 )
 
 // HomeDir returns the root application directory (~/.app/ by default).
@@ -67,7 +61,7 @@ func (tc *Client) HomeDir() string {
 // creating the directory if needed, or logging an error event if failing to create it.
 // This directory is used to store teamclient logs and remote server configs.
 func (tc *Client) TeamDir() string {
-	dir := filepath.Join(tc.HomeDir(), teamserverClientDir)
+	dir := filepath.Join(tc.HomeDir(), assets.DirClient)
 
 	err := tc.fs.MkdirAll(dir, log.DirPerm)
 	if err != nil {
@@ -80,7 +74,7 @@ func (tc *Client) TeamDir() string {
 // LogsDir returns the directory of the teamclient logs (~/.app/logs), creating
 // the directory if needed, or logging a fatal event if failing to create it.
 func (tc *Client) LogsDir() string {
-	logsDir := filepath.Join(tc.TeamDir(), logsDirName)
+	logsDir := filepath.Join(tc.TeamDir(), assets.DirLogs)
 
 	err := tc.fs.MkdirAll(logsDir, log.DirPerm)
 	if err != nil {
@@ -95,7 +89,7 @@ func (tc *Client) LogsDir() string {
 // if needed, or logging a fatal event if failing to create it.
 func (tc *Client) ConfigsDir() string {
 	rootDir, _ := filepath.Abs(tc.TeamDir())
-	dir := filepath.Join(rootDir, configsDirName)
+	dir := filepath.Join(rootDir, assets.DirConfigs)
 
 	err := tc.fs.MkdirAll(dir, log.DirPerm)
 	if err != nil {

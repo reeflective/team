@@ -1,5 +1,23 @@
 package server
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"encoding/json"
 	"fmt"
@@ -18,6 +36,9 @@ const (
 	maxOpenConns = 100
 )
 
+// DatabaseConfig returns the server database backend configuration struct.
+// If configuration could be found on disk, the default Sqlite file-based
+// database is returned, with app-corresponding file paths.
 func (ts *Server) DatabaseConfig() *db.Config {
 	cfg, err := ts.getDatabaseConfig()
 	if err != nil {

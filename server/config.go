@@ -1,5 +1,23 @@
 package server
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"encoding/hex"
 	"encoding/json"
@@ -20,12 +38,25 @@ const (
 	blankPort = uint16(0)
 )
 
+// Config represents the configuration of a given application teamserver.
+// It contains anonymous embedded structs as subsections, for logging,
+// daemon mode bind addresses, and persistent teamserver listeners
+//
+// Its default path is ~/.app/teamserver/configs/app.teamserver.cfg.
+// It uses the following default values:
+// - Daemon host: ""
+// - Daemon port: 31416
+// - logging file level: Info.
 type Config struct {
+	// When the teamserver command `app teamserver daemon` is executed
+	// without --host/--port flags, the teamserver will use the config.
 	DaemonMode struct {
 		Host string `json:"host"`
 		Port int    `json:"port"`
 	} `json:"daemon_mode"`
 
+	// Logging controls the file-based logging level, whether or not
+	// to log TLS keys to file, and whether to log specific gRPC payloads.
 	Log struct {
 		Level              int  `json:"level"`
 		GRPCUnaryPayloads  bool `json:"grpc_unary_payloads"`
@@ -33,6 +64,8 @@ type Config struct {
 		TLSKeyLogger       bool `json:"tls_key_logger"`
 	} `json:"log"`
 
+	// Listeners is a list of persistent teamserver listeners.
+	// They are started when the teamserver daemon command/mode is.
 	Listeners []struct {
 		Name string `json:"name"`
 		Host string `json:"host"`
@@ -41,7 +74,7 @@ type Config struct {
 	} `json:"listeners"`
 }
 
-// GetServerConfigPath - File path to the server config.json file.
+// ConfigPath returns the path to the server config.json file, on disk or in-memory.
 func (ts *Server) ConfigPath() string {
 	appDir := ts.TeamDir()
 	configDir := filepath.Join(appDir, "configs")
@@ -56,7 +89,8 @@ func (ts *Server) ConfigPath() string {
 	return serverConfigPath
 }
 
-// GetConfig returns the team server configuration struct.
+// GetConfig returns the team server configuration as a struct.
+// If no server configuration file is found on disk, the default one is used.
 func (ts *Server) GetConfig() *Config {
 	cfgLog := ts.NamedLogger("config", "server")
 
@@ -100,7 +134,8 @@ func (ts *Server) GetConfig() *Config {
 	return ts.opts.config
 }
 
-// Save - Save config file to disk.
+// Save saves config file to disk.
+// This uses the on-disk filesystem even if the teamclient is in memory mode.
 func (ts *Server) SaveConfig(cfg *Config) error {
 	cfgLog := ts.NamedLogger("config", "server")
 

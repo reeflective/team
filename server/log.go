@@ -1,5 +1,23 @@
 package server
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"fmt"
 	"path/filepath"
@@ -8,8 +26,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// NamedLogger returns a new logging "thread" which should grossly
-// indicate the package/general domain, and a more precise flow/stream.
+// NamedLogger returns a new logging "thread" with two fields (optional)
+// to indicate the package/general domain, and a more precise flow/stream.
+// The events are logged according to the teamclient logging backend setup.
 func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
 	return ts.log().WithFields(logrus.Fields{
 		log.PackageFieldKey: pkg,
@@ -17,7 +36,7 @@ func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
 	})
 }
 
-// SetLogLevel is a utility to change the logging level of the stdout logger.
+// SetLogLevel sets the logging level of teamserver loggers (excluding audit ones).
 func (ts *Server) SetLogLevel(level int) {
 	if ts.stdoutLogger == nil {
 		return
@@ -37,6 +56,10 @@ func (ts *Server) SetLogLevel(level int) {
 	}
 }
 
+// AuditLogger returns a special logger writing its event entries to an audit
+// log file (default audit.json), distinct from other teamserver log files.
+// Listener implementations will want to use this for logging various teamclient
+// application requests, with this logger used somewhere in your listener middleware.
 func (ts *Server) AuditLogger() (*logrus.Logger, error) {
 	if ts.opts.inMemory || ts.opts.noLogs {
 		return ts.log(), nil

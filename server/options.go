@@ -1,5 +1,23 @@
 package server
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"github.com/reeflective/team/internal/db"
 	"github.com/sirupsen/logrus"
@@ -20,7 +38,7 @@ type opts[server any] struct {
 	dbConfig  *db.Config
 	db        *gorm.DB
 	logger    *logrus.Logger
-	listeners []Handler[server]
+	listeners []Listener[server]
 
 	hooks map[string][]func(serv server) error
 }
@@ -55,7 +73,7 @@ func (ts *Server) apply(options ...Options) {
 		ts.self = ts.opts.listeners[0]
 	}
 
-	ts.opts.listeners = make([]Handler[any], 0)
+	ts.opts.listeners = make([]Listener[any], 0)
 }
 
 //
@@ -132,7 +150,7 @@ func WithLogger(logger *logrus.Logger) Options {
 // *** Server network/RPC options ***
 //
 
-func WithListener(ln Handler[any]) Options {
+func WithListener(ln Listener[any]) Options {
 	return func(opts *opts[any]) {
 		opts.listeners = append(opts.listeners, ln)
 	}

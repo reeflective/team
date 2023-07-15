@@ -1,5 +1,23 @@
 package server
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"errors"
 	"fmt"
@@ -45,7 +63,9 @@ func (j *jobs) Get(jobID string) *job {
 	return nil
 }
 
-// Listeners - Return a list of all jobs.
+// Listeners returns a list of all running listener jobs.
+// If you also want the list of the non-running, persistent
+// ones, use the teamserver Config().
 func (ts *Server) Listeners() []*job {
 	all := []*job{}
 
@@ -58,7 +78,9 @@ func (ts *Server) Listeners() []*job {
 	return all
 }
 
-// AddListenerJob adds a teamserver listener job to the config and saves it.
+// AddListenerJob adds a teamserver listener job to the teamserver configuration.
+// This function does not start the given listener, and you must call the server
+// ServeAddr(name, host, port) function for this.
 func (ts *Server) AddListener(name, host string, port uint16) error {
 	listener := struct {
 		Name string `json:"name"`
@@ -81,7 +103,9 @@ func (ts *Server) AddListener(name, host string, port uint16) error {
 	return ts.SaveConfig(ts.opts.config)
 }
 
-// RemoveListenerJob removes a server listener job from the configuration and saves it.
+// RemoveListenerJob removes a server listener job from the configuration.
+// This function does not stop any running listener for the given ID: you
+// must call server.CloseListener(id) for this.
 func (ts *Server) RemoveListener(listenerID string) {
 	if ts.opts.config.Listeners == nil {
 		return
@@ -105,7 +129,9 @@ func (ts *Server) RemoveListener(listenerID string) {
 	ts.opts.config.Listeners = listeners
 }
 
-// CloseListener closes/stops an active teamserver listener.
+// CloseListener closes/stops an active teamserver listener by ID.
+// This function can only return an ErrListenerNotFound if the ID
+// is invalid: all listener-specific options are logged instead.
 func (ts *Server) CloseListener(id string) error {
 	listener := ts.jobs.Get(id)
 	if listener == nil {
@@ -117,7 +143,12 @@ func (ts *Server) CloseListener(id string) error {
 	return nil
 }
 
-func (ts *Server) StartPersistentListeners(continueOnError bool) error {
+// StartPersistentListeners attempts to start all listeners saved in the teamserver
+// configuration file, looking up the listener stacks in its map and starting them
+// for each bind target.
+// If the teamserver has been passed the WithContinueOnError() option at some point,
+// it will log all errors raised by listener stacks will still try to start them all.
+func (ts *Server) StartPersistentListeners() error {
 	var listenerErrors error
 
 	log := ts.NamedLogger("teamserver", "listeners")
@@ -133,14 +164,14 @@ func (ts *Server) StartPersistentListeners(continueOnError bool) error {
 		}
 
 		if handler == nil {
-			if !continueOnError {
+			if !ts.opts.continueOnError {
 				return ts.errorf("Failed to find handler for `%s` listener (%s:%d)", ln.Name, ln.Host, ln.Port)
 			}
 
 			continue
 		}
 
-		err := ts.ServeHandler(handler, ln.ID, ln.Host, ln.Port)
+		err := ts.ServeListener(handler, ln.ID, ln.Host, ln.Port)
 
 		if err == nil {
 			continue
@@ -148,7 +179,7 @@ func (ts *Server) StartPersistentListeners(continueOnError bool) error {
 
 		log.Errorf("Failed to start %s listener (%s:%d): %s", ln.Name, ln.Host, ln.Port, err)
 
-		if !continueOnError {
+		if !ts.opts.continueOnError {
 			return err
 		}
 
@@ -158,7 +189,7 @@ func (ts *Server) StartPersistentListeners(continueOnError bool) error {
 	return nil
 }
 
-func (ts *Server) addListenerJob(listenerID, host string, port int, ln Handler[any]) {
+func (ts *Server) addListenerJob(listenerID, host string, port int, ln Listener[any]) {
 	log := ts.NamedLogger("teamserver", "listeners")
 
 	if listenerID == "" {
