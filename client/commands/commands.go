@@ -36,7 +36,11 @@ import (
 // Generate returns a command tree to embed in client applications connecting
 // to a teamserver. It requires only the client to use its functions.
 //
-// This tree is safe to embed within closed loop applications provided that the
+// All commands of the tree include an automatic call to client.Connect() to make
+// sure they can reach the server for the stuff they need. Thus no pre-runners are
+// bound to them for this purpose, and users of this command tree are free to add any.
+//
+// This tree is only safe to embed within closed-loop applications provided that the
 // client *Client was created with WithNoDisconnect(), so that commands can reuse
 // their connections more than once before closing.
 func Generate(cli *client.Client) *cobra.Command {
@@ -46,6 +50,8 @@ func Generate(cli *client.Client) *cobra.Command {
 
 // PreRun returns a cobra command runner which connects the client to its teamserver.
 // If the client is connected, nothing happens and its current connection reused.
+//
+// Feel free to use this function as a model for your own teamclient pre-runners.
 func PreRun(teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
 		// Client settings.
@@ -59,6 +65,8 @@ func PreRun(teamclient *client.Client) command.CobraRunnerE {
 // PreRunNoDisconnect is a pre-runner that will connect the teamclient with the
 // client.WithNoDisconnect() option, so that after each execution, the client
 // connection is kept open. This pre-runner is thus useful for console apps.
+//
+// Feel free to use this function as a model for your own teamclient pre-runners.
 func PreRunNoDisconnect(teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
 		// Client settings.
