@@ -33,7 +33,6 @@ import (
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
-	"github.com/reeflective/team/internal/transport"
 )
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
@@ -248,7 +247,7 @@ func (ts *Server) UsersSaveCA(cert, key []byte) {
 
 // newUserToken - Generate a new user authentication token.
 func (ts *Server) newUserToken() (string, error) {
-	buf := make([]byte, transport.TokenLength)
+	buf := make([]byte, tokenLength)
 
 	n, err := rand.Read(buf)
 	if err != nil || n != len(buf) {

@@ -20,6 +20,8 @@ package client
 
 import (
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,6 +29,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/log"
 	"gopkg.in/AlecAivazis/survey.v1"
@@ -205,6 +208,31 @@ func (tc *Client) SelectConfig() *Config {
 // configuration was loaded by the client yet.
 func (tc *Client) Config() *Config {
 	return tc.opts.config
+}
+
+// NewTLSConfigFrom generates a working client TLS configuration prepared for Mutual TLS.
+// It requires the three credential materials presents in any user remote teamserver config.
+func (tc *Client) NewTLSConfigFrom(caCert string, cert string, key string) (*tls.Config, error) {
+	certPEM, err := tls.X509KeyPair([]byte(cert), []byte(key))
+	if err != nil {
+		return nil, fmt.Errorf("Cannot parse client certificate: %w", err)
+	}
+
+	// Load CA cert
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM([]byte(caCert))
+
+	// Setup config with custom certificate validation routine
+	tlsConfig := &tls.Config{
+		Certificates:       []tls.Certificate{certPEM},
+		RootCAs:            caCertPool,
+		InsecureSkipVerify: true, // Don't worry I sorta know what I'm doing
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			return certs.RootOnlyVerifyCertificate(caCert, rawCerts)
+		},
+	}
+
+	return tlsConfig, nil
 }
 
 func getPromptForConfigs(configs map[string]*Config) []*survey.Question {
