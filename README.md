@@ -22,6 +22,9 @@
 
 <div align="center">
   <br> <h1> Team </h1>
+
+  <p>  Transform any Go program into a client of itself, remotely or locally.  </p>
+  <p>  Use, manage teamservers and clients with code, with their CLI, or both.  </p>
 </div>
 
 
@@ -68,7 +71,7 @@
 
 -----
 
-## Install
+## Examples
 
 -----
 
@@ -77,3 +80,11 @@
 -----
 
 ## Status
+
+-----
+## Possible enhancements
+- [ ] Replace logrus entirely and restructure behind a single package used by both client/server.
+- [ ] Add support for encrypted sqlite by default.
+- [ ] Abstract away the client-side authentication, for pluggable auth/credential models ?
+- [ ] Use viper for configs.
+- [ ] Use afero filesystem.
