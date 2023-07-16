@@ -155,7 +155,7 @@ func (ts *Server) getDefaultDatabaseConfig() *db.Config {
 
 // initDatabase should be called once when a teamserver is created.
 func (ts *Server) initDatabase() (err error) {
-	ts.dbInitOnce.Do(func() {
+	ts.dbInit.Do(func() {
 		dbLogger := ts.NamedLogger("database", "database")
 
 		if ts.db != nil {

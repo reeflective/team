@@ -1,4 +1,4 @@
-package transport
+package certs
 
 /*
    team - Embedded teamserver for Go programs and CLI applications
@@ -19,10 +19,12 @@ package transport
 */
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"log"
+	"os"
+
+	teamlog "github.com/reeflective/team/internal/log"
 )
 
 const (
@@ -30,27 +32,23 @@ const (
 	DefaultPort = 31416
 )
 
-// GetTLSConfig returns a prepared TLS configuration struct from certificate/key bytes.
-func GetTLSConfig(caCertificate string, certificate string, privateKey string) (*tls.Config, error) {
-	certPEM, err := tls.X509KeyPair([]byte(certificate), []byte(privateKey))
-	if err != nil {
-		return nil, fmt.Errorf("Cannot parse client certificate: %v", err)
+// OpenTLSKeyLogFile returns an open file to the TLS keys log file,
+// if the environment variable SSLKEYLOGFILE is defined.
+func (c *Manager) OpenTLSKeyLogFile() *os.File {
+	keyFilePath, present := os.LookupEnv("SSLKEYLOGFILE")
+	if present {
+		keyFile, err := os.OpenFile(keyFilePath, teamlog.FileWriteOpenMode, teamlog.FileReadPerm)
+		if err != nil {
+			c.log.Errorf("Failed to open TLS key file %v", err)
+			return nil
+		}
+
+		c.log.Warnf("NOTICE: TLS Keys logged to '%s'\n", keyFilePath)
+
+		return keyFile
 	}
 
-	// Load CA cert
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM([]byte(caCertificate))
-
-	// Setup config with custom certificate validation routine
-	tlsConfig := &tls.Config{
-		Certificates:       []tls.Certificate{certPEM},
-		RootCAs:            caCertPool,
-		InsecureSkipVerify: true, // Don't worry I sorta know what I'm doing
-		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			return RootOnlyVerifyCertificate(caCertificate, rawCerts)
-		},
-	}
-	return tlsConfig, nil
+	return nil
 }
 
 // RootOnlyVerifyCertificate - Go doesn't provide a method for only skipping hostname validation so
@@ -58,6 +56,7 @@ func GetTLSConfig(caCertificate string, certificate string, privateKey string) (
 // https://github.com/golang/go/issues/21971
 func RootOnlyVerifyCertificate(caCertificate string, rawCerts [][]byte) error {
 	roots := x509.NewCertPool()
+
 	ok := roots.AppendCertsFromPEM([]byte(caCertificate))
 	if !ok {
 		fmt.Errorf("Failed to parse root certificate")
@@ -75,9 +74,11 @@ func RootOnlyVerifyCertificate(caCertificate string, rawCerts [][]byte) error {
 	options := x509.VerifyOptions{
 		Roots: roots,
 	}
+
 	if options.Roots == nil {
 		return fmt.Errorf("Certificate root is nil")
 	}
+
 	if _, err := cert.Verify(options); err != nil {
 		return fmt.Errorf("Failed to verify certificate: " + err.Error())
 	}

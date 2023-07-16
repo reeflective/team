@@ -35,13 +35,13 @@ import (
 // ** Commands do:
 //   - Ensure they are connected to a server instance (in memory).
 //   - Work even if the teamserver/client returns errors: those are returned &| printed &| logged.
-//   - Use the cobra utilties OutOrStdout(), ErrOrStdErr(), etc. for all and every command output.
+//   - Use the cobra utilities OutOrStdout(), ErrOrStdErr(), ... for all and every command output.
 //   - Have attached completions for users/listeners/config files of all sorts, and other things.
 //   - Have the ability to be ran in closed-loop console applications ("single runtime shell").
 //
 // ** Commands do NOT:
 //   - Call os.Exit() anywhere, thus will not exit the program embedding them.
-//   - Ignite/start the teamserver only before they absolutely need to.
+//   - Ignite/start the teamserver core/filesystem/backends before they absolutely need to.
 //     Consequently, do not touch the filesystem until they absolutely need to.
 //   - Connect the client more than once to the teamserver.
 //   - Start persistent listeners, excluding the daemon command.
@@ -71,16 +71,13 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 // PreRun returns a cobra command runner which connects the local teamclient to itself.
 // If the client is connected, nothing happens and its current connection reused, which
 // makes this runner able to be ran in closed-loop consoles.
+//
+// Feel free to use this function as a model for your own teamserver pre-runners.
 func PreRun(teamserver *server.Server, teamclient *client.Client) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
 		// And connect the client locally, only needed.
 		return teamserver.Serve(teamclient)
 	}
-}
-
-// PostRun returns a cobra command runner which currently does nothing.
-func PostRun(server *server.Server, client *client.Client) command.CobraRunnerE {
-	return nil
 }
 
 func serverCommands(server *server.Server, client *client.Client) *cobra.Command {

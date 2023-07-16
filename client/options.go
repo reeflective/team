@@ -19,7 +19,10 @@ package client
 */
 
 import (
+	"fmt"
 	"io"
+	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -28,9 +31,14 @@ import (
 // You can set or modify the behavior of a teamclient at various
 // steps with these options, which are a variadic parameter of
 // several client.Client methods.
+// Note that some options can only be used once, while others can be
+// used multiple times. Examples of the former are log files, while
+// the latter includes dialers/hooks.
+// Each option will specify this in its description.
 type Options func(opts *opts)
 
 type opts struct {
+	homeDir  string
 	noLogs   bool
 	logFile  string
 	inMemory bool
@@ -54,6 +62,19 @@ func (tc *Client) apply(options ...Options) {
 		optFunc(tc.opts)
 	}
 
+	// The server will apply options multiple times
+	// in its lifetime, but some options can only be
+	// set once when created.
+	tc.initOpts.Do(func() {
+		// Application home directory.
+		homeDir := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(tc.name)))
+		if homeDir != "" {
+			tc.homeDir = homeDir
+		} else {
+			tc.homeDir = tc.opts.homeDir
+		}
+	})
+
 	if tc.opts.dialer != nil {
 		tc.dialer = tc.opts.dialer
 	}
@@ -71,6 +92,8 @@ func (tc *Client) apply(options ...Options) {
 // This will in effect use in-memory files for all file-based logging and database data.
 // This might be useful for testing, or if you happen to embed a teamclient in a program
 // without the intent of using it now, etc.
+//
+// This option can only be used once, and should be passed to server.New().
 func WithInMemory() Options {
 	return func(opts *opts) {
 		opts.noLogs = true
@@ -86,12 +109,24 @@ func WithConfig(config *Config) Options {
 	}
 }
 
+// WithHomeDirectory sets the default path (~/.app/) of the application directory.
+// This path can still be overridden at the user-level with the env var APP_ROOT_DIR.
+//
+// This option can only be used once, and must be passed to server.New().
+func WithHomeDirectory(path string) Options {
+	return func(opts *opts) {
+		opts.homeDir = path
+	}
+}
+
 //
 // *** Logging options ***
 //
 
 // WithNoLogs deactivates all logging normally done by the teamclient
 // if noLogs is set to true, or keeps/reestablishes them if false.
+//
+// This option can only be used once, and should be passed to server.New().
 func WithNoLogs(noLogs bool) Options {
 	return func(opts *opts) {
 		opts.noLogs = noLogs
@@ -100,6 +135,8 @@ func WithNoLogs(noLogs bool) Options {
 
 // WithLogFile sets the path to the file where teamclient logging should be done.
 // If not specified, the client log file is ~/.app/teamclient/logs/app.teamclient.log.
+//
+// This option can only be used once, and should be passed to server.New().
 func WithLogFile(filePath string) Options {
 	return func(opts *opts) {
 		opts.logFile = filePath
@@ -107,6 +144,8 @@ func WithLogFile(filePath string) Options {
 }
 
 // WithLogger sets the teamclient to use a specific logger for logging.
+//
+// This option can only be used once, and should be passed to server.New().
 func WithLogger(logger *logrus.Logger) Options {
 	return func(opts *opts) {
 		opts.logger = logger
@@ -119,9 +158,19 @@ func WithLogger(logger *logrus.Logger) Options {
 
 // WithDialer sets a custom dialer to connect to the teamserver.
 // See the Dialer type documentation for implementation/usage details.
-func WithDialer(dialer Dialer[any]) Options {
+//
+// It accepts an optional list of hooks to run on the generic clientConn
+// returned by the client.Dialer Dial() method (see Dialer doc for details).
+// This client object can be pretty much any client-side conn/RPC object.
+// You will have to typecast this conn in your hooks, casting it to the type
+// that your teamclient Dialer.Dial() method returns.
+//
+// This option can be used multiple times, either when using
+// team/client.New() or when using the teamclient.Connect() method.
+func WithDialer(dialer Dialer[any], hooks ...func(clientConn any) error) Options {
 	return func(opts *opts) {
 		opts.dialer = dialer
+		opts.hooks = append(opts.hooks, hooks...)
 	}
 }
 
@@ -129,7 +178,7 @@ func WithDialer(dialer Dialer[any]) Options {
 // (provided when creating the teamclient). This in effect only prevents
 // the teamclient from looking and loading/prompting remote client configs.
 //
-// Because this option is automatically called by the teamserver.ServeLocal()
+// Because this is automatically called by the teamserver.Serve(client)
 // function, you should probably not have any reason to use this option.
 func WithLocalDialer() Options {
 	return func(opts *opts) {
@@ -142,20 +191,10 @@ func WithLocalDialer() Options {
 // more than once in the lifetime of the Go program.
 // If this is the case, this option will ensure that any cobra client command
 // runners produced by this library will not disconnect after each execution.
+//
+// This option can only be used once, and should be passed to server.New().
 func WithNoDisconnect() Options {
 	return func(opts *opts) {
 		opts.console = true
-	}
-}
-
-// WithPostConnectHooks adds a list of hooks to run on the generic clientConn
-// returned by the client.Dialer Dial() method (see Dialer doc for details).
-//
-// This client object can be pretty much any client-side conn/RPC object.
-// You will have to typecast this conn in your hooks, casting it to the type
-// that your teamclient Dialer.Dial() method returns.
-func WithPostConnectHooks(hooks ...func(conn any) error) Options {
-	return func(opts *opts) {
-		opts.hooks = append(opts.hooks, hooks...)
 	}
 }

@@ -70,6 +70,11 @@ var (
 	// Listener errors.
 	//
 
+	// ErrNoListener indicates that the server could not find any listener/server
+	// stack to run when one of its .Serve*() methods were invoked. If such an error
+	// is raised, make sure you passed a server.Listener type with WithListener() option.
+	ErrNoListener = errors.New("the teamserver has no listeners to start")
+
 	// ErrListenerNotFound indicates that for a given ID, no running or persistent listener could be found.
 	ErrListenerNotFound = errors.New("no listener exists with ID")
 

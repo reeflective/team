@@ -19,7 +19,6 @@ package server
 */
 
 import (
-	"fmt"
 	"os/user"
 	"path/filepath"
 	"runtime"
@@ -63,26 +62,27 @@ import (
 // Please see the Go module example/ directory for a list of them.
 type Server struct {
 	// Core
-	name       string     // Name of the application using the teamserver.
-	rootDirEnv string     // APP_ROOT_DIR env variable value if any
-	opts       *opts[any] // Server options
-	fs         *assets.FS // Server filesystem, on-disk or embedded
+	name     string     // Name of the application using the teamserver.
+	homeDir  string     // APP_ROOT_DIR var, evaluated once when creating the server.
+	opts     *opts[any] // Server options
+	fs       *assets.FS // Server filesystem, on-disk or embedded
+	initOpts sync.Once  // Some options can only be set once when creating the server.
 
 	// Logging
-	fileLogger   *logrus.Logger // Can be in-memory if the teamserver is configured.
-	stdoutLogger *logrus.Logger // Logging level independent from the file logger.
+	fileLog  *logrus.Logger // Can be in-memory if the teamserver is configured.
+	stdioLog *logrus.Logger // Logging level independent from the file logger.
 
 	// Users
 	userTokens *sync.Map      // Refreshed entirely when a user is kicked.
 	certs      *certs.Manager // Manages all the certificate infrastructure.
 	db         *gorm.DB       // Stores certificates and users data.
-	dbInitOnce sync.Once      // A single database can be used in a teamserver lifetime.
+	dbInit     sync.Once      // A single database can be used in a teamserver lifetime.
 
 	// Listeners and job control
-	initOnce *sync.Once               // Some options can only have an effect at first start.
-	self     Listener[any]            // The default listener stack used by the teamserver.
-	handlers map[string]Listener[any] // Other listeners available by name.
-	jobs     *jobs                    // Listeners job control
+	initServe sync.Once                // Some options can only have an effect at first start.
+	self      Listener[any]            // The default listener stack used by the teamserver.
+	handlers  map[string]Listener[any] // Other listeners available by name.
+	jobs      *jobs                    // Listeners job control
 }
 
 // New creates a new teamserver for the provided application name.
@@ -104,10 +104,8 @@ type Server struct {
 func New(application string, options ...Options) (*Server, error) {
 	server := &Server{
 		name:       application,
-		rootDirEnv: fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
 		opts:       newDefaultOpts(),
 		userTokens: &sync.Map{},
-		initOnce:   &sync.Once{},
 		jobs:       newJobs(),
 		handlers:   make(map[string]Listener[any]),
 	}

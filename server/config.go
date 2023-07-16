@@ -29,13 +29,14 @@ import (
 
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/log"
-	"github.com/reeflective/team/internal/transport"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	blankHost = "-"
-	blankPort = uint16(0)
+	blankHost   = "-"
+	blankPort   = uint16(0)
+	tokenLength = 32
+	defaultPort = 31416 // Should be 31415, but... go to hell with limits.
 )
 
 // Config represents the configuration of a given application teamserver.
@@ -176,7 +177,7 @@ func getDefaultServerConfig() *Config {
 			Host string `json:"host"`
 			Port int    `json:"port"`
 		}{
-			Port: transport.DefaultPort, // 31416
+			Port: defaultPort, // 31416
 		},
 		Log: struct {
 			Level              int  `json:"level"`
@@ -197,7 +198,7 @@ func getDefaultServerConfig() *Config {
 
 func getRandomID() string {
 	seededRand := insecureRand.New(insecureRand.NewSource(time.Now().UnixNano()))
-	buf := make([]byte, transport.TokenLength)
+	buf := make([]byte, tokenLength)
 	seededRand.Read(buf)
 
 	return hex.EncodeToString(buf)

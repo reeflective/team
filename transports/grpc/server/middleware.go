@@ -1,5 +1,23 @@
 package server
 
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import (
 	"context"
 	"encoding/json"
@@ -17,7 +35,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func CoreOpts() (options []grpc.ServerOption) {
+// BufferingOptions returns a list of server options with max send/receive
+// message size, which value is that of the ServerMaxMessageSize variable (2GB).
+func BufferingOptions() (options []grpc.ServerOption) {
 	options = append(options,
 		grpc.MaxRecvMsgSize(ServerMaxMessageSize),
 		grpc.MaxSendMsgSize(ServerMaxMessageSize),
@@ -26,7 +46,11 @@ func CoreOpts() (options []grpc.ServerOption) {
 	return
 }
 
-func LogMiddleware(s *server.Server) ([]grpc.ServerOption, error) {
+// LogMiddlewareOptions is a set of logging middleware options
+// preconfigured to perform the following tasks:
+// - Log all connections/disconnections to/from the teamserver listener.
+// - Log all raw client requests into a teamserver audit file (see server.AuditLog()).
+func LogMiddlewareOptions(s *server.Server) ([]grpc.ServerOption, error) {
 	var requestOpts []grpc.UnaryServerInterceptor
 	var streamOpts []grpc.StreamServerInterceptor
 
@@ -77,7 +101,11 @@ func LogMiddleware(s *server.Server) ([]grpc.ServerOption, error) {
 	}, nil
 }
 
-func TLSAuthMiddleware(s *server.Server) ([]grpc.ServerOption, error) {
+// TLSAuthMiddlewareOptions is a set of transport security options which will use
+// the preconfigured teamserver TLS (credentials) configuration to authenticate
+// incoming client connections. The authentication is Mutual TLS, used because
+// all teamclients will connect with a known TLS credentials set.
+func TLSAuthMiddlewareOptions(s *server.Server) ([]grpc.ServerOption, error) {
 	var options []grpc.ServerOption
 
 	tlsConfig, err := s.UsersTLSConfig()
@@ -92,7 +120,7 @@ func TLSAuthMiddleware(s *server.Server) ([]grpc.ServerOption, error) {
 }
 
 // initAuthMiddleware - Initialize middleware logger.
-func (ts *handler) initAuthMiddleware() ([]grpc.ServerOption, error) {
+func (ts *Teamserver) initAuthMiddleware() ([]grpc.ServerOption, error) {
 	var requestOpts []grpc.UnaryServerInterceptor
 	var streamOpts []grpc.StreamServerInterceptor
 
@@ -131,7 +159,7 @@ func serverAuthFunc(ctx context.Context) (context.Context, error) {
 	return newCtx, nil
 }
 
-func (ts *handler) tokenAuthFunc(ctx context.Context) (context.Context, error) {
+func (ts *Teamserver) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 	log := ts.NamedLogger("transport", "grpc")
 	log.Debugf("Auth interceptor checking user token ...")
 
@@ -141,7 +169,7 @@ func (ts *handler) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
-	user, authorized, err := ts.AuthenticateUser(rawToken)
+	user, authorized, err := ts.UserAuthenticate(rawToken)
 	if err != nil || !authorized || user == "" {
 		log.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")

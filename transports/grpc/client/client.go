@@ -1,21 +1,33 @@
-package grpc
+package client
+
+/*
+   team - Embedded teamserver for Go programs and CLI applications
+   Copyright (C) 2023 Reeflective
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/internal/transport"
-	"github.com/reeflective/team/transports/grpc/common"
 	"github.com/reeflective/team/transports/grpc/proto"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
@@ -27,57 +39,73 @@ const (
 	// ClientMaxReceiveMessageSize - Max gRPC message size ~2Gb.
 	ClientMaxReceiveMessageSize = (2 * gb) - 1 // 2Gb - 1 byte
 
-	defaultTimeout = time.Duration(10 * time.Second)
+	defaultTimeout = 10 * time.Second
 )
 
-type handler struct {
+var (
+	// ErrNoRPC indicates that no gRPC generated proto.Teamclient bound to a client
+	// connection is available. The error is raised when the handler hasn't connected.
+	ErrNoRPC = errors.New("no working grpc.Teamclient available")
+
+	// ErrNoTLSCredentials is an error raised if the teamclient was asked to setup, or try
+	// connecting with, TLS credentials. If such an error is raised, make sure your team
+	// client has correctly fetched -using client.Config()- a remote teamserver config.
+	ErrNoTLSCredentials = errors.New("the grpc Teamclient has no TLS credentials to use")
+)
+
+// Teamclient is a simple example gRPC teamclient and dialer backend.
+// It comes correctly configured with Mutual TLS authentication and
+// RPC connection/registration/use when created with NewTeamClient().
+//
+// This teamclient embeds a team/client.Client core driver and uses
+// it for fetching/setting up the transport credentials, dialers, etc...
+// It also has a few internal types (clientConns, options) for working.
+//
+// Note that this teamclient is not able to be used as an in-memory dialer.
+// See the counterpart `team/transports/grpc/server` package for creating one.
+// Also note that this example transport has been made for a single use-case,
+// and that your program might require more elaborated behavior.
+// In this case, please use this simple code as a reference for what/not to do.
+type Teamclient struct {
 	*client.Client
-	target  string
 	conn    *grpc.ClientConn
 	rpc     proto.TeamClient
 	options []grpc.DialOption
 }
 
-func NewTeamClient(opts ...grpc.DialOption) (tc team.Client, dialer client.Dialer[any]) {
-	h := &handler{
+// NewTeamClient creates a new gRPC-based RPC teamclient and dialer backend.
+// This client has by default only a few options, like max message buffer size.
+// All options passed to this call are stored as is and will be used later.
+func NewTeamClient(opts ...grpc.DialOption) *Teamclient {
+	client := &Teamclient{
 		options: opts,
 	}
 
-	return h, h
+	client.options = append(client.options,
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(ClientMaxReceiveMessageSize)),
+	)
+
+	return client
 }
 
-func (h *handler) Init(cli *client.Client) error {
+// Init implements client.Dialer.Init(c).
+// This implementation asks the teamclient core for its remote server
+// configuration, and uses it to load a set of Mutual TLS dialing options.
+func (h *Teamclient) Init(cli *client.Client) error {
 	h.Client = cli
 	config := cli.Config()
 
-	// Logging
-	logrusEntry := cli.NamedLogger("transport", "grpc")
-	logrusOpts := []grpc_logrus.Option{
-		grpc_logrus.WithLevels(common.CodeToLevel),
-	}
-	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
-
-	options := []grpc.DialOption{
-		grpc.WithBlock(),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(ClientMaxReceiveMessageSize)),
-		grpc.WithUnaryInterceptor(grpc_logrus.UnaryClientInterceptor(logrusEntry, logrusOpts...)),
-		grpc.WithUnaryInterceptor(h.loggingInterceptor(logrusEntry)),
-	}
+	options := LogMiddlewareOptions(cli)
 
 	// If the configuration has no credentials, we are most probably
 	// an in-memory dialer, don't authenticate and encrypt the conn.
 	if config.PrivateKey != "" {
-		tlsConfig, err := transport.GetTLSConfig(config.CACertificate, config.Certificate, config.PrivateKey)
+		tlsOpts, err := tlsAuthMiddleware(cli)
 		if err != nil {
 			return err
 		}
-		transportCreds := credentials.NewTLS(tlsConfig)
-		callCreds := credentials.PerRPCCredentials(transport.TokenAuth(config.Token))
 
-		options = append(options,
-			grpc.WithTransportCredentials(transportCreds),
-			grpc.WithPerRPCCredentials(callCreds),
-		)
+		h.options = append(h.options, tlsOpts...)
 	}
 
 	h.options = append(h.options, options...)
@@ -85,7 +113,11 @@ func (h *handler) Init(cli *client.Client) error {
 	return nil
 }
 
-func (h *handler) Dial() (rpcClient any, err error) {
+// Dial implements client.Dialer.Dial().
+// It uses the teamclient remote server configuration as a target of a dial call.
+// If the connection is successful, the teamclient registers a proto.Teamclient
+// RPC around its client connection, to provide the core teamclient functionality.
+func (h *Teamclient) Dial() (rpcClient any, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
@@ -101,14 +133,17 @@ func (h *handler) Dial() (rpcClient any, err error) {
 	return h.rpc, nil
 }
 
-func (h *handler) Close() error {
+// Close implements client.Dialer.Close(), and closes the gRPC client connection.
+func (h *Teamclient) Close() error {
 	return h.conn.Close()
 }
 
-// Users returns a list of all users registered to the application server.
-func (h *handler) Users() (users []team.User, err error) {
+// Users returns a list of all users registered with the app teamserver.
+// If the gRPC teamclient is not connected or does not have an RPC client,
+// an ErrNoRPC is returned.
+func (h *Teamclient) Users() (users []team.User, err error) {
 	if h.rpc == nil {
-		return nil, errors.New("No working RPC attached to client")
+		return nil, ErrNoRPC
 	}
 
 	res, err := h.rpc.GetUsers(context.Background(), &proto.Empty{})
@@ -129,9 +164,11 @@ func (h *handler) Users() (users []team.User, err error) {
 
 // ServerVersion returns the version information of the server to which
 // the client is connected, or nil and an error if it could not retrieve it.
-func (h *handler) Version() (version team.Version, err error) {
+// If the gRPC teamclient is not connected or does not have an RPC client,
+// an ErrNoRPC is returned.
+func (h *Teamclient) Version() (version team.Version, err error) {
 	if h.rpc == nil {
-		return version, errors.New("No working RPC attached to client")
+		return version, ErrNoRPC
 	}
 
 	ver, err := h.rpc.GetVersion(context.Background(), &proto.Empty{})
@@ -149,18 +186,4 @@ func (h *handler) Version() (version team.Version, err error) {
 		OS:         ver.OS,
 		Arch:       ver.Arch,
 	}, nil
-}
-
-func (h *handler) loggingInterceptor(log *logrus.Entry) grpc.UnaryClientInterceptor {
-	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		rawRequest, err := json.Marshal(req)
-		if err != nil {
-			log.Errorf("Failed to serialize: %s", err)
-			return invoker(ctx, method, req, reply, cc, opts...)
-		}
-
-		log.Debugf("Raw request: %s", string(rawRequest))
-
-		return invoker(ctx, method, req, reply, cc, opts...)
-	}
 }

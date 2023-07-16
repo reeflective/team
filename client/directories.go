@@ -19,11 +19,8 @@ package client
 */
 
 import (
-	"fmt"
-	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
 
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/log"
@@ -34,16 +31,13 @@ import (
 // This directory is not to be confused with the ~/.app/teamclient directory
 // returned by the client.TeamDir(), which is specific to the app teamclient.
 func (tc *Client) HomeDir() string {
-	value := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(tc.name)))
-
 	var dir string
 
+	// Note: very important not to combine the nested if here.
 	if !tc.opts.inMemory {
-		if len(value) == 0 {
+		if tc.homeDir == "" {
 			user, _ := user.Current()
 			dir = filepath.Join(user.HomeDir, "."+tc.name)
-		} else {
-			dir = value
 		}
 	} else {
 		dir = "." + tc.name

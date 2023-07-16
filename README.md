@@ -22,6 +22,9 @@
 
 <div align="center">
   <br> <h1> Team </h1>
+
+  <p>  Transform any Go program into a client of itself, remotely or locally.  </p>
+  <p>  Use, manage teamservers and clients with code, with their CLI, or both.  </p>
 </div>
 
 
@@ -68,7 +71,7 @@
 
 -----
 
-## Install
+## Examples
 
 -----
 
@@ -77,3 +80,21 @@
 -----
 
 ## Status
+
+-----
+
+## Possible enhancements
+
+The list below is not an indication on the roadmap of this repository, but should be viewed as
+things the author of this library would be very glad to merge contributions for, or get ideas. 
+This teamserver library aims to remain small, with a precise behavior and role.
+Overall, contributions and ideas should revolve around strenghening its core/transport code
+or around enhancing its interoperability with as much Go code/programs as possible.
+
+- [ ] Use viper for configs.
+- [ ] Use afero filesystem.
+- [ ] Add support for encrypted sqlite by default.
+- [ ] Simpler listener/dialer backend interfaces, if it appears needed.
+- [ ] Abstract away the client-side authentication, for pluggable auth/credential models.
+- [ ] Replace logrus entirely and restructure behind a single package used by both client/server.
+- [ ] Review/refine/strenghen the dialer/listener init/close/start process, if it appears needed.
