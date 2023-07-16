@@ -95,7 +95,7 @@ func (h *Teamclient) Init(cli *client.Client) error {
 	h.Client = cli
 	config := cli.Config()
 
-	var options []grpc.DialOption
+	options := LogMiddlewareOptions(cli)
 
 	// If the configuration has no credentials, we are most probably
 	// an in-memory dialer, don't authenticate and encrypt the conn.

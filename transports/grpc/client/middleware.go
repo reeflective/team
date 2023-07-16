@@ -32,6 +32,7 @@ import (
 
 // LogMiddlewareOptions is an example list of gRPC options with logging middleware set up.
 // This function uses the core teamclient loggers to log the gRPC stack/requests events.
+// The Teamclient of this package uses them by default.
 func LogMiddlewareOptions(cli *client.Client) []grpc.DialOption {
 	logrusEntry := cli.NamedLogger("transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
