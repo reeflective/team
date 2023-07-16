@@ -80,6 +80,7 @@ type Listener[serverConn any] interface {
 	// The `serverConn` returned is then passed to all hook functions passed
 	// with the listener when using the server.WithListener(ln, hooks...),
 	// unless the error returned is not nil.
+	// IMPORTANT: this function must be non-blocking, ie. return when server is started.
 	Serve(net.Listener) (conn serverConn, err error)
 
 	// Close should close the listener stack.

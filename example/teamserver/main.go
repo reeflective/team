@@ -76,26 +76,6 @@ func main() {
 	}
 }
 
-// Run our teamserver binary.
-// Here we are executing the simple teamserver command tree, but anything is possible:
-// // - We could "forget" about our teamserver because we have a blocking call somewhere,
-// // - Let one of the commands to be executed and exit, without listening anywhere.
-// // - Many, many different variants in which you can keep working below.
-
-func mainInMemory() {
-	var clientOpts []client.Options
-	clientOpts = append(clientOpts,
-		client.WithInMemory(),
-	)
-
-	var serverOpts []client.Options
-	serverOpts = append(serverOpts,
-		client.WithInMemory(),
-	)
-}
-
-func mainIntegrated() {}
-
 func mainSmallest() {
 	teamserver, err := server.New("smallserver", nil)
 	if err != nil {
@@ -116,6 +96,26 @@ func mainSmallest() {
 		log.Fatal(err)
 	}
 }
+
+// Run our teamserver binary.
+// Here we are executing the simple teamserver command tree, but anything is possible:
+// // - We could "forget" about our teamserver because we have a blocking call somewhere,
+// // - Let one of the commands to be executed and exit, without listening anywhere.
+// // - Many, many different variants in which you can keep working below.
+
+func mainInMemory() {
+	var clientOpts []client.Options
+	clientOpts = append(clientOpts,
+		client.WithInMemory(),
+	)
+
+	var serverOpts []client.Options
+	serverOpts = append(serverOpts,
+		client.WithInMemory(),
+	)
+}
+
+func mainIntegrated() {}
 
 func mainCustom() {
 }
