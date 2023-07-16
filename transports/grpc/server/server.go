@@ -93,13 +93,13 @@ func NewClientFrom(server *Teamserver, opts ...grpc.DialOption) *clientConn.Team
 	return clientConn.NewTeamClient(opts...)
 }
 
-// Name immplements server.Handler.Name().
+// Name immplements team/server.Handler.Name().
 // It indicates the transport/rpc stack, in this case "gRPC".
 func (h *Teamserver) Name() string {
 	return "gRPC"
 }
 
-// Init implements server.Handler.Init().
+// Init implements team/server.Handler.Init().
 // It is used to initialize the listener with the correct TLS credentials
 // middleware (or absence of if about to serve an in-memory connection).
 func (h *Teamserver) Init(serv *teamserver.Server) (err error) {
@@ -121,7 +121,7 @@ func (h *Teamserver) Init(serv *teamserver.Server) (err error) {
 	return nil
 }
 
-// Listen implements server.Handler.Listen().
+// Listen implements team/server.Handler.Listen().
 // It starts listening on a network address for incoming gRPC clients.
 // If the teamserver has previously been given an in-memory connection,
 // it returns it as the listener without errors.
@@ -142,7 +142,7 @@ func (h *Teamserver) Listen(addr string) (net.Listener, error) {
 	return ln, nil
 }
 
-// Serve implements server.Handler.Serve().
+// Serve implements team/server.Handler.Serve().
 // The listener function argument is the one this Teamserver returned with Listen().
 // Once acquired and the gRPC server started around this listener, the proto.TeamServer
 // is registered to it and served to incoming clients.
@@ -195,10 +195,9 @@ func (h *Teamserver) Serve(listener net.Listener) (any, error) {
 	return grpcServer, nil
 }
 
-// Close implements server.Handler.Close().
-//
+// Close implements team/server.Handler.Close().
 // In this implementation, the function does nothing. Thus the underlying
-// *grpc.Server .Shutdown() method is not called, and only the listener
+// *grpc.Server.Shutdown() method is not called, and only the listener
 // will be closed by the server automatically when using CloseListener().
 //
 // This is probably not optimal from a resource usage standpoint, but currently it

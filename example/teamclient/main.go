@@ -3,19 +3,19 @@ package main
 import (
 	"log"
 
-	teamclient "github.com/reeflective/team/client"
+	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/client/commands"
 	grpc "github.com/reeflective/team/transports/grpc/client"
 	"github.com/rsteube/carapace"
 )
 
 func main() {
-	client := grpc.NewTeamClient()
+	gTeamclient := grpc.NewTeamClient()
 
 	// Create a new teamserver client, without any working
 	// gRPC connection at this stage. We could pass some options
 	// to it if we want to customize behavior.
-	teamclient, err := teamclient.New("teamserver", client, teamclient.WithDialer(client))
+	teamclient, err := client.New("teamserver", gTeamclient, client.WithDialer(gTeamclient))
 	if err != nil {
 		log.Fatal(err)
 	}

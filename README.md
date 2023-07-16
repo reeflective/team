@@ -71,7 +71,11 @@
 
 -----
 
-## Examples
+## CLI examples (users)
+
+-----
+
+## API examples (developers)
 
 -----
 
