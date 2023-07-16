@@ -20,11 +20,22 @@ package team
 
 import "time"
 
+// Client is the smallest interface which should be implemented by all
+// teamclients of any sort, regardless of their use of the client/server
+// packages in the reeflective/team Go module.
+// This interface has been declared with various aims in mind:
+//   - To provide a base reference/hint about what minimum functionality
+//     is to be provided by the teamclients and teamservers alike.
+//   - To harmonize the use of team/client and team/server core drivers.
 type Client interface {
 	Users() ([]User, error)
 	Version() (Version, error)
 }
 
+// User represents a teamserver user.
+// This user shall be registered to a teamserver (ie. the teamserver should
+// be in possession of the user cryptographic materials required to serve him)
+// This type is returned by both team/clients and team/servers.
 type User struct {
 	Name     string
 	Online   bool
@@ -32,6 +43,17 @@ type User struct {
 	Clients  int
 }
 
+// Version returns complete version/compilation information for a given binary.
+// Therefore, two distinct version information can be provided by a teamclient
+// connected to a remote (distinct runtime) server: the client binary version,
+// and the server binary version.
+// When a teamserver is serving itself in-memory, both versions will thus be identical.
+//
+// Note to developers: updating your teamserver/teamclient version information
+// requires you to use `go generate ./...` at the root of your Go module code.
+// The team/server and team/client will thus embed their respective version
+// informations thanks to an automatic shell script generation.
+// See the https://github.com/reeflective/team README/doc for more details.
 type Version struct {
 	Major      int32
 	Minor      int32
