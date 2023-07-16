@@ -19,7 +19,10 @@ package client
 */
 
 import (
+	"fmt"
 	"io"
+	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -64,7 +67,10 @@ func (tc *Client) apply(options ...Options) {
 	// set once when created.
 	tc.initOpts.Do(func() {
 		// Application home directory.
-		if tc.homeDir == "" {
+		homeDir := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(tc.name)))
+		if homeDir != "" {
+			tc.homeDir = homeDir
+		} else {
 			tc.homeDir = tc.opts.homeDir
 		}
 	})

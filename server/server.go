@@ -294,7 +294,7 @@ func (ts *Server) init(opts ...Options) error {
 	// Always reaply options, since it could be used by different listeners.
 	ts.apply(opts...)
 
-	ts.initOnce.Do(func() {
+	ts.initServe.Do(func() {
 		if err = ts.initDatabase(); err != nil {
 			return
 		}

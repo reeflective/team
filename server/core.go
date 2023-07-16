@@ -19,7 +19,6 @@ package server
 */
 
 import (
-	"fmt"
 	"os/user"
 	"path/filepath"
 	"runtime"
@@ -105,7 +104,6 @@ type Server struct {
 func New(application string, options ...Options) (*Server, error) {
 	server := &Server{
 		name:       application,
-		homeDir:    fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(application)),
 		opts:       newDefaultOpts(),
 		userTokens: &sync.Map{},
 		jobs:       newJobs(),

@@ -19,6 +19,10 @@ package server
 */
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	"github.com/reeflective/team/internal/db"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -72,7 +76,10 @@ func (ts *Server) apply(options ...Options) {
 	// set once when created.
 	ts.initOpts.Do(func() {
 		// Application home directory.
-		if ts.homeDir == "" {
+		homeDir := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(ts.name)))
+		if homeDir != "" {
+			ts.homeDir = homeDir
+		} else {
 			ts.homeDir = ts.opts.homeDir
 		}
 

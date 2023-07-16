@@ -52,7 +52,7 @@ func NewFrom(name string, userCfg *Config) string {
 
 	// Prepare all values before running templates
 	ver := version.Semantic()
-	version := fmt.Sprintf("%d.%d.%d", ver[0], ver[0], ver[0])
+	version := fmt.Sprintf("%d.%d.%d", ver[0], ver[1], ver[2])
 	desc := fmt.Sprintf("%s Teamserver daemon (v%s)", name, version)
 
 	systemdUser := cfg.User
