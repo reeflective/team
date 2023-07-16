@@ -9,32 +9,42 @@ import (
 	"github.com/rsteube/carapace"
 )
 
+// main shows how to use a remote teamclient with a gRPC backend (transport & RPC).
 func main() {
+	// 1) Teamclient & dialers.
+	//
+	// We use the client grpc package to create a new teamclient dialer/RPC stack.
+	// This client uses Mutual TLS authentication by default, and is thus to be used
+	// as a client counterpart of the transport/grpc/server.Teamserver type.
+	// This client also includes middleware logging.
+	//
+	// Note here that our gRPC client is a concrete type which implements
+	// two different interfaces at once, so that our teamclient core is in
+	// effect only-gRPC configured/enabled.
 	gTeamclient := grpc.NewTeamClient()
 
-	// Create a new teamserver client, without any working
-	// gRPC connection at this stage. We could pass some options
-	// to it if we want to customize behavior.
+	// Create a new teamclient core, specifying the transport/RPC backend to use.
+	// There is no way to make a teamclient work with a remote server if it is not
+	// being given at least a team.Client type, and will most likely involve passing
+	// a full dialer backend like in the call below.
 	teamclient, err := client.New("teamserver", gTeamclient, client.WithDialer(gTeamclient))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Let the teamserver client dedicated command tree make use of it.
+	// 2) Commands
+	//
+	// Since this binary is a teamclient-only application, we only need
+	// the teamclient command tree, to query users, server version and
+	// to manage/import remote teamserver config files.
+	// Like for teamserver commands, this tree will use teamclient connection
+	// functions and utilities to connect/disconnect when required to.
 	root := commands.Generate(teamclient)
-
-	// We are responsible for connecting the client, however this
-	// is on purpose: there are various cases where you don't want
-	// to connect unconditionally.
-	// Here, for example, all commands of our application have a single-exec mode,
-	// and we need to ensure both connection before, and graceful disconnect after.
-	// Another example, in a closed console, would not involve disonnect post-runs.
 
 	// Completions
 	carapace.Gen(root)
 
-	// Run your application: anything having to do with
-	// the teamserver or one of its commands, will be done
+	// Execute one of the teamserver commands.
 	err = root.Execute()
 	if err != nil {
 		log.Fatal(err)
