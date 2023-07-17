@@ -36,9 +36,9 @@ import (
 // used multiple times. Examples of the former are log files and database
 // backends, while the latter includes listeners/hooks.
 // Each option will specify this in its description.
-type Options func(opts *opts[any])
+type Options func(opts *opts)
 
-type opts[server any] struct {
+type opts struct {
 	homeDir         string
 	logFile         string
 	local           bool
@@ -50,16 +50,13 @@ type opts[server any] struct {
 	dbConfig  *db.Config
 	db        *gorm.DB
 	logger    *logrus.Logger
-	listeners []Listener[server]
-
-	hooks map[string][]func(serv server) error
+	listeners []Listener
 }
 
 // default in-memory configuration, ready to run.
-func newDefaultOpts() *opts[any] {
-	options := &opts[any]{
+func newDefaultOpts() *opts {
+	options := &opts{
 		config: getDefaultServerConfig(),
-		hooks:  map[string][]func(serv any) error{},
 		local:  false,
 	}
 
@@ -100,7 +97,7 @@ func (ts *Server) apply(options ...Options) {
 	}
 
 	// And clear the most recent listeners passed via options.
-	ts.opts.listeners = make([]Listener[any], 0)
+	ts.opts.listeners = make([]Listener, 0)
 }
 
 //
@@ -118,7 +115,7 @@ func (ts *Server) apply(options ...Options) {
 //
 // This option can only be used once, and must be passed to server.New().
 func WithInMemory() Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.noLogs = true
 		opts.inMemory = true
 	}
@@ -130,7 +127,7 @@ func WithInMemory() Options {
 //
 // This option can only be used once, and must be passed to server.New().
 func WithDefaultPort(port uint16) Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.config.DaemonMode.Port = int(port)
 	}
 }
@@ -140,7 +137,7 @@ func WithDefaultPort(port uint16) Options {
 //
 // This option can only be used once, and must be passed to server.New().
 func WithDatabase(db *gorm.DB) Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.db = db
 	}
 }
@@ -149,7 +146,7 @@ func WithDatabase(db *gorm.DB) Options {
 //
 // This option can only be used once, and must be passed to server.New().
 func WithDatabaseConfig(config *db.Config) Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.dbConfig = config
 	}
 }
@@ -159,7 +156,7 @@ func WithDatabaseConfig(config *db.Config) Options {
 //
 // This option can only be used once, and must be passed to server.New().
 func WithHomeDirectory(path string) Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.homeDir = path
 	}
 }
@@ -173,7 +170,7 @@ func WithHomeDirectory(path string) Options {
 //
 // This option can only be used once, and must be passed to server.New().
 func WithNoLogs(noLogs bool) Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.noLogs = noLogs
 	}
 }
@@ -183,7 +180,7 @@ func WithNoLogs(noLogs bool) Options {
 //
 // This option can only be used once, and must be passed to server.New().
 func WithLogFile(filePath string) Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.logFile = filePath
 	}
 }
@@ -193,7 +190,7 @@ func WithLogFile(filePath string) Options {
 //
 // This option can only be used once, and must be passed to server.New().
 func WithLogger(logger *logrus.Logger) Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.logger = logger
 	}
 }
@@ -208,20 +205,19 @@ func WithLogger(logger *logrus.Logger) Options {
 //
 // It accepts an optional list of pre-serve hook functions:
 // These should accept a generic object parameter which is none other than the
-// serverConn returned by the listener[any].Serve(ln) method. These hooks will
+// serverConn returned by the listener.Serve(ln) method. These hooks will
 // be very useful- if not necessary- for library users to manipulate their server.
-// See the server.Listener[any] type documentation for details.
+// See the server.Listener type documentation for details.
 //
 // This option can be used multiple times, either when using
 // team/server.New() or with the different server.Serve*() methods.
-func WithListener(ln Listener[any], hooks ...func(serverConn any) error) Options {
-	return func(opts *opts[any]) {
+func WithListener(ln Listener) Options {
+	return func(opts *opts) {
 		if ln == nil {
 			return
 		}
 
 		opts.listeners = append(opts.listeners, ln)
-		opts.hooks[ln.Name()] = append(opts.hooks[ln.Name()], hooks...)
 	}
 }
 
@@ -234,7 +230,7 @@ func WithListener(ln Listener[any], hooks ...func(serverConn any) error) Options
 //
 // This option can be used multiple times.
 func WithContinueOnError(continueOnError bool) Options {
-	return func(opts *opts[any]) {
+	return func(opts *opts) {
 		opts.continueOnError = continueOnError
 	}
 }

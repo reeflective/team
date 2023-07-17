@@ -88,7 +88,7 @@ func NewTeamClient(opts ...grpc.DialOption) *Teamclient {
 	return client
 }
 
-// Init implements client.Dialer.Init(c).
+// Init implements team/client.Dialer.Init(c).
 // This implementation asks the teamclient core for its remote server
 // configuration, and uses it to load a set of Mutual TLS dialing options.
 func (h *Teamclient) Init(cli *client.Client) error {
@@ -113,7 +113,7 @@ func (h *Teamclient) Init(cli *client.Client) error {
 	return nil
 }
 
-// Dial implements client.Dialer.Dial().
+// Dial implements team/client.Dialer.Dial().
 // It uses the teamclient remote server configuration as a target of a dial call.
 // If the connection is successful, the teamclient registers a proto.Teamclient
 // RPC around its client connection, to provide the core teamclient functionality.
@@ -130,10 +130,10 @@ func (h *Teamclient) Dial() (rpcClient any, err error) {
 
 	h.rpc = proto.NewTeamClient(h.conn)
 
-	return h.rpc, nil
+	return h.conn, nil
 }
 
-// Close implements client.Dialer.Close(), and closes the gRPC client connection.
+// Close implements team/client.Dialer.Close(), and closes the gRPC client connection.
 func (h *Teamclient) Close() error {
 	return h.conn.Close()
 }

@@ -37,7 +37,7 @@ func main() {
 
 	// 2) Teamclients & dialers
 	//
-	// Although the teamserver above can be a gTeamclient of itself without further addings,
+	// Although the teamserver above can be a client of itself without further addings,
 	// we want to use the same backend for both remote and local gRPC app teamclients.
 	// We thus generate a local gTeamclient (almost identical to remote ones), which can
 	// use the generic gRPC listener backend.
@@ -45,7 +45,7 @@ func main() {
 
 	// Create a new teamclient core, just like we would in a client-only binary application.
 	// We specify which dialing backend we want (in this case, our custom gRPC dialer/RPC client)
-	// Note here that our gRPC client is concrete type which implements two different interfaces
+	// Note here that our gRPC client is a concrete type which implements two different interfaces
 	// at once, so that our teamclient core is in effect only-gRPC configured/enabled.
 	teamclient, err := client.New(teamserver.Name(), gTeamclient, client.WithDialer(gTeamclient))
 	if err != nil {
@@ -76,8 +76,34 @@ func main() {
 	}
 }
 
+func mainSmallGRPC() {
+	// Server
+	gTeamserver := grpc.NewListener()
+
+	teamserver, err := server.New("teamserver", server.WithListener(gTeamserver))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Client
+	gTeamclient := grpc.NewClientFrom(gTeamserver)
+
+	teamclient := teamserver.Self(client.WithDialer(gTeamclient))
+
+	// Commands
+	serverCmds := commands.Generate(teamserver, teamclient)
+
+	// Run
+	carapace.Gen(serverCmds)
+
+	err = serverCmds.Execute()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func mainSmallest() {
-	teamserver, err := server.New("smallserver", nil)
+	teamserver, err := server.New("smallserver")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,7 +143,6 @@ func mainInMemory() {
 
 func mainIntegrated() {}
 
-func mainCustom() {
-}
+func mainCustom() {}
 
 func mainNoCommands() {}

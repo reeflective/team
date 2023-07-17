@@ -57,6 +57,8 @@ type Teamserver struct {
 	options []grpc.ServerOption
 	conn    *bufconn.Listener
 	mutex   *sync.RWMutex
+
+	hooks []func(server *grpc.Server) error
 }
 
 // NewListener is a simple constructor returning a teamserver loaded with the
@@ -93,13 +95,20 @@ func NewClientFrom(server *Teamserver, opts ...grpc.DialOption) *clientConn.Team
 	return clientConn.NewTeamClient(opts...)
 }
 
-// Name immplements server.Handler.Name().
+// Name immplements team/server.Handler.Name().
 // It indicates the transport/rpc stack, in this case "gRPC".
 func (h *Teamserver) Name() string {
 	return "gRPC"
 }
 
-// Init implements server.Handler.Init().
+// PostServe register one or more hook functions to be ran on the server
+// before it is served to the listener. These hooks should naturally be
+// used to register additional services to it.
+func (h *Teamserver) PostServe(hooks ...func(server *grpc.Server) error) {
+	h.hooks = append(h.hooks, hooks...)
+}
+
+// Init implements team/server.Handler.Init().
 // It is used to initialize the listener with the correct TLS credentials
 // middleware (or absence of if about to serve an in-memory connection).
 func (h *Teamserver) Init(serv *teamserver.Server) (err error) {
@@ -121,57 +130,48 @@ func (h *Teamserver) Init(serv *teamserver.Server) (err error) {
 	return nil
 }
 
-// Listen implements server.Handler.Listen().
+// Listen implements team/server.Handler.Listen().
 // It starts listening on a network address for incoming gRPC clients.
 // If the teamserver has previously been given an in-memory connection,
 // it returns it as the listener without errors.
-func (h *Teamserver) Listen(addr string) (net.Listener, error) {
+func (h *Teamserver) Listen(addr string) (ln net.Listener, err error) {
 	rpcLog := h.NamedLogger("transport", "mTLS")
 
-	if h.conn != nil {
-		return h.conn, nil
-	}
-
-	rpcLog.Infof("Starting gRPC TLS listener on %s", addr)
-
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	return ln, nil
-}
-
-// Serve implements server.Handler.Serve().
-// The listener function argument is the one this Teamserver returned with Listen().
-// Once acquired and the gRPC server started around this listener, the proto.TeamServer
-// is registered to it and served to incoming clients.
-func (h *Teamserver) Serve(listener net.Listener) (any, error) {
-	rpcLog := h.NamedLogger("transport", "grpc")
-
-	// Encryption.
-	h.mutex.Lock()
+	// Only wrap the connection in TLS when remote.
+	// In-memory connection are not authenticated.
 	if h.conn == nil {
+		ln, err = net.Listen("tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+
+		// Encryption.
 		tlsOptions, err := TLSAuthMiddlewareOptions(h.Server)
 		if err != nil {
 			return nil, err
 		}
 
 		h.options = append(h.options, tlsOptions...)
-
-		rpcLog.Infof("Serving gRPC teamserver on %s", listener.Addr())
+	} else {
+		h.mutex.Lock()
+		ln = h.conn
+		h.conn = nil
+		h.mutex.Unlock()
 	}
-	h.mutex.Unlock()
 
 	grpcServer := grpc.NewServer(h.options...)
 
-	// If we already have an in-memory listener, use it.
-	h.mutex.Lock()
-	if h.conn != nil {
-		listener = h.conn
-		h.conn = nil
+	// Register the core teamserver service
+	proto.RegisterTeamServer(grpcServer, newServer(h.Server))
+
+	for _, hook := range h.hooks {
+		if err := hook(grpcServer); err != nil {
+			rpcLog.Errorf("service bind error: %s", err)
+			return nil, err
+		}
 	}
-	h.mutex.Unlock()
+
+	rpcLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
 
 	// Start serving the listener
 	go func() {
@@ -182,23 +182,19 @@ func (h *Teamserver) Serve(listener net.Listener) (any, error) {
 			}
 		}()
 
-		if err := grpcServer.Serve(listener); err != nil {
+		if err := grpcServer.Serve(ln); err != nil {
 			rpcLog.Errorf("gRPC server exited with error: %v", err)
 		} else {
 			panicked = false
 		}
 	}()
 
-	// Register the core teamserver service
-	proto.RegisterTeamServer(grpcServer, newServer(h.Server))
-
-	return grpcServer, nil
+	return ln, nil
 }
 
-// Close implements server.Handler.Close().
-//
+// Close implements team/server.Handler.Close().
 // In this implementation, the function does nothing. Thus the underlying
-// *grpc.Server .Shutdown() method is not called, and only the listener
+// *grpc.Server.Shutdown() method is not called, and only the listener
 // will be closed by the server automatically when using CloseListener().
 //
 // This is probably not optimal from a resource usage standpoint, but currently it
