@@ -103,3 +103,5 @@ or around enhancing its interoperability with as much Go code/programs as possib
 - [ ] Abstract away the client-side authentication, for pluggable auth/credential models.
 - [ ] Replace logrus entirely and restructure behind a single package used by both client/server.
 - [ ] Review/refine/strenghen the dialer/listener init/close/start process, if it appears needed.
+- [ ] `teamclient update` downloads latest version of the server binary + method to `team.Client` for it.
+

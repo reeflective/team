@@ -101,7 +101,7 @@ func (h *Teamserver) Name() string {
 	return "gRPC"
 }
 
-// PostServe register one or more hook functions to be ran on the server
+// PostServe registers one or more hook functions to be ran on the server
 // before it is served to the listener. These hooks should naturally be
 // used to register additional services to it.
 func (h *Teamserver) PostServe(hooks ...func(server *grpc.Server) error) {

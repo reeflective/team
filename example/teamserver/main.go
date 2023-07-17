@@ -123,12 +123,6 @@ func mainSmallest() {
 	}
 }
 
-// Run our teamserver binary.
-// Here we are executing the simple teamserver command tree, but anything is possible:
-// // - We could "forget" about our teamserver because we have a blocking call somewhere,
-// // - Let one of the commands to be executed and exit, without listening anywhere.
-// // - Many, many different variants in which you can keep working below.
-
 func mainInMemory() {
 	var clientOpts []client.Options
 	clientOpts = append(clientOpts,
