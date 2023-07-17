@@ -36,6 +36,16 @@ const (
 	maxOpenConns = 100
 )
 
+// Database returns a new teamserver database session, which may not be nil:
+// at worst, this database will be an in-memory one. The default is a file-
+// based Sqlite database in the teamserver directory, but it might be a
+// specific database passed through options.
+func (ts *Server) Database() *gorm.DB {
+	return ts.db.Session(&gorm.Session{
+		FullSaveAssociations: true,
+	})
+}
+
 // DatabaseConfig returns the server database backend configuration struct.
 // If configuration could be found on disk, the default Sqlite file-based
 // database is returned, with app-corresponding file paths.

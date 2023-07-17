@@ -130,7 +130,7 @@ func (h *Teamclient) Dial() (rpcClient any, err error) {
 
 	h.rpc = proto.NewTeamClient(h.conn)
 
-	return h.rpc, nil
+	return h.conn, nil
 }
 
 // Close implements team/client.Dialer.Close(), and closes the gRPC client connection.

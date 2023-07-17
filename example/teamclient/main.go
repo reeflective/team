@@ -50,3 +50,5 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
+func mainPreCommands() {}

@@ -52,13 +52,12 @@ func Generate(cli *client.Client) *cobra.Command {
 // If the client is connected, nothing happens and its current connection reused.
 //
 // Feel free to use this function as a model for your own teamclient pre-runners.
-func PreRun(teamclient *client.Client) command.CobraRunnerE {
+func PreRun(teamclient *client.Client, opts ...client.Options) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
-		// Client settings.
 		teamclient.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
 
 		// Ensure we are connected or do it.
-		return teamclient.Connect()
+		return teamclient.Connect(opts...)
 	}
 }
 
@@ -67,13 +66,14 @@ func PreRun(teamclient *client.Client) command.CobraRunnerE {
 // connection is kept open. This pre-runner is thus useful for console apps.
 //
 // Feel free to use this function as a model for your own teamclient pre-runners.
-func PreRunNoDisconnect(teamclient *client.Client) command.CobraRunnerE {
+func PreRunNoDisconnect(teamclient *client.Client, opts ...client.Options) command.CobraRunnerE {
 	return func(cmd *cobra.Command, args []string) error {
-		// Client settings.
 		teamclient.SetLogWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
 
+		opts = append(opts, client.WithNoDisconnect())
+
 		// The NoDisconnect will prevent teamclient.Disconnect() to close the conn.
-		return teamclient.Connect(client.WithNoDisconnect())
+		return teamclient.Connect(opts...)
 	}
 }
 

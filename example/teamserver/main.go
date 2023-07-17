@@ -76,8 +76,34 @@ func main() {
 	}
 }
 
+func mainSmallGRPC() {
+	// Server
+	gTeamserver := grpc.NewListener()
+
+	teamserver, err := server.New("teamserver", server.WithListener(gTeamserver))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Client
+	gTeamclient := grpc.NewClientFrom(gTeamserver)
+
+	teamclient := teamserver.Self(client.WithDialer(gTeamclient))
+
+	// Commands
+	serverCmds := commands.Generate(teamserver, teamclient)
+
+	// Run
+	carapace.Gen(serverCmds)
+
+	err = serverCmds.Execute()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func mainSmallest() {
-	teamserver, err := server.New("smallserver", nil)
+	teamserver, err := server.New("smallserver")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,7 +143,6 @@ func mainInMemory() {
 
 func mainIntegrated() {}
 
-func mainCustom() {
-}
+func mainCustom() {}
 
 func mainNoCommands() {}

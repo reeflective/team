@@ -27,7 +27,6 @@ import (
 	"runtime/debug"
 	"syscall"
 
-	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 )
 
@@ -36,21 +35,11 @@ import (
 // by a team/server.Server core, and remote clients can connect to it
 // with the appropriate/corresponding team/client.Dialer backend.
 //
-// The type parameter `serverConn` of this interface is also a syntactic sugar
-// to indicate that any listener should/may return a user-defined but specific object
-// from its Serve() method. This serverConn will be passed to all hook functions passed
-// along with the listener when using the server.WithListener(ln, hooks...) option.
-//
-// Also similarly to the teamclient, this `serverConn` could be:
-// - A specific but non-idiomatic RPC listener/server stack (ex: a *grpc.Server).
-// - A simple net.Conn over which to serve the core Server version/info/users.
-// - Nothing: A listener is not obliged to return anything, and can work as it wants.
-//
 // Errors: all errors returned by the listener interface methods are considered critical,
 // (except the Close() error one), and thus will stop the listener start/server process
 // when raised. Thus, you should only return errors that are critical to the operation
 // of your listener. You can use the teamserver loggers to log/print non-critical ones.
-type Listener[serverConn any] interface {
+type Listener interface {
 	// Name returns the name of the "listener/server/RPC" stack
 	// of this listener, eg. "gRPC" for a gRPC listener, "myCustomHTTP"
 	// for your quick-and-dirty custom stack, etc.
@@ -67,27 +56,35 @@ type Listener[serverConn any] interface {
 	Init(s *Server) error
 
 	// Listen is used to create and bind a network listener to some address
-	// given as argument. This function is NOT mandated to return a non-nil
-	// listener: the latter is passed as is to the Serve() method, which is
-	// thus free to work with or without a (this) listener.
-	// Any non-nil error returned will abort the listener starting process.
+	// Implementations are free to handle incoming connections the way they
+	// want, since they have had access to the server in Init() for anything
+	// related they might need.
+	// As an example, the gRPC default transport serves a gRPC server on this
+	// listener, registers its RPC services, and returns the listener for the
+	// teamserver to wrap it in job control.
+	// This call MUST NOT block, just like the normal usage of net.Listeners.
 	Listen(addr string) (ln net.Listener, err error)
-
-	// Serve should/may bind, register, setup and/or serve an application-specific service.
-	// The listener passed as argument is the one returned by the listener Listen() method,
-	// thus can be nil or any type that your listener implementation has decided.
-	//
-	// The `serverConn` returned is then passed to all hook functions passed
-	// with the listener when using the server.WithListener(ln, hooks...),
-	// unless the error returned is not nil.
-	// IMPORTANT: this function must be non-blocking, ie. return when server is started.
-	Serve(net.Listener) (conn serverConn, err error)
 
 	// Close should close the listener stack.
 	// This can mean different things depending on use case, but some are not recommended.
 	// - It can simply close the "listener" layer without shutting down the "server/RPC" layer.
 	// - It can shutdown anything, thus in effect disconnecting all of its clients from server.
 	Close() error
+}
+
+// Serve attempts the default listener of the teamserver (which is either
+// the first one to have been registered, or the only one registered at all).
+// It the responsibility of any teamclients produced by the teamserver.Self()
+// method to call their Connect() method: the server will answer.
+func (ts *Server) Serve(opts ...Options) error {
+	if ts.self == nil {
+		return ErrNoListener
+	}
+
+	// Some errors might come from user-provided hooks,
+	// so we don't wrap errors again, our own errors
+	// have been prepared accordingly in this call.
+	return ts.serve(ts.self, "", "", 0, opts...)
 }
 
 // ServeDaemon is a blocking call which starts the teamserver as daemon process, using
@@ -186,43 +183,10 @@ func (ts *Server) ServeAddr(name string, host string, port uint16, opts ...Optio
 	return listenerID, err
 }
 
-// Serve attempts to serve a runtime teamclient of this teamserver.
-// If the teamserver has not listener backend available, it will just
-// ignore that fact and let the teamclient run its connection process.
-//
-// Thus:
-// The given client may or may not be equipped with a given client.Dialer
-// backend, and will init and connect according to the behavior explained
-// in the team/client package. Please see examples of self-served clients.
-// The teamserver.Self() method will create such a stub but working client.
-func (ts *Server) Serve(cli *client.Client, opts ...Options) error {
-	host := cli.Config().Host
-	port := uint16(cli.Config().Port)
-
-	if ts.self != nil {
-		// Some errors might come from user-provided hooks,
-		// so we don't wrap errors again, our own errors
-		// have been prepared accordingly in this call.
-		err := ts.serve(ts.self, "", host, port, opts...)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Attempt to connect with the user configuration.
-	// Log the error by default, the client might not.
-	err := cli.Connect(client.WithLocalDialer())
-	if err != nil {
-		return ts.errorf(err.Error())
-	}
-
-	return nil
-}
-
 // serve will attempt to serve a given listener/server stack to a given (host:port) address.
 // If the ID parameter is empty, a job ID for this listener will be automatically generated.
 // Any errors raised by the listener itself are considered critical and returned wrapped in a ListenerErr.
-func (ts *Server) serve(ln Listener[any], ID, host string, port uint16, opts ...Options) error {
+func (ts *Server) serve(ln Listener, ID, host string, port uint16, opts ...Options) error {
 	log := ts.NamedLogger("teamserver", "handler")
 
 	// If server was not initialized yet, do it.
@@ -242,28 +206,14 @@ func (ts *Server) serve(ln Listener[any], ID, host string, port uint16, opts ...
 	// Now let the handler start listening on somewhere.
 	laddr := fmt.Sprintf("%s:%d", host, port)
 
+	// This call should not block, serve the listener immediately.
 	listener, err := ln.Listen(laddr)
 	if err != nil {
 		return ts.errorWith(log, "%w: %w", ErrListener, err)
 	}
 
-	// The previous is not blocking, serve the listener immediately.
-	serverConn, err := ln.Serve(listener)
-	if err != nil {
-		return ts.errorWith(log, "%w: %w", ErrListener, err)
-	}
-
 	// The server is running, so add a job anyway.
-	ts.addListenerJob(ID, host, int(port), ln)
-
-	// Run provided server hooks on the server interface.
-	// Any error arising from this is returned as is, for
-	// users can directly compare it with their own errors.
-	for _, hook := range ts.opts.hooks[ln.Name()] {
-		if err := hook(serverConn); err != nil {
-			return ts.errorWith(log, "%w: %w", ErrTeamServer, err)
-		}
-	}
+	ts.addListenerJob(ID, ln.Name(), host, int(port), listener)
 
 	return nil
 }
@@ -272,8 +222,8 @@ func (ts *Server) serve(ln Listener[any], ID, host string, port uint16, opts ...
 // This can be useful if you want to start them with the server ServeListener() method.
 // Or -but this is not recommended by this library- to use those listeners without the
 // teamserver driving the init/start/serve/stop process.
-func (ts *Server) Handlers() map[string]Listener[any] {
-	handlers := make(map[string]Listener[any], len(ts.handlers))
+func (ts *Server) Handlers() map[string]Listener {
+	handlers := make(map[string]Listener, len(ts.handlers))
 
 	for name, handler := range ts.handlers {
 		handlers[name] = handler
@@ -282,13 +232,6 @@ func (ts *Server) Handlers() map[string]Listener[any] {
 	return handlers
 }
 
-// Close gracefully stops all components of the server,
-// letting pending connections to it to finish first.
-// func (ts *Server) Close() {
-// 	defer ts.log().Writer().Close()
-// 	// defer ts.audit.Writer().Close()
-// }
-
 func (ts *Server) init(opts ...Options) error {
 	var err error
 
@@ -296,29 +239,10 @@ func (ts *Server) init(opts ...Options) error {
 	ts.apply(opts...)
 
 	ts.initServe.Do(func() {
+		// Database configuration.
 		if err = ts.initDatabase(); err != nil {
 			return
 		}
-
-		// Database configuration.
-		// At creation time, we ensured that server had
-		// a valid database configuration, but we might
-		// // have been modified with options to Serve().
-		// ts.opts.dbConfig, err = ts.getDatabaseConfig()
-		// if err != nil {
-		// 	err = ts.errorf("%w: %w", ErrDatabase, err)
-		// 	return
-		// }
-		//
-		// // Connect to database if not connected already.
-		// if ts.db == nil {
-		// 	dbLogger := ts.NamedLogger("database", "database")
-		// 	ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
-		// 	if err != nil {
-		// 		err = ts.errorf("%w: %w", ErrDatabase, err)
-		// 		return
-		// 	}
-		// }
 
 		// Load any relevant server configuration: on disk,
 		// contained in options, or the default one.

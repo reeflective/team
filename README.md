@@ -98,7 +98,8 @@ or around enhancing its interoperability with as much Go code/programs as possib
 - [ ] Use viper for configs.
 - [ ] Use afero filesystem.
 - [ ] Add support for encrypted sqlite by default.
-- [ ] Simpler listener/dialer backend interfaces, if it appears needed.
+- [ ] Encrypt in-memory channels, or add option for it.
+- [ ] Simpler/different listener/dialer backend interfaces, if it appears needed.
 - [ ] Abstract away the client-side authentication, for pluggable auth/credential models.
 - [ ] Replace logrus entirely and restructure behind a single package used by both client/server.
 - [ ] Review/refine/strenghen the dialer/listener init/close/start process, if it appears needed.

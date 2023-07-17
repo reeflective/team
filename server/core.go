@@ -64,7 +64,7 @@ type Server struct {
 	// Core
 	name     string     // Name of the application using the teamserver.
 	homeDir  string     // APP_ROOT_DIR var, evaluated once when creating the server.
-	opts     *opts[any] // Server options
+	opts     *opts      // Server options
 	fs       *assets.FS // Server filesystem, on-disk or embedded
 	initOpts sync.Once  // Some options can only be set once when creating the server.
 
@@ -79,10 +79,10 @@ type Server struct {
 	dbInit     sync.Once      // A single database can be used in a teamserver lifetime.
 
 	// Listeners and job control
-	initServe sync.Once                // Some options can only have an effect at first start.
-	self      Listener[any]            // The default listener stack used by the teamserver.
-	handlers  map[string]Listener[any] // Other listeners available by name.
-	jobs      *jobs                    // Listeners job control
+	initServe sync.Once           // Some options can only have an effect at first start.
+	self      Listener            // The default listener stack used by the teamserver.
+	handlers  map[string]Listener // Other listeners available by name.
+	jobs      *jobs               // Listeners job control
 }
 
 // New creates a new teamserver for the provided application name.
@@ -107,7 +107,7 @@ func New(application string, options ...Options) (*Server, error) {
 		opts:       newDefaultOpts(),
 		userTokens: &sync.Map{},
 		jobs:       newJobs(),
-		handlers:   make(map[string]Listener[any]),
+		handlers:   make(map[string]Listener),
 	}
 
 	server.apply(options...)
@@ -155,6 +155,8 @@ func (ts *Server) Name() string {
 // of the application using this teamserver.
 // See the server.Listener and client.Dialer types documentation for more.
 func (ts *Server) Self(opts ...client.Options) *client.Client {
+	opts = append(opts, client.WithLocalDialer())
+
 	teamclient, _ := client.New(ts.Name(), ts, opts...)
 
 	return teamclient

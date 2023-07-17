@@ -21,6 +21,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 )
 
@@ -189,7 +190,7 @@ func (ts *Server) ListenerStartPersistents() error {
 	return nil
 }
 
-func (ts *Server) addListenerJob(listenerID, host string, port int, ln Listener[any]) {
+func (ts *Server) addListenerJob(listenerID, name, host string, port int, ln net.Listener) {
 	log := ts.NamedLogger("teamserver", "listeners")
 
 	if listenerID == "" {
@@ -207,7 +208,7 @@ func (ts *Server) addListenerJob(listenerID, host string, port int, ln Listener[
 
 	listener := &job{
 		ID:          listenerID,
-		Name:        ln.Name(),
+		Name:        name,
 		Description: laddr,
 		kill:        make(chan bool),
 	}
@@ -216,7 +217,7 @@ func (ts *Server) addListenerJob(listenerID, host string, port int, ln Listener[
 		<-listener.kill
 
 		// Kills listener goroutines but NOT connections.
-		log.Infof("Stopping teamserver %s listener (%s)", ln.Name(), listener.ID)
+		log.Infof("Stopping teamserver %s listener (%s)", name, listener.ID)
 		ln.Close()
 
 		ts.jobs.active.LoadAndDelete(listener.ID)
