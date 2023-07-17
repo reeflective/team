@@ -27,6 +27,7 @@ import (
 	"runtime/debug"
 	"syscall"
 
+	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 )
 
@@ -76,7 +77,7 @@ type Listener interface {
 // the first one to have been registered, or the only one registered at all).
 // It the responsibility of any teamclients produced by the teamserver.Self()
 // method to call their Connect() method: the server will answer.
-func (ts *Server) Serve(opts ...Options) error {
+func (ts *Server) Serve(cli *client.Client, opts ...Options) error {
 	if ts.self == nil {
 		return ErrNoListener
 	}
@@ -84,7 +85,12 @@ func (ts *Server) Serve(opts ...Options) error {
 	// Some errors might come from user-provided hooks,
 	// so we don't wrap errors again, our own errors
 	// have been prepared accordingly in this call.
-	return ts.serve(ts.self, "", "", 0, opts...)
+	err := ts.serve(ts.self, "", "", 0, opts...)
+	if err != nil {
+		return err
+	}
+
+	return cli.Connect(client.WithLocalDialer())
 }
 
 // ServeDaemon is a blocking call which starts the teamserver as daemon process, using

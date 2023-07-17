@@ -52,7 +52,9 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 	servCmds := serverCommands(teamserver, teamclient)
 
 	for _, cmd := range servCmds.Commands() {
-		cmd.PersistentPreRunE = PreRun(teamserver, teamclient)
+		cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			return teamserver.Serve(teamclient)
+		}
 	}
 
 	// We bind the same runners to the client-side commands.
@@ -60,28 +62,14 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 	cliCmds.Use = "client"
 
 	for _, cmd := range cliCmds.Commands() {
-		cmd.PersistentPreRunE = PreRun(teamserver, teamclient)
+		cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			return teamserver.Serve(teamclient)
+		}
 	}
 
 	servCmds.AddCommand(cliCmds)
 
 	return servCmds
-}
-
-// PreRun returns a cobra command runner which connects the local teamclient to itself.
-// If the client is connected, nothing happens and its current connection reused, which
-// makes this runner able to be ran in closed-loop consoles.
-//
-// Feel free to use this function as a model for your own teamserver pre-runners.
-func PreRun(serv *server.Server, cli *client.Client, opts ...server.Options) command.CobraRunnerE {
-	return func(cmd *cobra.Command, args []string) error {
-		if err := serv.Serve(); err != nil {
-			return err
-		}
-
-		// And connect the client locally, only needed.
-		return cli.Connect(client.WithLocalDialer())
-	}
 }
 
 func serverCommands(server *server.Server, client *client.Client) *cobra.Command {
