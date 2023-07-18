@@ -85,6 +85,19 @@
 
 ## Status
 
+The Command-Line and Application-Programming Interfaces of this library are unlikely to change
+much in the future, and should be considered mostly stable. These might grow a little bit, but
+will not shrink, as they been already designed to be as minimal as they could be.
+
+In particular, `client.Options` and `server.Options` APIs might grow, so that new features/behaviors
+can be integrated without the need for the teamclients and teamservers types APIs to change.
+
+The section **Possible Enhancements** below includes 9 points, which should grossly be equal
+to 9 minor releases (`0.1.0`, `0.2.0`, `0.3.0`, etc...), ending up in `v1.0.0`.
+
+- Please open a PR or an issue if you face any bug, it will be promptly resolved.
+- New features and/or PRs are welcome if they are likely to be useful to most users.
+
 -----
 
 ## Possible enhancements
