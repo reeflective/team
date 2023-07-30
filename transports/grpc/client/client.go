@@ -117,7 +117,7 @@ func (h *Teamclient) Init(cli *client.Client) error {
 // It uses the teamclient remote server configuration as a target of a dial call.
 // If the connection is successful, the teamclient registers a proto.Teamclient
 // RPC around its client connection, to provide the core teamclient functionality.
-func (h *Teamclient) Dial() (rpcClient any, err error) {
+func (h *Teamclient) Dial() (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
@@ -125,12 +125,12 @@ func (h *Teamclient) Dial() (rpcClient any, err error) {
 
 	h.conn, err = grpc.DialContext(ctx, host, h.options...)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	h.rpc = proto.NewTeamClient(h.conn)
 
-	return h.conn, nil
+	return nil
 }
 
 // Close implements team/client.Dialer.Close(), and closes the gRPC client connection.
