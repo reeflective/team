@@ -24,7 +24,7 @@ import (
 
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/transports/grpc/common"
+	"github.com/reeflective/team/example/transports/grpc/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )

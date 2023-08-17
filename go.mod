@@ -9,6 +9,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/ncruces/go-sqlite3 v0.8.1
+	github.com/psanford/memfs v0.0.0-20230130182539-4dbf7e3e865e
 	github.com/rsteube/carapace v0.37.3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
@@ -41,7 +42,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/ncruces/julianday v0.1.5 // indirect
-	github.com/psanford/memfs v0.0.0-20230130182539-4dbf7e3e865e // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
