@@ -28,9 +28,12 @@ import (
 )
 
 const (
-	FileReadPerm  = 0o600 // FileReadPerm is the permission bit given to the OS when reading files.
-	DirPerm       = 0o700 // DirPerm is the permission bit given to teamserver/client directories.
-	FileWritePerm = 0o644 // FileWritePerm is the permission bit given to the OS when writing files.
+	// FileReadPerm is the permission bit given to the OS when reading files.
+	FileReadPerm = 0o600
+	// DirPerm is the permission bit given to teamserver/client directories.
+	DirPerm = 0o700
+	// FileWritePerm is the permission bit given to the OS when writing files.
+	FileWritePerm = 0o644
 
 	// FileWriteOpenMode is used when opening log files in append/create/write-only mode.
 	FileWriteOpenMode = os.O_APPEND | os.O_CREATE | os.O_WRONLY

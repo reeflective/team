@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
@@ -80,7 +81,7 @@ func (ts *Server) ConfigPath() string {
 	appDir := ts.TeamDir()
 	configDir := filepath.Join(appDir, "configs")
 
-	err := ts.fs.MkdirAll(configDir, log.DirPerm)
+	err := ts.fs.MkdirAll(configDir, assets.DirPerm)
 	if err != nil {
 		ts.log().Errorf("cannot write to %s config dir: %s", configDir, err)
 	}
@@ -150,7 +151,7 @@ func (ts *Server) SaveConfig(cfg *Config) error {
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		cfgLog.Debugf("Creating config dir %s", configDir)
 
-		err := os.MkdirAll(configDir, log.DirPerm)
+		err := os.MkdirAll(configDir, assets.DirPerm)
 		if err != nil {
 			return ts.errorf("%w: %w", ErrConfig, err)
 		}
@@ -163,7 +164,7 @@ func (ts *Server) SaveConfig(cfg *Config) error {
 
 	cfgLog.Debugf("Saving config to %s", configPath)
 
-	err = os.WriteFile(configPath, data, log.FileReadPerm)
+	err = os.WriteFile(configPath, data, assets.FileReadPerm)
 	if err != nil {
 		return ts.errorf("%w: failed to write config: %s", ErrConfig, err)
 	}

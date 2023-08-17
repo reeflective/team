@@ -85,7 +85,7 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		dblog.Debugf("Creating config dir %s", configDir)
 
-		err := os.MkdirAll(configDir, log.DirPerm)
+		err := os.MkdirAll(configDir, assets.DirPerm)
 		if err != nil {
 			return err
 		}
@@ -98,7 +98,7 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 
 	dblog.Debugf("Saving config to %s", configPath)
 
-	return os.WriteFile(configPath, data, log.FileReadPerm)
+	return os.WriteFile(configPath, data, assets.FileReadPerm)
 }
 
 // getDatabaseConfig returns a working database configuration,

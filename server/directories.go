@@ -46,7 +46,7 @@ func (ts *Server) HomeDir() string {
 		dir = "." + ts.name
 	}
 
-	err := ts.fs.MkdirAll(dir, log.DirPerm)
+	err := ts.fs.MkdirAll(dir, assets.DirPerm)
 	if err != nil {
 		ts.log().Errorf("cannot write to %s root dir: %s", dir, err)
 	}
@@ -60,7 +60,7 @@ func (ts *Server) HomeDir() string {
 func (ts *Server) TeamDir() string {
 	dir := path.Join(ts.HomeDir(), ts.opts.teamDir)
 
-	err := ts.fs.MkdirAll(dir, log.DirPerm)
+	err := ts.fs.MkdirAll(dir, assets.DirPerm)
 	if err != nil {
 		ts.log().Errorf("cannot write to %s root dir: %s", dir, err)
 	}
@@ -73,7 +73,7 @@ func (ts *Server) TeamDir() string {
 func (ts *Server) LogsDir() string {
 	logDir := path.Join(ts.TeamDir(), assets.DirLogs)
 
-	err := ts.fs.MkdirAll(logDir, log.DirPerm)
+	err := ts.fs.MkdirAll(logDir, assets.DirPerm)
 	if err != nil {
 		ts.log().Errorf("cannot write to %s root dir: %s", logDir, err)
 	}
@@ -86,7 +86,7 @@ func (ts *Server) LogsDir() string {
 func (ts *Server) CertificatesDir() string {
 	certDir := path.Join(ts.TeamDir(), assets.DirCerts)
 
-	err := ts.fs.MkdirAll(certDir, log.DirPerm)
+	err := ts.fs.MkdirAll(certDir, assets.DirPerm)
 	if err != nil {
 		ts.log().Errorf("cannot write to %s root dir: %s", certDir, err)
 	}

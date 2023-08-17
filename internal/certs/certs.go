@@ -317,7 +317,7 @@ func (c *Manager) getCertDir() string {
 	rootDir := c.appDir
 	certDir := filepath.Join(rootDir, "certs")
 
-	err := c.fs.MkdirAll(certDir, log.DirPerm)
+	err := c.fs.MkdirAll(certDir, assets.DirPerm)
 	if err != nil {
 		c.log.Fatalf("Failed to create cert dir: %s", err)
 	}

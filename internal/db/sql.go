@@ -32,6 +32,8 @@ import (
 )
 
 const (
+	// SQLiteInMemoryHost is the default string used by SQLite
+	// as a host when ran in memory (string value is ":memory:").
 	SQLiteInMemoryHost = ":memory:"
 )
 

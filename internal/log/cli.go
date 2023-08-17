@@ -30,10 +30,10 @@ import (
 
 // Text effects.
 const (
-	SGRStart = "\x1b["
-	Fg       = "38;05;"
-	Bg       = "48;05;"
-	SGREnd   = "m"
+	sgrStart = "\x1b["
+	fg       = "38;05;"
+	bg       = "48;05;"
+	sgrEnd   = "m"
 )
 
 const (
@@ -296,5 +296,5 @@ func defaultLevelFieldsColored() map[string]string {
 }
 
 func color(color string) string {
-	return SGRStart + style.SGR(color) + SGREnd
+	return sgrStart + style.SGR(color) + sgrEnd
 }

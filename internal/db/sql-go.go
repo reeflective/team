@@ -21,6 +21,7 @@ package db
 */
 
 import (
+	// Embed the sqlite code into our teamserver.
 	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/ncruces/go-sqlite3/gormlite"
 	"gorm.io/gorm"

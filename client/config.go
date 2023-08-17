@@ -154,7 +154,7 @@ func (tc *Client) SaveConfig(config *Config) error {
 
 	// If we are in-memory, still make the directory.
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		if err = os.MkdirAll(configDir, log.DirPerm); err != nil {
+		if err = os.MkdirAll(configDir, assets.DirPerm); err != nil {
 			return tc.errorf("%w: %w", ErrConfig, err)
 		}
 	}
