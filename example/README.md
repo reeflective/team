@@ -6,7 +6,14 @@ Each of the packages' code is documented to the best extent possible, and struct
 The author hopes that by entering the code by the `main()` function and reading carefully through will
 be enough for most library users to get a good first grasp of the `team` library programming model.
 
-### 1) General workflow & entrypoints
+Overall, the example directory can serve two purposes:
+- To serve as an example usage of the library, with different directories showing how to use
+  different components, as well as how they make use the teamserver/clients core in their own way.
+- To be outright copy-pasted in your own code structure and modified where needed.
+  This should possible to the extent that the code has been rewritten to have sensible
+  fallback behavior, to log its various steps and errors, and to fail earlier rather later.
+
+### I - General workflow & entrypoints
 
 Therefore, users should probably start reading those files in order:
 1) `teamserver/main.go` shows several examples of server-side program entrypoints, with varying
@@ -14,17 +21,18 @@ Therefore, users should probably start reading those files in order:
 2) `teamclient/main.go` shows some equivalent examples for teamclient-only programs. These functions
    are a counterpart to some of those found in (1), as they use the same transport/RPC stack.
 
-### 2) Transport backends
+### II - Transport backends
 
 #### Team Server
 Once you feel having a good understanding of entrypoints (server/client creation, setup, CLI generation
 and related), you can then take a look at the transport backends mechanism, which allows to register any
 number of transport/RPC listener/server backends to your core application teamserver:
+
 3) `transports/grpc/server/server.go` is used by the `teamserver/main.go` to create and prepare a new
    RPC backend. This file is good in that it shows you clearly how to use the teamserver as a core
    driver for any application-specific teamserving process. For example it shows how to query the
    teamserver users, request their connection/token credentials, authenticate them, and log all steps
-   with the teamserver loggers.
+   with the teamserver loggers.   
 4) `transports/grpc/server/middleware.go` shows a quite complex but secure use of gRPC middleware using
    the teamserver authentication and logging toolset. Note that gRPC is a quite beefy stack, and not
    very idiomatic for Go. Don't be too scared at this code if you don't understand it at first, since
