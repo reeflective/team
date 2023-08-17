@@ -27,10 +27,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/command"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -78,15 +77,14 @@ type Config struct {
 
 // ConfigPath returns the path to the server config.json file, on disk or in-memory.
 func (ts *Server) ConfigPath() string {
-	appDir := ts.TeamDir()
-	configDir := filepath.Join(appDir, "configs")
+	appDir := ts.ConfigsDir()
 
-	err := ts.fs.MkdirAll(configDir, assets.DirPerm)
+	err := ts.fs.MkdirAll(appDir, assets.DirPerm)
 	if err != nil {
-		ts.log().Errorf("cannot write to %s config dir: %s", configDir, err)
+		ts.log().Errorf("cannot write to %s config dir: %s", appDir, err)
 	}
 
-	serverConfigPath := filepath.Join(configDir, fmt.Sprintf("%s.%s", ts.Name(), command.ServerConfigExt))
+	serverConfigPath := filepath.Join(appDir, fmt.Sprintf("%s.%s", ts.Name(), command.ServerConfigExt))
 
 	return serverConfigPath
 }

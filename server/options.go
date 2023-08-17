@@ -23,11 +23,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
-
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/db"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 const noTeamdir = "no team subdirectory"

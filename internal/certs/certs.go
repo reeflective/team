@@ -36,11 +36,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
-
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/db"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 const (
@@ -90,8 +89,8 @@ func NewManager(filesystem *assets.FS, db *gorm.DB, logger *logrus.Entry, appNam
 	return certs
 }
 
-func (m *Manager) db() *gorm.DB {
-	return m.database.Session(&gorm.Session{
+func (c *Manager) db() *gorm.DB {
+	return c.database.Session(&gorm.Session{
 		FullSaveAssociations: true,
 	})
 }

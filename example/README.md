@@ -58,7 +58,7 @@ number of transport/RPC listener/server backends to your core application teamse
    RPC backend. This file is good in that it shows you clearly how to use the teamserver as a core
    driver for any application-specific teamserving process. For example it shows how to query the
    teamserver users, request their connection/token credentials, authenticate them, and log all steps
-   with the teamserver loggers.   
+   with the teamserver loggers.  
 4) `transports/grpc/server/middleware.go` shows a quite complex but secure use of gRPC middleware using
    the teamserver authentication and logging toolset. Note that gRPC is a quite beefy stack, and not
    very idiomatic for Go. Don't be too scared at this code if you don't understand it at first, since
