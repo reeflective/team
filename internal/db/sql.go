@@ -83,7 +83,7 @@ func NewClient(dbConfig *Config, dbLogger *logrus.Entry) (*gorm.DB, error) {
 		return nil, fmt.Errorf("%w: '%s'", ErrUnsupportedDialect, dbConfig.Dialect)
 	}
 
-	err = dbClient.AutoMigrate(Schema())
+	err = dbClient.AutoMigrate(Schema()...)
 	if err != nil {
 		dbLogger.Error(err)
 	}

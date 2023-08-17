@@ -21,13 +21,14 @@ package db
 */
 
 import (
-	gosqlite "github.com/glebarez/sqlite"
+	_ "github.com/ncruces/go-sqlite3/embed"
+	"github.com/ncruces/go-sqlite3/gormlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 func sqliteClient(dsn string, log logger.Interface) (*gorm.DB, error) {
-	return gorm.Open(gosqlite.Open(dsn), &gorm.Config{
+	return gorm.Open(gormlite.Open(dsn), &gorm.Config{
 		PrepareStmt: true,
 		Logger:      log,
 	})
