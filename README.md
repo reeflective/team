@@ -70,8 +70,7 @@ and explored from different viewpoints: distinguishing between the tools' develo
 users. After having to reuse this core code for other projects, the idea appeared to extract the
 relevant parts and to restructure and repackage them behind coherent interfaces (API and CLI).
 
-The result of this refactoring consists in 2 Go packages (`client` and `server`) for programs needing to
-act as:
+The result consists in 2 Go packages (`client` and `server`) for programs needing to act as:
 - A **Team client**: a program, or one of its components, that needs to rely on a "remote" program peer
   to serve some functionality that is available to a team of users' tools. The program acting as a
   _teamclient_ may do so for things as simple as sending a message to the team, or as complicated as a
@@ -107,9 +106,13 @@ The library rests on several principles, constraints and ideas to fulfill its in
   while not hampering on the working-by-default aspects of the team client/server toolset. Examples
   include replacing parts or all of the transport, RPC, loggers, database and filesystem
   backends.
-- To that effect, the library **offer different interfaces to its functionality**: an API (Go code)
-  aiming to provide developers a working-by-default, simple but powerful way to instruct their
-  software how to collaborate with peers.
+- To that effect, the library offers **different interfaces to its functionality**: an API (Go code)
+  aiming to provide developers a working-by-default, simple and powerful way to instruct their
+  software how to collaborate with peers, and a CLI, for users to operate their team tools, manage 
+  their related team configurations with ease, with a featured command-line tree to embed anywhere.
+- Ensure that team client/server functionality can be **easily integrated in automated workflows**: 
+  this is done by offering clear code/execution paths and behaviors, for both users and developers,
+  and by providing commands and functions to ease deployment of said tools.
 
 Related or resulting from the above, below are examples of behavior adopted by this library:
 - All errors returned by the API are always logged before return (with configured log behavior).
@@ -120,10 +123,50 @@ Related or resulting from the above, below are examples of behavior adopted by t
   for security reasons).
 
 -----
-## CLI examples (users)
+## CLI (users)
+
+The following extracts assume a program binary named `teamserver`, which is simply the root command
+of the server-side team code. In this case therefore, the binary program only purpose its to be a
+teamserver, with no application-specific logic, and is useless on its own:
+```bash
+$ teamserver
+Manage the application server-side teamserver and users
+
+Usage:
+  teamserver [command]
+
+teamserver control
+  client      Client-only teamserver commands (import configs, show users, etc)
+  close       Close a listener and remove it from persistent ones if it's one
+  daemon      Start the teamserver in daemon mode (blocking)
+  listen      Start a teamserver listener (non-blocking)
+  status      Show the status of the teamserver (listeners, configurations, health...)
+  systemd     Print a systemd unit file for the application teamserver, with options
+
+user management
+  delete      Remove a user from the teamserver, and revoke all its current tokens
+  export      Export a Certificate Authority file containing the teamserver users
+  import      Import a certificate Authority file containing teamserver users
+  user        Create a user for this teamserver and generate its client configuration file
+```
+
+In this example, this program comes with a client-only binary counterpart, `teamclient`. The latter 
+does not include any team server-specific code, and has therefore a much smaller command set:
+```bash
+$ teamclient
+Client-only teamserver commands (import configs, show users, etc)
+
+Usage:
+  teamclient [command]
+
+Available Commands:
+  import      Import a teamserver client configuration file for teamserver
+  users       Display a table of teamserver users and their status
+  version     Print teamserver client version
+```
 
 -----
-## API examples (developers)
+## API (developers)
 
 -----
 ## Documentation
