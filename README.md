@@ -59,7 +59,7 @@ The `reeflective/team` library provides a small toolset for arbitrary programs (
 controlled in more or less interactive ways) to collaborate together by acting as clients and
 servers of each others, as part of a team. Teams being made of players (humans _and_ their tools),
 the library focuses on offering a toolset for "human teaming": that is, treating software tools that
-are either _teamclients_ or _teamservers_ of others, within a defined -generally refrained- team of
+are either _teamclients_ or _teamservers_ of others, within a defined -generally restricted- team of
 users, which shall generally be strictly and securely authenticated.
 
 The project originates from the refactoring of a security-oriented tool that used this approach to
@@ -100,7 +100,7 @@ The library rests on several principles, constraints and ideas to fulfill its in
   tools' users and developers.
 - Ensure the **full, secure and reliable authentication of all team clients and servers'
   interactions**, by using certificate-based communication encryption and user authentication, _aka_
-  a "zero-trust" model. Related and equally important, ensure the various team toolset interfaces
+  "zero-trust" model. Related and equally important, ensure the various team toolset interfaces
   provide for easy and secure usage of their host tools.
 - **Accomodate for the needs of developers to use more specific components**, at times or at points,
   while not hampering on the working-by-default aspects of the team client/server toolset. Examples
@@ -114,16 +114,8 @@ The library rests on several principles, constraints and ideas to fulfill its in
   this is done by offering clear code/execution paths and behaviors, for both users and developers,
   and by providing commands and functions to ease deployment of said tools.
 
-Related or resulting from the above, below are examples of behavior adopted by this library:
-- All errors returned by the API are always logged before return (with configured log behavior).
-- Interactions with the filesystem restrained until they need to happen.
-- The default database is a pure Go file-based sqlite db, which can be configured to run in memory.
-- Unless absolutely needed or specified otherwise, return all critical errors instead of log
-  fatal/panicking (exception made of the certificate infrastructure which absolutely needs to work
-  for security reasons).
-
 -----
-## CLI (users)
+## CLI (Users)
 
 The following extracts assume a program binary named `teamserver`, which is simply the root command
 of the server-side team code. In this case therefore, the binary program only purpose its to be a
@@ -185,7 +177,7 @@ Continuing the `teamclient` binary (which is available to all users' tool in the
 ```
 
 -----
-## API (developers)
+## API (Developers)
 
 The teamclient and teamserver APIs are designed with several things in mind as well:
 - While users are free to use their tools teamclients/servers within the bounds of the provided
@@ -226,7 +218,7 @@ teamserver, err := server.New("teamserver", server.WithListener(gTeamserver))
 
 // Since our teamserver offers its functionality through a gRPC layer,
 // our teamclients must have the corresponding client-side RPC client backend.
-// Create a gRPC teamclient backend.
+// Create an in-memory gRPC teamclient backend for the server to serve itself.
 gTeamclient := grpc.NewClientFrom(gTeamserver)
 
 // Create a new teamclient, registering the gRPC backend to it.
@@ -239,10 +231,23 @@ serverCmds := commands.Generate(teamserver, teamclient)
 serverCmds.Execute()
 ```
 
+Some additional and preliminary/example notes about the codebase:
+- All errors returned by the API are always logged before return (with configured log behavior).
+- Interactions with the filesystem restrained until they need to happen.
+- The default database is a pure Go file-based sqlite db, which can be configured to run in memory.
+- Unless absolutely needed or specified otherwise, return all critical errors instead of log
+  fatal/panicking (exception made of the certificate infrastructure which absolutely needs to work
+  for security reasons).
+
 Please see the [example](https://github.com/reeflective/team/tree/main/example) directory for all client/server entrypoint examples.
 
 -----
 ## Documentation
+
+Go code documentation is available at https://pkg.go.dev/github.com/reeflective/team.
+Client and server documentation can found in the [directories section](https://pkg.go.dev/github.com/reeflective/team#section-directories) of the Go documentation.
+The `example/` subdirectories also include documentation for their own code, and should provide
+a good introduction to this library usage. 
 
 -----
 ## Differences with Hashicorp Go plugin system
