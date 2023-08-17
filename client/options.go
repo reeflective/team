@@ -26,8 +26,6 @@ import (
 
 	"github.com/reeflective/team/internal/assets"
 	"github.com/sirupsen/logrus"
-
-	"github.com/reeflective/team/internal/assets"
 )
 
 const noTeamdir = "no team subdirectory"
