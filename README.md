@@ -123,7 +123,7 @@ The library rests on several principles, constraints and ideas to fulfill its in
 
 The following extracts assume a program binary named `teamserver`, which is simply the root command
 of the server-side team code. In this case therefore, the binary program only purpose its to be a
-teamserver, with no application-specific logic, and is useless on its own:
+teamserver, with no application-specific logic, (and is therefore quite useless on its own):
 ```
 $ teamserver
 Manage the application server-side teamserver and users
@@ -174,6 +174,7 @@ teamserver import ~/.other_app/teamserver/certs/other_app_user-ca-cert.teamserve
 teamserver listen --host localhost --persistent 
 teamserver listen --host 172.10.0.10 --port 32333 --persistent
 teamserver status                                                   # Prints the saved listeners, configured loggers, databases, etc.
+teamserver daemon --host localhost --port 31337                     # Blocking: serves all persistent listeners and a main one at localhost:31337
 
 # 3 - Export and enable a systemd service configuration for the teamserver.
 teamserver systemd                                                  # Use default host, port and listener stacks. 
@@ -293,6 +294,25 @@ has been the "plugin system" for emulating the dynamic workflows of interpreted 
 the most widely used attempt being the [Hashicorp plugin
 system](https://github.com/hashicorp/go-plugin), which entirely rests on an (g)RPC backend.
 
+Consequently, differences and similarities can be resumed as follows:
+- The **Hashicorp plugins only support "remote" plugins** in that each plugin must be a different
+  binary. Although those plugins seem to be executed "in-memory", they are not. On the contrary,
+  the `reeflective/team` clients and servers can (should, and will) be used both in memory and
+  remotely (here remotely means as a distinct subprocess: actual network location is irrelevant).
+- The purpose of the `reeflective/team` library is **not** to emulate dynamic code execution behavior.
+  Rather, its intent is to make programs that should or might be better used as servers to several
+  clients to act as such easily and securely in many different scenarios.
+- The **Hashicorp plugins are by essence restrained to an API problem**, and while the `team` library
+  is equally (but not mandatorily or exclusively) about interactive usage of arbitrary programs.
+- **The Hashicorp plugin relies mandatorily (since it's built on) a gRPC transport backend**. While
+  gRPC is a very sensible choice for many reasons (and is therefore used for the default example
+  backend in `example/transports/`), the `team` library does not force library users to use a given
+  transport/RPC backend, nor even to use one. Again, this would be beyond the library scope, but
+  what is in scope is the capacity of this library to interface with or use different transports.
+- Finally, the Hashicorp plugins are not aware of any concept of users as they are considered by
+  the team library, although both use certificate-based connections. However, `team` promotes and
+  makes easy to use mutually authenticated (Mutual TLS) connections (see the default gRPC example 
+  backend). Related to this, teamservers integrate loggers and a database to store working data.
 
 -----
 ## Status
