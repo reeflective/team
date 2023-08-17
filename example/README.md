@@ -1,5 +1,5 @@
 
-## Examples
+# Examples
 
 This directory contains several example components or programs leveraging teamclients and/or teamservers.
 Each of the packages' code is documented to the best extent possible, and structured accordingly.
@@ -13,7 +13,33 @@ Overall, the example directory can serve two purposes:
   This should possible to the extent that the code has been rewritten to have sensible
   fallback behavior, to log its various steps and errors, and to fail earlier rather later.
 
-### I - General workflow & entrypoints
+## Exploring examples as a tool user
+
+Since this library is about enabling users to "team-connect" their tools to make them collaborate,
+you can also test this library from this user perspective by installing the examples as binaries
+and toying with them:
+
+```bash
+# Install the teamserver and teamclients.
+go install github.com/reeflective/team/example/teamserver
+go install github.com/reeflective/team/example/teamclient
+
+# Install the completion engine and source both tools' scripts (optional)
+# See this project documentation for setup with your own shell. Below is bash/zsh.
+go install github.com/rsteube/carapace-bin@latest
+source <(teamserver _carapace)
+source <(teamclient _carapace)
+
+# Use the tools
+teamserver status
+teamserver user --name Michael --host localhost
+teamclient import Michael_localhost.teamclient.cfg
+
+teamserver daemon &
+teamclient version
+```
+
+## I - General workflow & entrypoints
 
 Therefore, users should probably start reading those files in order:
 1) `teamserver/main.go` shows several examples of server-side program entrypoints, with varying
@@ -21,9 +47,9 @@ Therefore, users should probably start reading those files in order:
 2) `teamclient/main.go` shows some equivalent examples for teamclient-only programs. These functions
    are a counterpart to some of those found in (1), as they use the same transport/RPC stack.
 
-### II - Transport backends
+## II - Transport backends
 
-#### Team Server
+### Team Server
 Once you feel having a good understanding of entrypoints (server/client creation, setup, CLI generation
 and related), you can then take a look at the transport backends mechanism, which allows to register any
 number of transport/RPC listener/server backends to your core application teamserver:
@@ -39,7 +65,7 @@ number of transport/RPC listener/server backends to your core application teamse
    it's very likely that you will either decide to use it as is (or mostly), or that you will opt for
    simpler transport backends to plug onto your teamservers.
 
-#### Team Client
+### Team Client
 5) `transports/grpc/client/client.go` is used by the `teamclient/main.go` to create and prepare the gRPC
    counterpart to the server backend previously mentioned, using similar APIs to setup authentication,
    encryption and logging, and implementing the dialer backend in the same fashion.
