@@ -167,6 +167,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) (err er
 // ServeAddr attempts to serve a listener stack identified by "name" (the listener should be registered
 // with the teamserver with WithListener() option), on a given host:port address, with any provided option.
 // If returns either a critical error raised by the listener, or the ID of the listener job, for control.
+// The call is non-blocking, contrarily to the server.ServeDaemon() method.
 func (ts *Server) ServeAddr(name string, host string, port uint16, opts ...Options) (id string, err error) {
 	// If server was not initialized yet, do it.
 	// This at least will update any listener/server-specific options.
