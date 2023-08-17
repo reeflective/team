@@ -20,10 +20,10 @@ package commands
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
-	"github.com/reeflective/team/internal/version"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -42,28 +42,34 @@ func versionCmd(cli *client.Client) func(cmd *cobra.Command, args []string) erro
 		}
 
 		// Server
-		serverVer, err := cli.ServerVersion()
+		serverVer, err := cli.VersionServer()
 		if err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Server error: %s\n", err)
 		}
 
-		dirty := ""
-		if serverVer.Dirty {
-			dirty = fmt.Sprintf(" - %sDirty%s", command.Bold, command.Normal)
-		}
+		serverVerInfo := fmt.Sprintf("Server v%d.%d.%d - %s - %s/%s\n",
+			serverVer.Major, serverVer.Minor, serverVer.Patch, serverVer.Commit,
+			serverVer.OS, serverVer.Arch)
+		serverCompiledAt := time.Unix(serverVer.CompiledAt, 0)
 
-		serverSemVer := fmt.Sprintf("%d.%d.%d", serverVer.Major, serverVer.Minor, serverVer.Patch)
-		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Server v%s - %s%s\n", serverSemVer, serverVer.Commit, dirty)
+		fmt.Fprint(cmd.OutOrStdout(), command.Info+serverVerInfo)
+		fmt.Fprintf(cmd.OutOrStdout(), "    Compiled at %s\n", serverCompiledAt)
+		fmt.Fprintln(cmd.OutOrStdout())
 
 		// Client
-		cdirty := ""
-		if version.GitDirty() {
-			cdirty = fmt.Sprintf(" - %sDirty%s", command.Bold, command.Normal)
+		clientVer, err := cli.VersionClient()
+		if err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Client error: %s\n", err)
+			return nil
 		}
 
-		cliVer := version.Semantic()
-		cliSemVer := fmt.Sprintf("%d.%d.%d", cliVer[0], cliVer[1], cliVer[2])
-		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Client v%s - %s%s\n", cliSemVer, version.GitCommit(), cdirty)
+		clientVerInfo := fmt.Sprintf("Client v%d.%d.%d - %s - %s/%s\n",
+			clientVer.Major, clientVer.Minor, clientVer.Patch, clientVer.Commit,
+			clientVer.OS, clientVer.Arch)
+		clientCompiledAt := time.Unix(clientVer.CompiledAt, 0)
+
+		fmt.Fprint(cmd.OutOrStdout(), command.Info+clientVerInfo)
+		fmt.Fprintf(cmd.OutOrStdout(), "    Compiled at %s\n", clientCompiledAt)
 
 		return nil
 	}
