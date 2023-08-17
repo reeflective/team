@@ -107,9 +107,9 @@ The library rests on several principles, constraints and ideas to fulfill its in
   include replacing parts or all of the transport, RPC, loggers, database and filesystem
   backends.
 - To that effect, the library offers **different interfaces to its functionality**: an API (Go code)
-  aiming to provide developers a working-by-default, simple and powerful way to instruct their
-  software how to collaborate with peers, and a CLI, for users to operate their team tools, manage 
-  their related team configurations with ease, with a featured command-line tree to embed anywhere.
+  provides developers a working-by-default, simple and powerful way to instruct their software how 
+  to collaborate with peers, and a CLI, for users to operate their team tools, manage their related 
+  team configurations with ease, with a featured command-line tree to embed anywhere.
 - Ensure that team client/server functionality can be **easily integrated in automated workflows**: 
   this is done by offering clear code/execution paths and behaviors, for both users and developers,
   and by providing commands and functions to ease deployment of said tools.
@@ -128,7 +128,7 @@ Related or resulting from the above, below are examples of behavior adopted by t
 The following extracts assume a program binary named `teamserver`, which is simply the root command
 of the server-side team code. In this case therefore, the binary program only purpose its to be a
 teamserver, with no application-specific logic, and is useless on its own:
-```bash
+```
 $ teamserver
 Manage the application server-side teamserver and users
 
@@ -152,7 +152,7 @@ user management
 
 In this example, this program comes with a client-only binary counterpart, `teamclient`. The latter 
 does not include any team server-specific code, and has therefore a much smaller command set:
-```bash
+```
 $ teamclient
 Client-only teamserver commands (import configs, show users, etc)
 
@@ -165,8 +165,81 @@ Available Commands:
   version     Print teamserver client version
 ```
 
+With these example binaries at hand, below are some examples of workflows.
+Starting with the `teamserver` binary (which might be under access/control of a team admin):
+``` bash
+# Example 1 - Generate a user for a local teamserver, and import users from a file.
+
+# Example 2 - Start some teamserver listeners, then start the teamserver daemon (blocking).
+
+# Example 3 - Export and enable a systemd service configuration for the teamserver.
+
+# Example 4 - Import the "remote" administrator configuration for (1), and use it.
+```
+
+Continuing the `teamclient` binary (which is available to all users' tool in the team):
+```bash
+# Example 1 - Import a remote teamserver configuration file given by a team administrator.
+
+# Example 2 - Query the server for its information.
+```
+
 -----
 ## API (developers)
+
+The teamclient and teamserver APIs are designed with several things in mind as well:
+- While users are free to use their tools teamclients/servers within the bounds of the provided
+  command-line interface tree (`teamserver` and `teamclient` commands), the developers using the 
+  library have access to a slightly larger API, especially with regards to "selection strategies"
+  (grossly, the way tools' teamclients choose their remote teamservers before connecting to them).
+  This is equivalent of saying that tools developers should have identified 70% of all different
+  scenarios/valid operation mode for their tools, and program their teamclients accounting for this,
+  but let the users decide of the remaining 30% when using the tools teamclient/server CLI commands.
+- The library makes it easy to embed a teamclient or a teamserver in existing codebases, or easy to 
+  include it in the ones who will need it in the future. In any case, importing and using a default
+  teamclient/teamserver should fit into a couple of function calls at most.
+- To provide a documented code base, with a concise naming and programming model which allows equally
+  well to use default teamclient backends or to partially/fully reimplement different layers.
+
+Below is the simplest, shortest example of the above's `teamserver` binary `main()` function:
+```go
+// Generate a teamserver, without any specific transport/RPC backend.
+// Such backends are only needed when the teamserver serves remote clients.
+teamserver, err := server.New("teamserver")
+
+// Generate a tree of server-side commands: this tree also has client-only
+// commands as a subcommand "client" of the "teamserver" command root here.
+serverCmds := commands.Generate(teamserver, teamserver.Self())
+
+// Run the teamserver CLI.
+serverCmds.Execute()
+```
+
+Another slightly more complex example, involving a gRPC transport/RPC backend:
+```go
+// The examples directory has a default teamserver listener backend.
+gTeamserver := grpc.NewListener()
+
+// Create a new teamserver, register the gRPC backend with it.
+// All gRPC teamclients will be able to connect to our teamserver.
+teamserver, err := server.New("teamserver", server.WithListener(gTeamserver))
+
+// Since our teamserver offers its functionality through a gRPC layer,
+// our teamclients must have the corresponding client-side RPC client backend.
+// Create a gRPC teamclient backend.
+gTeamclient := grpc.NewClientFrom(gTeamserver)
+
+// Create a new teamclient, registering the gRPC backend to it.
+teamclient := teamserver.Self(client.WithDialer(gTeamclient))
+
+// Generate the commands for the teamserver.
+serverCmds := commands.Generate(teamserver, teamclient)
+
+// Run any of the commands.
+serverCmds.Execute()
+```
+
+Please see the [example](https://github.com/reeflective/team/tree/main/example) directory for all client/server entrypoint examples.
 
 -----
 ## Documentation
