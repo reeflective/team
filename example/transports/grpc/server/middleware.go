@@ -25,14 +25,13 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_tags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"github.com/reeflective/team/example/transports/grpc/common"
+	"github.com/reeflective/team/server"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
-
-	"github.com/reeflective/team/example/transports/grpc/common"
-	"github.com/reeflective/team/server"
 )
 
 // BufferingOptions returns a list of server options with max send/receive
