@@ -2,8 +2,6 @@ module github.com/reeflective/team
 
 go 1.21
 
-toolchain go1.21.0
-
 require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
