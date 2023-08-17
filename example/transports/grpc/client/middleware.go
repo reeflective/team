@@ -23,10 +23,11 @@ import (
 	"encoding/json"
 
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
-	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/transports/grpc/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/example/transports/grpc/common"
 )
 
 // TokenAuth extracts authentication metadata from contexts,
@@ -86,7 +87,7 @@ func tlsAuthMiddleware(cli *client.Client) ([]grpc.DialOption, error) {
 	}, nil
 }
 
-// Return value is mapped to request headers.
+// GetRequestMetadata return values that are mapped to request headers.
 func (t TokenAuth) GetRequestMetadata(_ context.Context, _ ...string) (map[string]string, error) {
 	return map[string]string{
 		"Authorization": "Bearer " + string(t),

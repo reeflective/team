@@ -21,8 +21,8 @@ package server
 import (
 	"context"
 
+	"github.com/reeflective/team/example/transports/grpc/proto"
 	"github.com/reeflective/team/server"
-	"github.com/reeflective/team/transports/grpc/proto"
 )
 
 // rpcServer is the gRPC server implementation.
@@ -41,7 +41,7 @@ func newServer(server *server.Server) *rpcServer {
 
 // GetVersion returns the teamserver version.
 func (ts *rpcServer) GetVersion(context.Context, *proto.Empty) (*proto.Version, error) {
-	ver, err := ts.server.Version()
+	ver, err := ts.server.VersionServer()
 
 	return &proto.Version{
 		Major:      ver.Major,

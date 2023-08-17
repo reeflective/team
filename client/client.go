@@ -21,11 +21,14 @@ package client
 import (
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/assets"
-	"github.com/sirupsen/logrus"
+	"github.com/reeflective/team/internal/version"
 )
 
 // Client is the core driver of an application teamclient.
@@ -37,14 +40,14 @@ import (
 // The client also DOES NOT include any teamserver-side code.
 //
 // This teamclient core job is to:
-// - Fetch, configure and use teamserver endpoint configurations.
-// - Drive the process of connecting to & disconnecting from a server.
-// - Query a teamserver for its version and users information.
+//   - Fetch, configure and use teamserver endpoint configurations.
+//   - Drive the process of connecting to & disconnecting from a server.
+//   - Query a teamserver for its version and users information.
 //
 // Additionally, this client offers:
-// - Pre-configured loggers for all client-side related events.
-// - Various options to configure its backends and behaviors.
-// - A builtin, abstracted and app-specific filesystem (in memory or on disk).
+//   - Pre-configured loggers for all client-side related events.
+//   - Various options to configure its backends and behaviors.
+//   - A builtin, abstracted and app-specific filesystem (in memory or on disk).
 //
 // Various combinations of teamclient/teamserver usage are possible.
 // Please see the Go module example/ directory for a list of them.
@@ -77,14 +80,14 @@ type Client struct {
 // using this dialer, and this clientConn will be provided to these hooks.
 //
 // Examples of what this clientConn can be:
-// - The clientConn is a specific, but non-idiomatic RPC client (ex: a *grpc.ClientConn).
-// - A simple net.Conn over which anything can be done further.
-// - Nothing: a dialer might not need to use or even create a client connection.
+//   - The clientConn is a specific, but non-idiomatic RPC client (ex: a *grpc.ClientConn).
+//   - A simple net.Conn over which anything can be done further.
+//   - Nothing: a dialer might not need to use or even create a client connection.
 type Dialer interface {
 	// Init is used by any dialer to query the teamclient driving it about:
-	// - The remote teamserver address and transport credentials
-	// - The user registered in this remote teamserver configuration.
-	// - To make use of client-side loggers, filesystem and other utilities.
+	//   - The remote teamserver address and transport credentials
+	//   - The user registered in this remote teamserver configuration.
+	//   - To make use of client-side loggers, filesystem and other utilities.
 	Init(c *Client) error
 
 	// Dial should connect to the endpoint available in any
@@ -107,8 +110,8 @@ type Dialer interface {
 //   - When being provided a specific dialer/client/RPC backend.
 //
 // The teamclient will only perform a few init things before being returned:
-// - Setup its filesystem, either on-disk (default behavior) or in-memory.
-// - Initialize loggers and the files they use, if any.
+//   - Setup its filesystem, either on-disk (default behavior) or in-memory.
+//   - Initialize loggers and the files they use, if any.
 //
 // This may return an error if the teamclient is unable to work with the provided
 // options (or lack thereof), which may happen if the teamclient cannot use and write
@@ -225,16 +228,48 @@ func (tc *Client) Users() (users []team.User, err error) {
 	return res, nil
 }
 
-// ServerVersion returns the version information of the server to which
+// VersionClient returns the version information of the client, and thus
+// does not require the teamclient to be connected to a teamserver.
+// This function satisfies the VersionClient() function of the team.Client interface,
+// which means that library users are free to reimplement it however they wish.
+func (tc *Client) VersionClient() (ver team.Version, err error) {
+	if tc.client != nil {
+		return tc.client.VersionClient()
+	}
+
+	semVer := version.Semantic()
+	compiled, _ := version.Compiled()
+
+	var major, minor, patch int32
+
+	if len(semVer) == 3 {
+		major = int32(semVer[0])
+		minor = int32(semVer[1])
+		patch = int32(semVer[2])
+	}
+
+	return team.Version{
+		Major:      major,
+		Minor:      minor,
+		Patch:      patch,
+		Commit:     version.GitCommit(),
+		Dirty:      version.GitDirty(),
+		CompiledAt: compiled.Unix(),
+		OS:         runtime.GOOS,
+		Arch:       runtime.GOARCH,
+	}, nil
+}
+
+// VersionServer returns the version information of the server to which
 // the client is connected.
 // If the teamclient has no backend, it returns an ErrNoTeamclient error.
 // If the backend returns an error, the latter is returned as is.
-func (tc *Client) ServerVersion() (ver team.Version, err error) {
+func (tc *Client) VersionServer() (ver team.Version, err error) {
 	if tc.client == nil {
 		return ver, ErrNoTeamclient
 	}
 
-	version, err := tc.client.Version()
+	version, err := tc.client.VersionServer()
 	if err != nil {
 		return
 	}

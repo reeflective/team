@@ -3,11 +3,12 @@ package main
 import (
 	"log"
 
+	"github.com/rsteube/carapace"
+
 	"github.com/reeflective/team/client"
+	grpc "github.com/reeflective/team/example/transports/grpc/server"
 	"github.com/reeflective/team/server"
 	"github.com/reeflective/team/server/commands"
-	grpc "github.com/reeflective/team/transports/grpc/server"
-	"github.com/rsteube/carapace"
 )
 
 // main shows how to use a teamserver and teamclient with gRPC backends (transport & RPC).

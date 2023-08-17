@@ -22,8 +22,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
+
+	"github.com/reeflective/team/internal/log"
 )
 
 // NamedLogger returns a new logging "thread" with two fields (optional)

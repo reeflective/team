@@ -28,12 +28,13 @@ import (
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/systemd"
 	"github.com/reeflective/team/server"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) error {
@@ -61,6 +62,17 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 				fmt.Fprintf(cmd.OutOrStdout(), "stacktrace from panic: \n"+string(debug.Stack()))
 			}
 		}()
+
+		// cli args take precedence over config (this is here for status printing purposes)
+		if lhost == "" {
+			lhost = serv.GetConfig().DaemonMode.Host
+		}
+
+		if lport == 0 {
+			lport = uint16(serv.GetConfig().DaemonMode.Port)
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), "Starting %s teamserver daemon on %s:%d ...", serv.Name(), lhost, lport)
 
 		// Blocking call, your program will only exit/resume on Ctrl-C/SIGTERM
 		return serv.ServeDaemon(lhost, lport)
@@ -214,6 +226,7 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		cfg := serv.GetConfig()
 
 		dbCfg := serv.DatabaseConfig()
+
 		database := fmt.Sprintf("%s - %s [%s:%d] ", dbCfg.Dialect, dbCfg.Database, dbCfg.Host, dbCfg.Port)
 
 		// General options, in-memory, default port, config path, database, etc
@@ -230,7 +243,7 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Logging"))
 		fmt.Fprint(cmd.OutOrStdout(), displayGroup([]string{
-			"Level", fakeLog.Level.String(),
+			"Level", fakeLog.Logger.Level.String(),
 			"Root", log.FileName(filepath.Join(serv.LogsDir(), serv.Name()), true),
 			"Audit", filepath.Join(serv.LogsDir(), "audit.json"),
 		}))
