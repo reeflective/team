@@ -1,25 +1,4 @@
 
-<!-- This is a README template used as a basis for most repositories hosted here. -->
-<!-- This repository has two branches: -->
-<!-- main       - Contains the README and other default files -->
-
-<!-- Documentation Setup/Pull/Edit/Push -->
-<!-- ----------------------------------------- -->
-
-<!-- We include the Github's wiki repository as a subtree of the project's repository. -->
-<!-- (Using this [link](https://gist.github.com/SKempin/b7857a6ff6bddb05717cc17a44091202)) -->
-<!-- Please check the raw version of this README, contains comments with appropriate -->
-<!-- commands for pushing/pulling the documentation subtree. -->
-
-<!-- Add the initial wiki in a subtree (normally ':branch' should be 'main'): -->
-<!-- git subtree add --prefix docs/ https://github.com/:user/:repo.wiki.git :branch --squash -->
-
-<!-- Pull latest changes in the wiki -->
-<!-- `git subtree pull --prefix docs/ https://github.com/:user/:repo.git master --squash` -->
-
-<!-- Push your changes to the wiki -->
-<!-- `git subtree push --prefix docs/ https://github.com/:user/:repo.git :branch` -->
-
 <div align="center">
   <br> <h1> Team </h1>
 
@@ -66,23 +45,78 @@
 
 
 -----
-
 ## Summary
 
------
+The client-server paradigm is an ubiquitous concept in computer science. Equally large and common is the problem
+of building software that _collaborates_ easily with other peer programs. Although writing collaborative software
+seems to be the daily task of many engineers around the world, succeedingly and easily doing so in big programs
+as well as in smaller ones is not more easily done than said. Difficulty still increases -and keeping in mind that 
+humans use software and not the inverse- when programs must enhance the capacity of humans to collaborate while 
+not restricting the number of ways they can do so, for small tasks as well as for complex ones.
 
+The `reeflective/team` library provides a small toolset for arbitrary programs (and especially those controlled in 
+more or less interactive ways) to collaborate together by acting as clients and servers of each others, as part
+of a team. Teams being made of players (humans _and_ their tools), the library focuses on offering "human teaming"
+infrastructure and tools: that is, treating software tools that are either _teamclients_ or _teamservers_ of others.
+
+The project originates from the refactoring of a security-oriented tool that used this approach to clearly segregate 
+client and server binary code (the former's not needing most of the latter's). Besides, the large exposure of the 
+said-tool to the CLI prompted the author to rethink how the "collaborative" problem could be approached and explored 
+from different viewpoints: distinguishing between the tools' developers, and their users. After having to reuse this 
+core code for other projects, the idea appeared to extract the relevant parts and to restructure and repackage them 
+behind coherent interfaces (API and CLI).
+
+The result of this refactoring consists in 2 Go packages (`client` and `server`) for programs needing to act as:
+- A `Teamclient`: a program, or one of its components, that needs to rely on a "remote" program peer to serve some
+  functionality that is available to a team of users' tools. The program acting as a _teamclient_ may do so for
+  things as simple as sending a message to the team, or as complicated as a compiler backend with which multiple
+  client programs can send data to process and build.
+- A `Teamserver`: The remote, server-side counterpart of the software teamclient. Again, the teamserver can be
+  doing anything, from simply notifying users' teamclient connections to all the team all the way to handling
+  very complex and resource-hungry tasks that can only be ran on a server host.
+
+"team tool"
+
+-----
+## Purposes, Constraints and Features
+
+The library rests on several principles, constraints and ideas to fulfill its intended purpose:
+- The library's sole aim is to **make most programs able to collaborate together** under the paradigm of team clients 
+  and team servers, and to do so while ensuring performance, coherence, ease of use and security of all processes 
+  and workflows involved. This, under the _separate viewpoints_ of tool development, enhancement and usage.
+- Ensure a **working-by-default toolset**, assuming that the time spent on any tool's configuration is inversely 
+  proportional to its usage. Emphasis on this aspect should apply equally well to team tools' users and developers.
+- **Accomodate for the needs of developers to use more specific components**, at times or at points, while not hampering
+  on the working-by-default aspects of the team client/server toolset. Examples include replacing parts or all of the
+  transport, RPC, loggers, database and filesystem backends.
+- To that effect, the library **offer different interfaces to its functionality**: an API (Go code) aiming to provide
+  developers a working-by-default, simple but powerful way to instruct their software how to collaborate with peers.
+
+
+-----
 ## CLI examples (users)
 
 -----
-
 ## API examples (developers)
 
 -----
-
 ## Documentation
 
 -----
+## Differences with Hashicorp Go plugin system
 
+At first glance, different and not much related to our current topic is the equally large problem of dynamic code 
+loading and execution for arbitrary programs. In the spectrum of major programming languages, various approaches 
+have been taken to tackle the dynamic linking, loading and execution problem, with interpreted languages offering 
+the most common solutioning approach to this.
+
+The Go language (and many other compiled languages that do not encourage dynamic linking for that matter) has to deal with 
+the problem through other means, the first of which simply being the adoption of different architectural designs in the 
+first place (eg. "microservices"). Another path has been the "plugin system" for emulating the dynamic workflows of interpreted 
+languages, of which the most widely used attempt being the [Hashicorp plugin system](https://github.com/hashicorp/go-plugin), which entirely rests on an (g)RPC backend.
+
+
+-----
 ## Status
 
 The Command-Line and Application-Programming Interfaces of this library are unlikely to change
@@ -99,7 +133,6 @@ to 9 minor releases (`0.1.0`, `0.2.0`, `0.3.0`, etc...), ending up in `v1.0.0`.
 - New features and/or PRs are welcome if they are likely to be useful to most users.
 
 -----
-
 ## Possible enhancements
 
 The list below is not an indication on the roadmap of this repository, but should be viewed as
