@@ -29,9 +29,9 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/command"
-	"github.com/reeflective/team/internal/log"
 	"gopkg.in/AlecAivazis/survey.v1"
 )
 
