@@ -25,11 +25,10 @@ import (
 	"path"
 	"path/filepath"
 
-	"gorm.io/gorm"
-
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/db"
+	"gorm.io/gorm"
 )
 
 const (
@@ -62,7 +61,7 @@ func (ts *Server) DatabaseConfig() *db.Config {
 
 // GetDatabaseConfigPath - File path to config.json.
 func (ts *Server) dbConfigPath() string {
-	appDir := ts.ConfigPath()
+	appDir := ts.ConfigsDir()
 	log := ts.NamedLogger("config", "database")
 	dbFileName := fmt.Sprintf("%s.%s", ts.Name()+"_database", command.ServerConfigExt)
 	databaseConfigPath := filepath.Join(appDir, dbFileName)
