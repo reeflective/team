@@ -70,6 +70,10 @@ and explored from different viewpoints: distinguishing between the tools' develo
 users. After having to reuse this core code for other projects, the idea appeared to extract the
 relevant parts and to restructure and repackage them behind coherent interfaces (API and CLI).
 
+
+-----
+## Components & Terms
+
 The result consists in 2 Go packages (`client` and `server`) for programs needing to act as:
 - A **Team client**: a program, or one of its components, that needs to rely on a "remote" program peer
   to serve some functionality that is available to a team of users' tools. The program acting as a
@@ -88,7 +92,7 @@ Throughout this library and its documentation, various words are repeatedly empl
   large.
 
 -----
-## Purposes, Constraints and Features
+## Principles, Constraints & Features
 
 The library rests on several principles, constraints and ideas to fulfill its intended purpose:
 - The library's sole aim is to **make most programs able to collaborate together** under the
@@ -160,20 +164,39 @@ Available Commands:
 With these example binaries at hand, below are some examples of workflows.
 Starting with the `teamserver` binary (which might be under access/control of a team admin):
 ``` bash
-# Example 1 - Generate a user for a local teamserver, and import users from a file.
+# 1 - Generate a user for a local teamserver, and import users from a file.
+teamserver user --name Michael --host localhost
+teamserver import ~/.other_app/teamserver/certs/other_app_user-ca-cert.teamserver.pem
 
-# Example 2 - Start some teamserver listeners, then start the teamserver daemon (blocking).
+# 2 - Start some teamserver listeners, then start the teamserver daemon (blocking).
+# Use the application-defined default port in the first call, and instruct the server
+# to start the listeners automatically when used in daemon mode with --persistent.
+teamserver listen --host localhost --persistent 
+teamserver listen --host 172.10.0.10 --port 32333 --persistent
+teamserver status # Prints the saved listeners, configured loggers, databases, etc.
 
-# Example 3 - Export and enable a systemd service configuration for the teamserver.
+# 3 - Export and enable a systemd service configuration for the teamserver.
+teamserver systemd  # Use default host, port and listener stacks. 
+teamserver systemd --host localhost --binpath /path/to/teamserver # Specify binary path.
+teamserver systemd --user --save ~/teamserver.service             # Print to file instead of stdout.
 
-# Example 4 - Import the "remote" administrator configuration for (1), and use it.
+# 4 - Import the "remote" administrator configuration for (1), and use it.
+teamserver client import ~/Michael_localhost.teamclient.cfg
+teamserver client version   # Print the client and the server version information.
+teamserver client users     # Print all users registered to the teamserver and their status.
+
+# 5 - Quality of life
+teamserver _carapace <shell> # Source detailed the completion engine for the teamserver.
 ```
 
 Continuing the `teamclient` binary (which is available to all users' tool in the team):
 ```bash
 # Example 1 - Import a remote teamserver configuration file given by a team administrator.
+teamclient import ~/Michael_localhost.teamclient.cfg
 
 # Example 2 - Query the server for its information.
+teamclient users
+teamclient version
 ```
 
 -----
