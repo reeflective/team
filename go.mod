@@ -3,10 +3,10 @@ module github.com/reeflective/team
 go 1.21
 
 require (
+	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
-	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/ncruces/go-sqlite3 v0.8.4
 	github.com/ncruces/go-sqlite3/gormlite v0.8.4
 	github.com/psanford/memfs v0.0.0-20230130182539-4dbf7e3e865e
@@ -16,7 +16,6 @@ require (
 	github.com/spf13/pflag v1.0.5
 	google.golang.org/grpc v1.56.1
 	google.golang.org/protobuf v1.31.0
-	gopkg.in/AlecAivazis/survey.v1 v1.8.8
 	gorm.io/driver/mysql v1.5.1
 	gorm.io/driver/postgres v1.5.2
 	gorm.io/driver/sqlite v1.5.2
@@ -39,6 +38,7 @@ require (
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/ncruces/julianday v0.1.5 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
@@ -50,6 +50,7 @@ require (
 	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/term v0.7.0 // indirect
 	golang.org/x/text v0.12.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
