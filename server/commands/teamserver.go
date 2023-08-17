@@ -62,6 +62,17 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 			}
 		}()
 
+		// cli args take precedence over config (this is here for status printing purposes)
+		if lhost == "" {
+			lhost = serv.GetConfig().DaemonMode.Host
+		}
+
+		if lport == 0 {
+			lport = uint16(serv.GetConfig().DaemonMode.Port)
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), "Starting %s teamserver daemon on %s:%d ...", serv.Name(), lhost, lport)
+
 		// Blocking call, your program will only exit/resume on Ctrl-C/SIGTERM
 		return serv.ServeDaemon(lhost, lport)
 	}

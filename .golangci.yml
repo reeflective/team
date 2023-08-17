@@ -186,7 +186,7 @@ linters:
     # - gofmt           # formats and checks for code simplification                (fmt)
     # - gofumpt         # checks whether code was gofumpt-ed                        (fmt)
     - goheader        # checks if file header matches to pattern                  (style)
-    - goimports       # fixes imports, formats code same as gofmt                 (fmt,import)
+    #- goimports       # fixes imports, formats code same as gofmt                 (fmt,import)
     # - golint          # Deprecated 
     - gomnd           # analyzer to detect magic numbers                          (style)
     - gomoddirectives # manage replace/retract/excludes directives in go.mod      (style,mod)
@@ -261,7 +261,7 @@ linters:
     - forbidigo       # Forbids identifiers                                       (style)
     - gochecknoglobals # checks that no global variables exist                    (style)
     - gochecknoinits  # checks that no init functions are present                 (style)
-    #- goimports       # fixes imports, formats code same as gofmt                 (fmt,import)
+    - goimports       # fixes imports, formats code same as gofmt                 (fmt,import)
     - lll             # Report long lines                                         (style)
     - promlinter      # checks Prometheus metrics naming via promlint
     - rowserrcheck    # checks if Err of rows is checked successfully             (bugs,sql)
