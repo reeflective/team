@@ -45,9 +45,9 @@ const (
 //
 // Its default path is ~/.app/teamserver/configs/app.teamserver.cfg.
 // It uses the following default values:
-// - Daemon host: ""
-// - Daemon port: 31416
-// - logging file level: Info.
+//   - Daemon host: ""
+//   - Daemon port: 31416
+//   - logging file level: Info.
 type Config struct {
 	// When the teamserver command `app teamserver daemon` is executed
 	// without --host/--port flags, the teamserver will use the config.

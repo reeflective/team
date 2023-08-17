@@ -6,6 +6,7 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
+	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/ncruces/go-sqlite3 v0.8.4
 	github.com/ncruces/go-sqlite3/gormlite v0.8.4
 	github.com/psanford/memfs v0.0.0-20230130182539-4dbf7e3e865e
@@ -38,7 +39,6 @@ require (
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
-	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/ncruces/julianday v0.1.5 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
