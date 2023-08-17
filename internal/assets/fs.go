@@ -42,14 +42,19 @@ const (
 const (
 	// Teamclient.
 
-	DirClient  = "teamclient" // DirClient is the name of the teamclient subdirectory.
-	DirLogs    = "logs"       // DirLogs subdirectory name
-	DirConfigs = "configs"    // DirConfigs subdirectory name
+	// DirClient is the name of the teamclient subdirectory.
+	DirClient = "teamclient"
+	// DirLogs subdirectory name.
+	DirLogs = "logs"
+	// DirConfigs subdirectory name.
+	DirConfigs = "configs"
 
 	// Teamserver.
 
-	DirServer = "teamserver" // DirClient is the name of the teamserver subdirectory.
-	DirCerts  = "certs"      // DirCerts subdirectory name
+	// DirServer is the name of the teamserver subdirectory.
+	DirServer = "teamserver"
+	// DirCerts subdirectory name.
+	DirCerts = "certs"
 )
 
 // FS is a filesystem abstraction for teamservers and teamclients.

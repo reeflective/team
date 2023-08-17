@@ -25,10 +25,6 @@ jobs:
       with:
         go-version: 1.21
 
-    - name: Version information
-      run: bash teamserver_version_info 
-      working-directory: internal/version
-
     - name: Teamclient example
       working-directory: example/teamclient
       run: go build -v .
