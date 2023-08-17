@@ -225,6 +225,7 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		cfg := serv.GetConfig()
 
 		dbCfg := serv.DatabaseConfig()
+
 		database := fmt.Sprintf("%s - %s [%s:%d] ", dbCfg.Dialect, dbCfg.Database, dbCfg.Host, dbCfg.Port)
 
 		// General options, in-memory, default port, config path, database, etc
@@ -241,7 +242,7 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Logging"))
 		fmt.Fprint(cmd.OutOrStdout(), displayGroup([]string{
-			"Level", fakeLog.Level.String(),
+			"Level", fakeLog.Logger.Level.String(),
 			"Root", log.FileName(filepath.Join(serv.LogsDir(), serv.Name()), true),
 			"Audit", filepath.Join(serv.LogsDir(), "audit.json"),
 		}))
