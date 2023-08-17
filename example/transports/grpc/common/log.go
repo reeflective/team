@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// Maps a grpc response code to a logging level.
+// CodeToLevel maps a grpc response code to a logging level.
 func CodeToLevel(code codes.Code) logrus.Level {
 	switch code {
 	case codes.OK:

@@ -24,12 +24,11 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/status"
-
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/example/transports/grpc/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -163,11 +162,11 @@ func (h *Teamclient) Users() (users []team.User, err error) {
 	return
 }
 
-// ServerVersion returns the version information of the server to which
+// VersionServer returns the version information of the server to which
 // the client is connected, or nil and an error if it could not retrieve it.
 // If the gRPC teamclient is not connected or does not have an RPC client,
 // an ErrNoRPC is returned.
-func (h *Teamclient) Version() (version team.Version, err error) {
+func (h *Teamclient) VersionServer() (version team.Version, err error) {
 	if h.rpc == nil {
 		return version, ErrNoRPC
 	}

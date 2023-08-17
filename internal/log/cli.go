@@ -37,13 +37,13 @@ const (
 )
 
 const (
-	FieldTimestamp = "timestamp"
-	FieldPackage   = "logger"
-	FieldMessage   = "message"
+	fieldTimestamp = "timestamp"
+	fieldPackage   = "logger"
+	fieldMessage   = "message"
 
 	PackageFieldKey = "teamserver_pkg"
 
-	MinimumPackagePad = 11
+	minimumPackagePad = 11
 )
 
 // stdioHook combines a stdout hook (info/debug/trace),
@@ -152,15 +152,15 @@ func (hook *stdoutHook) Format(entry *logrus.Entry) ([]byte, error) {
 	levelLog := fmt.Sprintf("%s%s%s", color(signColor), sign, color(style.Default))
 
 	timestamp := entry.Time.Format(hook.TimestampFormat)
-	timestampLog := fmt.Sprintf("%s%s%s", color(hook.Colors[FieldTimestamp]), timestamp, color(style.Default))
+	timestampLog := fmt.Sprintf("%s%s%s", color(hook.Colors[fieldTimestamp]), timestamp, color(style.Default))
 
 	var pkgLogF string
 
 	pkg := entry.Data[PackageFieldKey]
 	if pkg != nil {
 		pkgLog := fmt.Sprintf(" %v ", pkg)
-		pkgLog = fmt.Sprintf("%-*s", MinimumPackagePad, pkgLog)
-		pkgLogF = strings.ReplaceAll(pkgLog, fmt.Sprintf("%s", pkg), fmt.Sprintf("%s%s%s", color(hook.Colors[FieldPackage]), pkg, color(style.Default)))
+		pkgLog = fmt.Sprintf("%-*s", minimumPackagePad, pkgLog)
+		pkgLogF = strings.ReplaceAll(pkgLog, fmt.Sprintf("%s", pkg), fmt.Sprintf("%s%s%s", color(hook.Colors[fieldPackage]), pkg, color(style.Default)))
 	}
 
 	// Always try to unwrap the error at least once, and colorize it.
@@ -171,7 +171,7 @@ func (hook *stdoutHook) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	messageLog := fmt.Sprintf("%s%s%s", color(hook.Colors[FieldMessage]), message, color(style.Default))
+	messageLog := fmt.Sprintf("%s%s%s", color(hook.Colors[fieldMessage]), message, color(style.Default))
 
 	// Assemble the log message
 	var logMessage string
@@ -265,9 +265,9 @@ func (hook *stderrHook) Levels() []logrus.Level {
 
 func defaultFieldsFormat() map[string]string {
 	return map[string]string{
-		FieldTimestamp: style.BrightBlack,
-		FieldPackage:   style.Dim,
-		FieldMessage:   style.BrightWhite,
+		fieldTimestamp: style.BrightBlack,
+		fieldPackage:   style.Dim,
+		fieldMessage:   style.BrightWhite,
 	}
 }
 

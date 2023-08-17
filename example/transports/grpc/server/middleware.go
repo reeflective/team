@@ -49,20 +49,20 @@ func BufferingOptions() (options []grpc.ServerOption) {
 // preconfigured to perform the following tasks:
 // - Log all connections/disconnections to/from the teamserver listener.
 // - Log all raw client requests into a teamserver audit file (see server.AuditLog()).
-func LogMiddlewareOptions(s *server.Server) ([]grpc.ServerOption, error) {
+func LogMiddlewareOptions(serv *server.Server) ([]grpc.ServerOption, error) {
 	var requestOpts []grpc.UnaryServerInterceptor
 	var streamOpts []grpc.StreamServerInterceptor
 
-	cfg := s.GetConfig()
+	cfg := serv.GetConfig()
 
 	// Audit-log all requests. Any failure to audit-log the requests
 	// of this server will themselves be logged to the root teamserver log.
-	auditLog, err := s.AuditLogger()
+	auditLog, err := serv.AuditLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	requestOpts = append(requestOpts, auditLogUnaryServerInterceptor(s, auditLog))
+	requestOpts = append(requestOpts, auditLogUnaryServerInterceptor(serv, auditLog))
 
 	requestOpts = append(requestOpts,
 		grpc_tags.UnaryServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
@@ -73,7 +73,7 @@ func LogMiddlewareOptions(s *server.Server) ([]grpc.ServerOption, error) {
 	)
 
 	// Logging interceptors
-	logrusEntry := s.NamedLogger("transport", "grpc")
+	logrusEntry := serv.NamedLogger("transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
 		grpc_logrus.WithLevels(common.CodeToLevel),
 	}
@@ -150,10 +150,17 @@ func (ts *Teamserver) initAuthMiddleware() ([]grpc.ServerOption, error) {
 	}, nil
 }
 
-// TODO: Should we change the default in-memory server name ?
+// ContextKey represents a gRPC context metadata key.
+type ContextKey int
+
+const (
+	Transport ContextKey = iota
+	User
+)
+
 func serverAuthFunc(ctx context.Context) (context.Context, error) {
-	newCtx := context.WithValue(ctx, "transport", "local")
-	newCtx = context.WithValue(newCtx, "user", "server")
+	newCtx := context.WithValue(ctx, Transport, "local")
+	newCtx = context.WithValue(newCtx, User, "server")
 
 	return newCtx, nil
 }
@@ -174,8 +181,8 @@ func (ts *Teamserver) tokenAuthFunc(ctx context.Context) (context.Context, error
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
-	newCtx := context.WithValue(ctx, "transport", "mtls")
-	newCtx = context.WithValue(newCtx, "user", user)
+	newCtx := context.WithValue(ctx, Transport, "mtls")
+	newCtx = context.WithValue(newCtx, User, user)
 
 	return newCtx, nil
 }

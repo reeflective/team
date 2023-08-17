@@ -135,7 +135,7 @@ func (ts *Server) GetConfig() *Config {
 	return ts.opts.config
 }
 
-// Save saves config file to disk.
+// SaveConfig saves config file to disk.
 // This uses the on-disk filesystem even if the teamclient is in memory mode.
 func (ts *Server) SaveConfig(cfg *Config) error {
 	cfgLog := ts.NamedLogger("config", "server")

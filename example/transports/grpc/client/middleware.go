@@ -86,7 +86,7 @@ func tlsAuthMiddleware(cli *client.Client) ([]grpc.DialOption, error) {
 	}, nil
 }
 
-// Return value is mapped to request headers.
+// GetRequestMetadata return values that are mapped to request headers.
 func (t TokenAuth) GetRequestMetadata(_ context.Context, _ ...string) (map[string]string, error) {
 	return map[string]string{
 		"Authorization": "Bearer " + string(t),
