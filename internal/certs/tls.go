@@ -25,7 +25,6 @@ import (
 	"os"
 
 	"github.com/reeflective/team/internal/assets"
-	teamlog "github.com/reeflective/team/internal/log"
 )
 
 const (

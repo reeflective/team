@@ -38,7 +38,6 @@ import (
 
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/db"
-	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )

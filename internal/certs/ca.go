@@ -26,7 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/reeflective/team/internal/log"
+	"github.com/reeflective/team/internal/assets"
 )
 
 // -----------------------
