@@ -29,11 +29,10 @@ import (
 	"path/filepath"
 	"sort"
 
-	"gopkg.in/AlecAivazis/survey.v1"
-
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/command"
+	"gopkg.in/AlecAivazis/survey.v1"
 )
 
 const (

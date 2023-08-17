@@ -3,11 +3,10 @@ package main
 import (
 	"log"
 
-	"github.com/rsteube/carapace"
-
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/client/commands"
 	grpc "github.com/reeflective/team/example/transports/grpc/client"
+	"github.com/rsteube/carapace"
 )
 
 // main shows how to use a remote teamclient with a gRPC backend (transport & RPC).
@@ -51,5 +50,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-
-func mainPreCommands() {}

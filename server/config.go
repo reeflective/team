@@ -27,10 +27,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/command"
+	"github.com/sirupsen/logrus"
 )
 
 const (
