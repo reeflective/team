@@ -173,17 +173,17 @@ teamserver import ~/.other_app/teamserver/certs/other_app_user-ca-cert.teamserve
 # to start the listeners automatically when used in daemon mode with --persistent.
 teamserver listen --host localhost --persistent 
 teamserver listen --host 172.10.0.10 --port 32333 --persistent
-teamserver status # Prints the saved listeners, configured loggers, databases, etc.
+teamserver status                                                   # Prints the saved listeners, configured loggers, databases, etc.
 
 # 3 - Export and enable a systemd service configuration for the teamserver.
-teamserver systemd  # Use default host, port and listener stacks. 
-teamserver systemd --host localhost --binpath /path/to/teamserver # Specify binary path.
-teamserver systemd --user --save ~/teamserver.service             # Print to file instead of stdout.
+teamserver systemd                                                  # Use default host, port and listener stacks. 
+teamserver systemd --host localhost --binpath /path/to/teamserver   # Specify binary path.
+teamserver systemd --user --save ~/teamserver.service               # Print to file instead of stdout.
 
 # 4 - Import the "remote" administrator configuration for (1), and use it.
-teamserver client import ~/Michael_localhost.teamclient.cfg
-teamserver client version   # Print the client and the server version information.
-teamserver client users     # Print all users registered to the teamserver and their status.
+teamserver client import ~/Michael_localhost.teamclient.cfg 
+teamserver client version                                   # Print the client and the server version information.
+teamserver client users                                     # Print all users registered to the teamserver and their status.
 
 # 5 - Quality of life
 teamserver _carapace <shell> # Source detailed the completion engine for the teamserver.
@@ -261,19 +261,25 @@ Some additional and preliminary/example notes about the codebase:
 - Unless absolutely needed or specified otherwise, return all critical errors instead of log
   fatal/panicking (exception made of the certificate infrastructure which absolutely needs to work
   for security reasons).
+- Exception made of the `teamserver daemon` command related `server.ServeDaemon` function, all API
+  functions and interface methods are non-blocking. Mentions of this are found throughout the
+  code documentation when needed.
+- Loggers offered by the teamclient/server cores are never nil, and will log to both stdout (above
+  warning level) and to default files (above info level) if no custom logger is passed to them.
+  If such a custom logger is given, team clients/servers won't log to stdout or their default files.
 
 Please see the [example](https://github.com/reeflective/team/tree/main/example) directory for all client/server entrypoint examples.
 
 -----
 ## Documentation
 
-Go code documentation is available at https://pkg.go.dev/github.com/reeflective/team.
-Client and server documentation can found in the [directories section](https://pkg.go.dev/github.com/reeflective/team#section-directories) of the Go documentation.
-The `example/` subdirectories also include documentation for their own code, and should provide
+- Go code documentation is available at the [Godoc website](https://pkg.go.dev/github.com/reeflective/team).
+- Client and server documentation can be found in the [directories section](https://pkg.go.dev/github.com/reeflective/team#section-directories) of the Go documentation.
+- The `example/` subdirectories also include documentation for their own code, and should provide
 a good introduction to this library usage. 
 
 -----
-## Differences with Hashicorp Go plugin system
+## Differences with the Hashicorp Go plugin system
 
 At first glance, different and not much related to our current topic is the equally large problem of
 dynamic code loading and execution for arbitrary programs. In the spectrum of major programming
