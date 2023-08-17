@@ -41,10 +41,12 @@ const (
 	fieldPackage   = "logger"
 	fieldMessage   = "message"
 
-	PackageFieldKey = "teamserver_pkg"
-
 	minimumPackagePad = 11
 )
+
+// PackageFieldKey is used to identify the name of the package
+// specified by teamclients and teamservers named loggers.
+const PackageFieldKey = "teamserver_pkg"
 
 // stdioHook combines a stdout hook (info/debug/trace),
 // and a stderr hook (warn/error/fatal/panic).

@@ -23,9 +23,8 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team/internal/assets"
+	"github.com/sirupsen/logrus"
 )
 
 const (
