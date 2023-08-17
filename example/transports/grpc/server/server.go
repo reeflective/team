@@ -24,12 +24,13 @@ import (
 	"runtime/debug"
 	"sync"
 
-	clientConn "github.com/reeflective/team/example/transports/grpc/client"
-	"github.com/reeflective/team/example/transports/grpc/proto"
-	teamserver "github.com/reeflective/team/server"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+
+	clientConn "github.com/reeflective/team/example/transports/grpc/client"
+	"github.com/reeflective/team/example/transports/grpc/proto"
+	teamserver "github.com/reeflective/team/server"
 )
 
 const (

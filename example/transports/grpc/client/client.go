@@ -24,11 +24,12 @@ import (
 	"fmt"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
+
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/example/transports/grpc/proto"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/status"
 )
 
 const (

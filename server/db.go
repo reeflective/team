@@ -25,10 +25,11 @@ import (
 	"path"
 	"path/filepath"
 
+	"gorm.io/gorm"
+
+	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/db"
-	"github.com/reeflective/team/internal/log"
-	"gorm.io/gorm"
 )
 
 const (

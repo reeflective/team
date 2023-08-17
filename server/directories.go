@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 
 	"github.com/reeflective/team/internal/assets"
-	"github.com/reeflective/team/internal/log"
 )
 
 // HomeDir returns the root application directory (~/.app/ by default).
