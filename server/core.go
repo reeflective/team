@@ -24,14 +24,15 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
+
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/version"
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 )
 
 // Server is the core driver of an application teamserver.
