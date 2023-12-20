@@ -118,7 +118,12 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	closeComps.PositionalAnyCompletion(carapace.ActionCallback(listenerIDCompleter(client, server)))
 
 	closeComps.PreRun(func(cmd *cobra.Command, args []string) {
-		cmd.PersistentPreRunE(cmd, args)
+		if cmd.PersistentPreRunE != nil {
+			cmd.PersistentPreRunE(cmd, args)
+		}
+		if cmd.PreRunE != nil {
+			cmd.PreRunE(cmd, args)
+		}
 	})
 
 	teamCmd.AddCommand(closeCmd)
@@ -213,7 +218,12 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	rmUserComps.PositionalCompletion(carapace.ActionCallback(userCompleter(client, server)))
 
 	rmUserComps.PreRun(func(cmd *cobra.Command, args []string) {
-		cmd.PersistentPreRunE(cmd, args)
+		if cmd.PersistentPreRunE != nil {
+			cmd.PersistentPreRunE(cmd, args)
+		}
+		if cmd.PreRunE != nil {
+			cmd.PreRunE(cmd, args)
+		}
 	})
 
 	// Import a list of users and their credentials.

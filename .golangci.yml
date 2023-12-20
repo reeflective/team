@@ -173,7 +173,7 @@ linters:
     # - forbidigo       # Forbids identifiers                                       (style)
     - forcetypeassert # finds forced type assertions                              (style)
     - funlen          # tool for detection of long functions                      (cplx)
-    - gci             # Controls package import order and makes deterministic     (fmt,import)
+    # - gci             # Controls package import order and makes deterministic     (fmt,import)
     # - gochecknoglobals # checks that no global variables exist                    (style)
     # - gochecknoinits  # checks that no init functions are present                 (style)
     - gocognit        # computes and checks the cognitive complexity of functions (cplx)

@@ -72,7 +72,7 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 			lport = uint16(serv.GetConfig().DaemonMode.Port)
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "Starting %s teamserver daemon on %s:%d ...", serv.Name(), lhost, lport)
+		fmt.Fprintf(cmd.OutOrStdout(), "Starting %s teamserver daemon on %s:%d ...\n", serv.Name(), lhost, lport)
 
 		// Blocking call, your program will only exit/resume on Ctrl-C/SIGTERM
 		return serv.ServeDaemon(lhost, lport)
