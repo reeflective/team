@@ -24,9 +24,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team/internal/assets"
+	"github.com/sirupsen/logrus"
 )
 
 const noTeamdir = "no team subdirectory"

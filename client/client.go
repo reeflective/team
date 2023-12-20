@@ -24,11 +24,10 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/version"
+	"github.com/sirupsen/logrus"
 )
 
 // Client is the core driver of an application teamclient.

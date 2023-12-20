@@ -10,9 +10,9 @@ require (
 	github.com/ncruces/go-sqlite3 v0.8.4
 	github.com/ncruces/go-sqlite3/gormlite v0.8.4
 	github.com/psanford/memfs v0.0.0-20230130182539-4dbf7e3e865e
-	github.com/rsteube/carapace v0.37.3
+	github.com/rsteube/carapace v0.47.4
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	google.golang.org/grpc v1.56.1
 	google.golang.org/protobuf v1.31.0
@@ -44,6 +44,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
+	github.com/rsteube/carapace-shlex v0.1.1 // indirect
 	github.com/stretchr/testify v1.8.2 // indirect
 	github.com/tetratelabs/wazero v1.4.0 // indirect
 	golang.org/x/crypto v0.8.0 // indirect
