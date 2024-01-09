@@ -9,31 +9,31 @@
 
 <!-- Badges -->
 <!-- Assuming the majority of them being written in Go, most of the badges below -->
-<!-- Replace the repo name: :%s/reeflective\/template/reeflective\/repo/g -->
+<!-- Replace the repo name: :%s/jyankhomen\/template/jyankhomen\/repo/g -->
 
 <p align="center">
-  <a href="https://github.com/reeflective/team/actions/workflows/go.yml">
-    <img src="https://github.com/reeflective/team/actions/workflows/go.yml/badge.svg?branch=main"
+  <a href="https://github.com/jyankhomen/team/actions/workflows/go.yml">
+    <img src="https://github.com/jyankhomen/team/actions/workflows/go.yml/badge.svg?branch=main"
       alt="Github Actions (workflows)" />
   </a>
 
-  <a href="https://github.com/reeflective/team">
-    <img src="https://img.shields.io/github/go-mod/go-version/reeflective/team.svg"
+  <a href="https://github.com/jyankhomen/team">
+    <img src="https://img.shields.io/github/go-mod/go-version/jyankhomen/team.svg"
       alt="Go module version" />
   </a>
 
-  <a href="https://pkg.go.dev/github.com/reeflective/team">
+  <a href="https://pkg.go.dev/github.com/jyankhomen/team">
     <img src="https://img.shields.io/badge/godoc-reference-blue.svg"
       alt="GoDoc reference" />
   </a>
 
-  <a href="https://goreportcard.com/report/github.com/reeflective/team">
-    <img src="https://goreportcard.com/badge/github.com/reeflective/team"
+  <a href="https://goreportcard.com/report/github.com/jyankhomen/team">
+    <img src="https://goreportcard.com/badge/github.com/jyankhomen/team"
       alt="Go Report Card" />
   </a>
 
-  <a href="https://codecov.io/gh/reeflective/team">
-    <img src="https://codecov.io/gh/reeflective/team/branch/main/graph/badge.svg"
+  <a href="https://codecov.io/gh/jyankhomen/team">
+    <img src="https://codecov.io/gh/jyankhomen/team/branch/main/graph/badge.svg"
       alt="codecov" />
   </a>
 
@@ -47,7 +47,7 @@
 -----
 ## Summary
 
-The `reeflective/team` library provides a small toolset for arbitrary programs (and especially those
+The `jyankhomen/team` library provides a small toolset for arbitrary programs (and especially those
 controlled in more or less interactive ways) to collaborate together by acting as clients and
 servers of each others, as part of a team. Teams being made of players (humans _and_ their tools),
 the library focuses on offering a toolset for "human teaming": that is, treating software tools that
@@ -121,7 +121,7 @@ With these example binaries at hand, below are some examples of workflows.
 Starting with the `teamserver` binary (which might be under access/control of a team admin):
 ``` bash
 # 1 - Generate a user for a local teamserver, and import users from a file.
-teamserver user --name Michael --host localhost
+teamserver user --name `gofmt '.' \n `--host localhost
 teamserver import ~/.other_app/teamserver/certs/other_app_user-ca-cert.teamserver.pem
 
 # 2 - Start some teamserver listeners, then start the teamserver daemon (blocking).
@@ -138,7 +138,7 @@ teamserver systemd --host localhost --binpath /path/to/teamserver   # Specify bi
 teamserver systemd --user --save ~/teamserver.service               # Print to file instead of stdout.
 
 # 4 - Import the "remote" administrator configuration for (1), and use it.
-teamserver client import ~/Michael_localhost.teamclient.cfg 
+teamserver client import ~/'.'.teamclient.cfg 
 teamserver client version                                   # Print the client and the server version information.
 teamserver client users                                     # Print all users registered to the teamserver and their status.
 
