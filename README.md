@@ -47,29 +47,12 @@
 -----
 ## Summary
 
-The client-server paradigm is an ubiquitous concept in computer science. Equally large and common is
-the problem of building software that _collaborates_ easily with other peer programs. Although
-writing collaborative software seems to be the daily task of many engineers around the world,
-succeedingly and easily doing so in big programs as well as in smaller ones is not more easily done
-than said. Difficulty still increases -and keeping in mind that humans use software and not the
-inverse- when programs must enhance the capacity of humans to collaborate while not restricting the
-number of ways they can do so, for small tasks as well as for complex ones.
-
 The `reeflective/team` library provides a small toolset for arbitrary programs (and especially those
 controlled in more or less interactive ways) to collaborate together by acting as clients and
 servers of each others, as part of a team. Teams being made of players (humans _and_ their tools),
 the library focuses on offering a toolset for "human teaming": that is, treating software tools that
 are either _teamclients_ or _teamservers_ of others, within a defined -generally restricted- team of
 users, which shall generally be strictly and securely authenticated.
-
-The project originates from the refactoring of a security-oriented tool that used this approach to
-clearly segregate client and server binary code (the former's not needing most of the latter's).
-Besides, the large exposure of the said-tool to the CLI prompted the author of the
-`reeflective/team` library to rethink how the notion of "collaborative programs" could be approached
-and explored from different viewpoints: distinguishing between the tools' developers, and their
-users. After having to reuse this core code for other projects, the idea appeared to extract the
-relevant parts and to restructure and repackage them behind coherent interfaces (API and CLI).
-
 
 -----
 ## Components & Terms
@@ -90,33 +73,6 @@ Throughout this library and its documentation, various words are repeatedly empl
   functionality remotely, or to the tools embedding this code in order to do so.
 - _team tool/s_ might be used to refer to programs using either or all of the library components at
   large.
-
------
-## Principles, Constraints & Features
-
-The library rests on several principles, constraints and ideas to fulfill its intended purpose:
-- The library's sole aim is to **make most programs able to collaborate together** under the
-  paradigm of team clients and team servers, and to do so while ensuring performance, coherence,
-  ease of use and security of all processes and workflows involved. This, under the _separate
-  viewpoints_ of tool development, enhancement and usage.
-- Ensure a **working-by-default toolset**, assuming that the time spent on any tool's configuration
-  is inversely proportional to its usage. Emphasis on this aspect should apply equally well to team
-  tools' users and developers.
-- Ensure the **full, secure and reliable authentication of all team clients and servers'
-  interactions**, by using certificate-based communication encryption and user authentication, _aka_
-  "zero-trust" model. Related and equally important, ensure the various team toolset interfaces
-  provide for easy and secure usage of their host tools.
-- **Accomodate for the needs of developers to use more specific components**, at times or at points,
-  while not hampering on the working-by-default aspects of the team client/server toolset. Examples
-  include replacing parts or all of the transport, RPC, loggers, database and filesystem
-  backends.
-- To that effect, the library offers **different interfaces to its functionality**: an API (Go code)
-  provides developers a working-by-default, simple and powerful way to instruct their software how 
-  to collaborate with peers, and a CLI, for users to operate their team tools, manage their related 
-  team configurations with ease, with a featured command-line tree to embed anywhere.
-- Ensure that team client/server functionality can be **easily integrated in automated workflows**: 
-  this is done by offering clear code/execution paths and behaviors, for both users and developers,
-  and by providing commands and functions to ease deployment of said tools.
 
 -----
 ## CLI (Users)
@@ -278,6 +234,52 @@ Please see the [example](https://github.com/reeflective/team/tree/main/example) 
 - Client and server documentation can be found in the [directories section](https://pkg.go.dev/github.com/reeflective/team#section-directories) of the Go documentation.
 - The `example/` subdirectories also include documentation for their own code, and should provide
 a good introduction to this library usage. 
+
+-----
+## Background
+
+The project originates from the refactoring of a security-oriented tool that used this approach to
+clearly segregate client and server binary code (the former's not needing most of the latter's).
+Besides, the large exposure of the said-tool to the CLI prompted the author of the
+`reeflective/team` library to rethink how the notion of "collaborative programs" could be approached
+and explored from different viewpoints: distinguishing between the tools' developers, and their
+users. After having to reuse this core code for other projects, the idea appeared to extract the
+relevant parts and to restructure and repackage them behind coherent interfaces (API and CLI).
+
+The client-server paradigm is an ubiquitous concept in computer science. Equally large and common is
+the problem of building software that _collaborates_ easily with other peer programs. Although
+writing collaborative software seems to be the daily task of many engineers around the world,
+succeedingly and easily doing so in big programs as well as in smaller ones is not more easily done
+than said. Difficulty still increases -and keeping in mind that humans use software and not the
+inverse- when programs must enhance the capacity of humans to collaborate while not restricting the
+number of ways they can do so, for small tasks as well as for complex ones.
+
+-----
+## Principles, Constraints & Features
+
+The library rests on several principles, constraints and ideas to fulfill its intended purpose:
+- The library's sole aim is to **make most programs able to collaborate together** under the
+  paradigm of team clients and team servers, and to do so while ensuring performance, coherence,
+  ease of use and security of all processes and workflows involved. This, under the _separate
+  viewpoints_ of tool development, enhancement and usage.
+- Ensure a **working-by-default toolset**, assuming that the time spent on any tool's configuration
+  is inversely proportional to its usage. Emphasis on this aspect should apply equally well to team
+  tools' users and developers.
+- Ensure the **full, secure and reliable authentication of all team clients and servers'
+  interactions**, by using certificate-based communication encryption and user authentication, _aka_
+  "zero-trust" model. Related and equally important, ensure the various team toolset interfaces
+  provide for easy and secure usage of their host tools.
+- **Accomodate for the needs of developers to use more specific components**, at times or at points,
+  while not hampering on the working-by-default aspects of the team client/server toolset. Examples
+  include replacing parts or all of the transport, RPC, loggers, database and filesystem
+  backends.
+- To that effect, the library offers **different interfaces to its functionality**: an API (Go code)
+  provides developers a working-by-default, simple and powerful way to instruct their software how 
+  to collaborate with peers, and a CLI, for users to operate their team tools, manage their related 
+  team configurations with ease, with a featured command-line tree to embed anywhere.
+- Ensure that team client/server functionality can be **easily integrated in automated workflows**: 
+  this is done by offering clear code/execution paths and behaviors, for both users and developers,
+  and by providing commands and functions to ease deployment of said tools.
 
 -----
 ## Differences with the Hashicorp Go plugin system
