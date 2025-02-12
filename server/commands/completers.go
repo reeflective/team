@@ -23,10 +23,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/rsteube/carapace"
-
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/server"
+	"github.com/rsteube/carapace"
 )
 
 // interfacesCompleter completes interface addresses on the client host.
@@ -75,10 +74,10 @@ func userCompleter(client *client.Client, server *server.Server) carapace.Comple
 		}
 
 		if len(results) == 0 {
-			return carapace.ActionMessage(fmt.Sprintf("%s teamserver has no users", server.Name()))
+			return carapace.ActionMessage(server.Name() + " teamserver has no users")
 		}
 
-		return carapace.ActionValues(results...).Tag(fmt.Sprintf("%s teamserver users", server.Name()))
+		return carapace.ActionValues(results...).Tag(server.Name() + " teamserver users")
 	}
 }
 
@@ -136,6 +135,6 @@ func listenerTypeCompleter(client *client.Client, server *server.Server) carapac
 			return carapace.ActionMessage(fmt.Sprintf("no additional listener types for %s teamserver", server.Name()))
 		}
 
-		return carapace.ActionValues(results...).Tag(fmt.Sprintf("%s teamserver listener types", server.Name()))
+		return carapace.ActionValues(results...).Tag(server.Name() + " teamserver listener types")
 	}
 }

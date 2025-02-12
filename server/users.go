@@ -30,19 +30,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lib/pq"
+	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
 )
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
+const permissionsSep = ","
 
 // UserCreate creates a new teamserver user, with all cryptographic material and server remote
 // endpoints needed by this user to connect to us.
 //
 // Certificate files and the API authentication token are saved into the teamserver database,
 // conformingly to its configured backend/filesystem (can be in-memory or on filesystem).
-func (ts *Server) UserCreate(name string, lhost string, lport uint16) (*client.Config, error) {
+func (ts *Server) UserCreate(name string, lhost string, lport uint16, perms ...string) (*client.Config, error) {
 	if err := ts.initDatabase(); err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -70,8 +73,10 @@ func (ts *Server) UserCreate(name string, lhost string, lport uint16) (*client.C
 
 	digest := sha256.Sum256([]byte(rawToken))
 	dbuser := &db.User{
-		Name:  name,
-		Token: hex.EncodeToString(digest[:]),
+		Name:        name,
+		Token:       hex.EncodeToString(digest[:]),
+		Permissions: pq.StringArray(perms),
+		// Permissions: strings.Join(perms, permissionsSep),
 	}
 
 	err = ts.dbSession().Save(dbuser).Error
@@ -141,9 +146,9 @@ func (ts *Server) UserDelete(name string) error {
 //   - No name, false for authenticated, and a database error, if was ignited now.
 //
 // This call updates the last time the user has been seen by the server.
-func (ts *Server) UserAuthenticate(rawToken string) (name string, authorized bool, err error) {
+func (ts *Server) UserAuthenticate(rawToken string) (*team.User, bool, error) {
 	if err := ts.initDatabase(); err != nil {
-		return "", false, ts.errorf("%w: %w", ErrDatabase, err)
+		return nil, false, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
 	log := ts.NamedLogger("server", "auth")
@@ -153,23 +158,34 @@ func (ts *Server) UserAuthenticate(rawToken string) (name string, authorized boo
 	digest := sha256.Sum256([]byte(rawToken))
 	token := hex.EncodeToString(digest[:])
 
-	if name, ok := ts.userTokens.Load(token); ok {
+	userFound, ok := ts.userTokens.Load(token)
+
+	// If user is already connected or cached.
+	if ok {
+		user := userFound.(*team.User)
+
 		log.Debugf("Token in cache!")
-		ts.updateLastSeen(name.(string))
-		return name.(string), true, nil
+		ts.updateLastSeen(user.Name)
+
+		return user, true, nil
 	}
 
-	user, err := ts.userByToken(token)
-	if err != nil || user == nil {
-		return "", false, ts.errorf("%w: %w", ErrUnauthenticated, err)
+	dbUser, err := ts.userByToken(token)
+	if err != nil || dbUser == nil {
+		return nil, false, ts.errorf("%w: %w", ErrUnauthenticated, err)
 	}
 
+	// Transfer data to the exportable user type
+	user := &team.User{
+		Name:        dbUser.Name,
+		Permissions: []string(dbUser.Permissions),
+	}
 	ts.updateLastSeen(user.Name)
 
 	log.Debugf("Valid user token for %s", user.Name)
-	ts.userTokens.Store(token, user.Name)
+	ts.userTokens.Store(token, user)
 
-	return user.Name, true, nil
+	return user, true, nil
 }
 
 // UsersTLSConfig returns a server-side Mutual TLS configuration struct, ready to run.
@@ -196,7 +212,7 @@ func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
 	_, _, err = ts.certs.UserServerGetCertificate()
 	if errors.Is(err, certs.ErrCertDoesNotExist) {
 		if _, _, err := ts.certs.UserServerGenerateCertificate(); err != nil {
-			return nil, ts.errorWith(log, err.Error())
+			return nil, ts.errorWith(log, "%s", err.Error())
 		}
 	}
 

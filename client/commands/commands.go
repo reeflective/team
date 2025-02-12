@@ -25,13 +25,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/reeflective/team/client"
+	"github.com/reeflective/team/internal/command"
 	"github.com/rsteube/carapace"
 	"github.com/rsteube/carapace/pkg/style"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-
-	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/internal/command"
 )
 
 // Generate returns a command tree to embed in client applications connecting
@@ -108,7 +107,7 @@ func clientCommands(cli *client.Client) *cobra.Command {
 
 	importCmd := &cobra.Command{
 		Use:   "import",
-		Short: fmt.Sprintf("Import a teamserver client configuration file for %s", cli.Name()),
+		Short: "Import a teamserver client configuration file for " + cli.Name(),
 		Run:   importCmd(cli),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return []string{}, cobra.ShellCompDirectiveDefault

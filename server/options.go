@@ -19,7 +19,6 @@ package server
 */
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -77,7 +76,7 @@ func (ts *Server) apply(options ...Options) {
 	// set once when created.
 	ts.initOpts.Do(func() {
 		// Application home directory.
-		homeDir := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(ts.name)))
+		homeDir := os.Getenv(strings.ToUpper(ts.name) + "_ROOT_DIR")
 		if homeDir != "" {
 			ts.homeDir = homeDir
 		} else {

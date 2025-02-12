@@ -22,16 +22,18 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
 // User - A teamserver user.
 type User struct {
-	ID        uuid.UUID `gorm:"primaryKey;->;<-:create;type:uuid;"`
-	CreatedAt time.Time `gorm:"->;<-:create;"`
-	LastSeen  time.Time
-	Name      string
-	Token     string `gorm:"uniqueIndex"`
+	ID          uuid.UUID `gorm:"primaryKey;->;<-:create;type:uuid;"`
+	CreatedAt   time.Time `gorm:"->;<-:create;"`
+	LastSeen    time.Time
+	Name        string
+	Token       string         `gorm:"uniqueIndex"`
+	Permissions pq.StringArray `gorm:"type:text[]"`
 }
 
 // BeforeCreate - GORM hook.
@@ -44,4 +46,11 @@ func (o *User) BeforeCreate(tx *gorm.DB) (err error) {
 	o.CreatedAt = time.Now()
 
 	return nil
+}
+
+type Permissions struct {
+	ID        uuid.UUID `gorm:"primaryKey;->;<-:create;type:uuid;"`
+	CreatedAt time.Time `gorm:"->;<-:create;"`
+	LastSeen  time.Time
+	Name      string
 }
