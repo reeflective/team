@@ -42,6 +42,8 @@ func (c *Certificate) BeforeCreate(tx *gorm.DB) (err error) {
 	if err != nil {
 		return err
 	}
+
 	c.CreatedAt = time.Now()
+
 	return nil
 }

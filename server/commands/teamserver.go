@@ -28,13 +28,12 @@ import (
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/systemd"
 	"github.com/reeflective/team/server"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) error {
@@ -59,7 +58,7 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 		// Also written to logs in the teamserver code.
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), "stacktrace from panic: \n"+string(debug.Stack()))
+				fmt.Fprintf(cmd.OutOrStdout(), "%s", "stacktrace from panic: \n"+string(debug.Stack()))
 			}
 		}()
 

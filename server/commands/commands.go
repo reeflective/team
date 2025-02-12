@@ -21,14 +21,13 @@ package commands
 import (
 	"fmt"
 
-	"github.com/rsteube/carapace"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-
 	"github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/client/commands"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/server"
+	"github.com/rsteube/carapace"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // Generate returns a "teamserver" command root and its tree for teamserver (server-side) management.
@@ -121,6 +120,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		if cmd.PersistentPreRunE != nil {
 			cmd.PersistentPreRunE(cmd, args)
 		}
+
 		if cmd.PreRunE != nil {
 			cmd.PreRunE(cmd, args)
 		}
@@ -195,6 +195,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	userFlags.StringP("save", "s", "", "directory/file in which to save config")
 	userFlags.StringP("name", "n", "", "user name")
 	userFlags.BoolP("system", "U", false, "Use the current OS user, and save its configuration directly in client dir")
+	userFlags.StringSliceP("permissions", "P", []string{}, "list of permission strings for custom RPC auth")
 	userCmd.Flags().AddFlagSet(userFlags)
 
 	userComps := make(carapace.ActionMap)
@@ -221,6 +222,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 		if cmd.PersistentPreRunE != nil {
 			cmd.PersistentPreRunE(cmd, args)
 		}
+
 		if cmd.PreRunE != nil {
 			cmd.PreRunE(cmd, args)
 		}

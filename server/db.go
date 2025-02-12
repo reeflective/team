@@ -159,7 +159,7 @@ func (ts *Server) getDefaultDatabaseConfig() *db.Config {
 	if ts.opts.inMemory {
 		cfg.Database = db.SQLiteInMemoryHost
 	} else {
-		cfg.Database = filepath.Join(ts.TeamDir(), fmt.Sprintf("%s.teamserver.db", ts.name))
+		cfg.Database = filepath.Join(ts.TeamDir(), ts.name+".teamserver.db")
 	}
 
 	return cfg

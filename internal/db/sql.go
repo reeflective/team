@@ -23,13 +23,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/reeflective/team/internal/log"
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	"github.com/reeflective/team/internal/log"
 )
 
 const (

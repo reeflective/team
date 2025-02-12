@@ -8,13 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/server"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Command, args []string) {
@@ -31,6 +30,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		lport, _ := cmd.Flags().GetUint16("port")
 		save, _ := cmd.Flags().GetString("save")
 		system, _ := cmd.Flags().GetBool("system")
+		perms, _ := cmd.Flags().GetStringSlice("permissions")
 
 		if save == "" {
 			save, _ = os.Getwd()
@@ -57,6 +57,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 			}
 		} else {
 			saveTo, _ = filepath.Abs(save)
+
 			userFile, err := os.Stat(saveTo)
 			if !os.IsNotExist(err) && !userFile.IsDir() {
 				fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"File already exists %s\n", err)
@@ -70,7 +71,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Generating new client certificate, please wait ... \n")
 
-		config, err := serv.UserCreate(name, lhost, lport)
+		config, err := serv.UserCreate(name, lhost, lport, perms...)
 		if err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err)
 			return
@@ -145,8 +146,8 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		}
 
 		importCA := &CA{}
-		err = json.Unmarshal(data, importCA)
 
+		err = json.Unmarshal(data, importCA)
 		if err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"Failed to parse file: %s\n", err)
 		}

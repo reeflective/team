@@ -41,10 +41,16 @@ type Client interface {
 // be in possession of the user cryptographic materials required to serve him)
 // This type is returned by both team/clients and team/servers.
 type User struct {
-	Name     string
-	Online   bool
-	LastSeen time.Time
-	Clients  int
+	Name     string    // Name of the user
+	Online   bool      // Are one or more of the user's clients connected.
+	LastSeen time.Time // Last time the user made an RPC call or something.
+	Clients  int       // Number of clients connected.
+
+	// Permissions is a list of arbitrary strings that clients/servers
+	// might want to use for permissions: domain names, tools, tokens...
+	// These permissions can be specified with --permissions on the CLI,
+	// and will be always stored along with the user in the database.
+	Permissions []string
 }
 
 // Version returns complete version/compilation information for a given binary.
