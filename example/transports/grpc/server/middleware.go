@@ -25,14 +25,13 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_tags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"github.com/reeflective/team/example/transports/grpc/common"
+	"github.com/reeflective/team/server"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
-
-	"github.com/reeflective/team/example/transports/grpc/common"
-	"github.com/reeflective/team/server"
 )
 
 // BufferingOptions returns a list of server options with max send/receive
@@ -139,6 +138,7 @@ func (ts *Teamserver) initAuthMiddleware() ([]grpc.ServerOption, error) {
 		requestOpts = append(requestOpts,
 			grpc_auth.UnaryServerInterceptor(serverAuthFunc),
 		)
+
 		streamOpts = append(streamOpts,
 			grpc_auth.StreamServerInterceptor(serverAuthFunc),
 		)
@@ -166,9 +166,9 @@ func serverAuthFunc(ctx context.Context) (context.Context, error) {
 	return newCtx, nil
 }
 
+// tokenAuthFunc uses the core reeflective/team/server to authenticate user requests.
 func (ts *Teamserver) tokenAuthFunc(ctx context.Context) (context.Context, error) {
 	log := ts.NamedLogger("transport", "grpc")
-	log.Debugf("Auth interceptor checking user token ...")
 
 	rawToken, err := grpc_auth.AuthFromMD(ctx, "Bearer")
 	if err != nil {
@@ -176,13 +176,17 @@ func (ts *Teamserver) tokenAuthFunc(ctx context.Context) (context.Context, error
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
+	// Let our core teamserver driver authenticate the user.
+	// The teamserver has its credentials, tokens and everything in database.
 	user, authorized, err := ts.UserAuthenticate(rawToken)
-	if err != nil || !authorized || user == "" {
+	if err != nil || !authorized || user.Name == "" {
 		log.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
-	newCtx := context.WithValue(ctx, Transport, "mtls")
+	// Fetch the user in database for permissions.
+
+	newCtx := context.WithValue(ctx, Transport, user)
 	newCtx = context.WithValue(newCtx, User, user)
 
 	return newCtx, nil
