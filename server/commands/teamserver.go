@@ -25,10 +25,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/systemd"

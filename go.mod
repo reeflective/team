@@ -6,6 +6,7 @@ toolchain go1.24.2
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/carapace-sh/carapace v1.8.1
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
@@ -15,7 +16,7 @@ require (
 	github.com/rsteube/carapace v0.47.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.14.0
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 	google.golang.org/grpc v1.56.1
 	google.golang.org/protobuf v1.31.0
@@ -27,6 +28,7 @@ require (
 )
 
 require (
+	github.com/carapace-sh/carapace-shlex v1.0.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect

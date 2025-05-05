@@ -23,7 +23,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/rsteube/carapace"
+	"github.com/carapace-sh/carapace"
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/server"
