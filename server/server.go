@@ -262,7 +262,7 @@ func (ts *Server) init(opts ...Options) error {
 
 		// Certificate infrastructure, will make the code panic if unable to work properly.
 		certsLog := ts.NamedLogger("certs", "certificates")
-		ts.certs = certs.NewManager(ts.fs, ts.dbSession(), certsLog, ts.Name(), ts.TeamDir())
+		ts.certs = certs.NewManager(ts.fs, ts.Database(), certsLog, ts.Name(), ts.TeamDir())
 	})
 
 	return err

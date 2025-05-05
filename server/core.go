@@ -19,10 +19,11 @@ package server
 */
 
 import (
-	"os/user"
-	"path/filepath"
 	"runtime"
 	"sync"
+
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
@@ -30,8 +31,6 @@ import (
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/version"
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 )
 
 // Server is the core driver of an application teamserver.
@@ -112,9 +111,7 @@ func New(application string, options ...Options) (*Server, error) {
 	server.apply(options...)
 
 	// Filesystem
-	user, _ := user.Current()
-	root := filepath.Join(user.HomeDir, "."+server.name)
-	server.fs = assets.NewFileSystem(root, server.opts.inMemory)
+	server.fs = assets.NewFileSystem(server.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := server.initLogging(); err != nil {
@@ -199,7 +196,7 @@ func (ts *Server) Users() ([]team.User, error) {
 	}
 
 	usersDB := []*db.User{}
-	err := ts.dbSession().Find(&usersDB).Error
+	err := ts.Database().Find(&usersDB).Error
 
 	users := make([]team.User, len(usersDB))
 

@@ -19,15 +19,14 @@ package client
 */
 
 import (
-	"os/user"
-	"path/filepath"
 	"runtime"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/version"
-	"github.com/sirupsen/logrus"
 )
 
 // Client is the core driver of an application teamclient.
@@ -122,15 +121,12 @@ func New(app string, client team.Client, options ...Options) (*Client, error) {
 		client:  client,
 		connect: &sync.Once{},
 		mutex:   &sync.RWMutex{},
-		fs:      &assets.FS{},
 	}
 
 	teamclient.apply(options...)
 
 	// Filesystem (in-memory or on disk)
-	user, _ := user.Current()
-	root := filepath.Join(user.HomeDir, "."+teamclient.name)
-	teamclient.fs = assets.NewFileSystem(root, teamclient.opts.inMemory)
+	teamclient.fs = assets.NewFileSystem(teamclient.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := teamclient.initLogging(); err != nil {

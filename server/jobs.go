@@ -71,7 +71,7 @@ func (ts *Server) Listeners() []*job {
 	all := []*job{}
 
 	// Active listeners
-	ts.jobs.active.Range(func(key, value interface{}) bool {
+	ts.jobs.active.Range(func(key, value any) bool {
 		all = append(all, value.(*job))
 		return true
 	})
