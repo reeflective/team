@@ -73,19 +73,15 @@ func (ts *Server) dbConfigPath() string {
 // Save - Save config file to disk. If the server is configured
 // to run in-memory only, the config is not saved.
 func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
-	if ts.opts.inMemory {
-		return nil
-	}
-
 	dblog := ts.NamedLogger("config", "database")
 
 	configPath := ts.dbConfigPath()
 	configDir := path.Dir(configPath)
 
-	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+	if _, err := ts.fs.Stat(configDir); os.IsNotExist(err) {
 		dblog.Debugf("Creating config dir %s", configDir)
 
-		err := os.MkdirAll(configDir, assets.DirPerm)
+		err := ts.fs.MkdirAll(configDir, assets.DirPerm)
 		if err != nil {
 			return err
 		}
@@ -98,7 +94,7 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 
 	dblog.Debugf("Saving config to %s", configPath)
 
-	return os.WriteFile(configPath, data, assets.FileReadPerm)
+	return ts.fs.WriteFile(configPath, data, assets.FileReadPerm)
 }
 
 // getDatabaseConfig returns a working database configuration,
@@ -115,8 +111,8 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 	}
 
 	configPath := ts.dbConfigPath()
-	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
-		data, err := os.ReadFile(configPath)
+	if _, err := ts.fs.Stat(configPath); !os.IsNotExist(err) {
+		data, err := ts.fs.ReadFile(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to read config file %w", err)
 		}
@@ -187,10 +183,4 @@ func (ts *Server) initDatabase() (err error) {
 	})
 
 	return err
-}
-
-func (ts *Server) dbSession() *gorm.DB {
-	return ts.db.Session(&gorm.Session{
-		FullSaveAssociations: true,
-	})
 }

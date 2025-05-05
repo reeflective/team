@@ -352,4 +352,5 @@ or around enhancing its interoperability with as much Go code/programs as possib
 - [ ] Replace logrus entirely and restructure behind a single package used by both client/server.
 - [ ] Review/refine/strenghen the dialer/listener init/close/start process, if it appears needed.
 - [ ] `teamclient update` downloads latest version of the server binary + method to `team.Client` for it.
+- [ ] Implement tests for most sensitive paths (certificates management, database functioning, etc)
 

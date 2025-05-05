@@ -120,7 +120,6 @@ func New(app string, client team.Client, options ...Options) (*Client, error) {
 		client:  client,
 		connect: &sync.Once{},
 		mutex:   &sync.RWMutex{},
-		// fs:      &assets.FS{},
 	}
 
 	teamclient.apply(options...)

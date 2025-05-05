@@ -20,8 +20,6 @@ package commands
 
 import (
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
@@ -249,8 +247,8 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 
 		// Certificate files.
 		certsPath := serv.CertificatesDir()
-		if dir, err := os.Stat(certsPath); err == nil && dir.IsDir() {
-			files, err := fs.ReadDir(os.DirFS(certsPath), ".")
+		if dir, err := serv.Filesystem().Stat(certsPath); err == nil && dir.IsDir() {
+			files, err := serv.Filesystem().ReadDir(certsPath)
 			if err == nil || len(files) > 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), formatSection("Certificate files"))
 

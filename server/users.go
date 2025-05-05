@@ -76,10 +76,9 @@ func (ts *Server) UserCreate(name string, lhost string, lport uint16, perms ...s
 		Name:        name,
 		Token:       hex.EncodeToString(digest[:]),
 		Permissions: pq.StringArray(perms),
-		// Permissions: strings.Join(perms, permissionsSep),
 	}
 
-	err = ts.dbSession().Save(dbuser).Error
+	err = ts.Database().Save(dbuser).Error
 	if err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -123,7 +122,7 @@ func (ts *Server) UserDelete(name string) error {
 		return ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
-	err := ts.dbSession().Where(&db.User{
+	err := ts.Database().Where(&db.User{
 		Name: name,
 	}).Delete(&db.User{}).Error
 	if err != nil {
@@ -211,7 +210,7 @@ func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
 
 	_, _, err = ts.certs.UserServerGetCertificate()
 	if errors.Is(err, certs.ErrCertDoesNotExist) {
-		if _, _, err := ts.certs.UserServerGenerateCertificate(); err != nil {
+		if _, _, err = ts.certs.UserServerGenerateCertificate(); err != nil {
 			return nil, ts.errorWith(log, "%s", err.Error())
 		}
 	}
@@ -282,7 +281,7 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 	}
 
 	user := &db.User{}
-	err := ts.dbSession().Where(&db.User{
+	err := ts.Database().Where(&db.User{
 		Token: value,
 	}).First(user).Error
 
@@ -291,7 +290,7 @@ func (ts *Server) userByToken(value string) (*db.User, error) {
 
 func (ts *Server) updateLastSeen(name string) {
 	lastSeen := time.Now().Round(1 * time.Second)
-	ts.dbSession().Model(&db.User{}).Where("name", name).Update("LastSeen", lastSeen)
+	ts.Database().Model(&db.User{}).Where("name", name).Update("LastSeen", lastSeen)
 }
 
 // func TestRootOnlyVerifyCertificate(t *testing.T) {

@@ -195,7 +195,7 @@ func (ts *Server) Users() ([]team.User, error) {
 	}
 
 	usersDB := []*db.User{}
-	err := ts.dbSession().Find(&usersDB).Error
+	err := ts.Database().Find(&usersDB).Error
 
 	users := make([]team.User, len(usersDB))
 
