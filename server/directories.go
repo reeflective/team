@@ -67,8 +67,8 @@ func (ts *Server) TeamDir() string {
 	return dir
 }
 
-// LogsDir returns the log directory of the server (~/.app-server/logs), creating
-// the directory if needed, or logging a fatal event if failing to create it.
+// LogsDir returns the log directory of the server (~/.app/teamserver/logs),
+// creating the directory if needed, or logging a fatal event if failing to create it.
 func (ts *Server) LogsDir() string {
 	logDir := path.Join(ts.TeamDir(), assets.DirLogs)
 
@@ -80,8 +80,9 @@ func (ts *Server) LogsDir() string {
 	return logDir
 }
 
-// Configs returns the configs directory of the server (~/.app-server/logs), creating
-// the directory if needed, or logging a fatal event if failing to create it.
+// ConfigsDir returns the configs directory of the server
+// (~/.app/teamserver/configs), creating the directory if
+// needed, or logging a fatal event if failing to create it.
 func (ts *Server) ConfigsDir() string {
 	logDir := path.Join(ts.TeamDir(), assets.DirConfigs)
 

@@ -19,8 +19,6 @@ package server
 */
 
 import (
-	"os/user"
-	"path/filepath"
 	"runtime"
 	"sync"
 
@@ -112,9 +110,7 @@ func New(application string, options ...Options) (*Server, error) {
 	server.apply(options...)
 
 	// Filesystem
-	user, _ := user.Current()
-	root := filepath.Join(user.HomeDir, "."+server.name)
-	server.fs = assets.NewFileSystem(root, server.opts.inMemory)
+	server.fs = assets.NewFileSystem(server.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := server.initLogging(); err != nil {

@@ -343,8 +343,8 @@ This teamserver library aims to remain small, with a precise behavior and role.
 Overall, contributions and ideas should revolve around strenghening its core/transport code
 or around enhancing its interoperability with as much Go code/programs as possible.
 
-- [ ] Use viper for configs.
-- [ ] Use afero filesystem.
+- [x] Use viper for configs.
+- [x] Use afero filesystem.
 - [ ] Add support for encrypted sqlite by default.
 - [ ] Encrypt in-memory channels, or add option for it.
 - [ ] Simpler/different listener/dialer backend interfaces, if it appears needed.

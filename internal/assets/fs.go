@@ -19,12 +19,9 @@ package assets
 */
 
 import (
-	"io/fs"
 	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/psanford/memfs"
+	"github.com/spf13/afero"
 )
 
 const (
@@ -61,151 +58,18 @@ const (
 // When either of them are configured to run in memory only, this
 // filesystem is initialized accordingly, otherwise it will forward
 // its calls to the on-disk filesystem.
-//
-// This type currently exists because the stdlib io/fs.FS type is read-only,
-// and that in order to provide a unique abstraction to the teamclient/server
-// filesystems, this filesystem type adds writing methods.
-type FS struct {
-	mem  *memfs.FS
-	root string
-}
+type FS = afero.Afero
 
-// NewFileSystem returns a new filesystem configured to run on disk or in-memory.
-func NewFileSystem(root string, inMemory bool) *FS {
-	filesystem := &FS{
-		root: root,
-	}
-
+// NewFileSystem returns a new filesystem
+// configured to run on disk or in-memory.
+func NewFileSystem(inMemory bool) *FS {
 	if inMemory {
-		filesystem.mem = memfs.New()
+		return &afero.Afero{
+			Fs: afero.NewMemMapFs(),
+		}
 	}
 
-	return filesystem
-}
-
-// MkdirAll creates a directory named path, along with any necessary parents,
-// and returns nil, or else returns an error.
-// The permission bits perm (before umask) are used for all directories that MkdirAll creates.
-// If path is already a directory, MkdirAll does nothing and returns nil.
-//
-// If the filesystem is in-memory, the teamclient/server application root
-// is trimmed from this path, if the latter contains it.
-func (f *FS) MkdirAll(path string, perm fs.FileMode) error {
-	if f.mem == nil {
-		return os.MkdirAll(path, perm)
+	return &afero.Afero{
+		Fs: afero.NewOsFs(),
 	}
-
-	path = strings.TrimPrefix(path, f.root)
-
-	return f.mem.MkdirAll(path, perm)
-}
-
-// Sub returns a file system (an fs.FS) for the tree of files rooted at the directory dir,
-// or an error if it failed. When the teamclient fs is on disk, os.Stat() and os.DirFS() are used.
-//
-// If the filesystem is in-memory, the teamclient/server application root
-// is trimmed from this path, if the latter contains it.
-func (f *FS) Sub(path string) (fs fs.FS, err error) {
-	if f.mem == nil {
-		_, err = os.Stat(path)
-
-		return os.DirFS(path), err
-	}
-
-	path = strings.TrimPrefix(path, f.root)
-
-	return f.mem.Sub(path)
-}
-
-// Open is like fs.Open().
-//
-// If the filesystem is in-memory, the teamclient/server application root
-// is trimmed from this path, if the latter contains it.
-func (f *FS) Open(name string) (fs.File, error) {
-	if f.mem == nil {
-		return os.Open(name)
-	}
-
-	name = strings.TrimPrefix(name, f.root)
-
-	return f.mem.Open(name)
-}
-
-// OpenFile is like os.OpenFile(), but returns a custom *File type implementing
-// the io.WriteCloser interface, so that it can be written to and closed more easily.
-func (f *FS) OpenFile(name string, flag int, perm fs.FileMode) (*File, error) {
-	inFile := &File{
-		name: name,
-	}
-
-	if f.mem != nil {
-		inFile.mem = f.mem
-
-		return inFile, nil
-	}
-
-	file, err := os.OpenFile(name, flag, perm)
-	if err != nil {
-		return nil, err
-	}
-
-	inFile.file = file
-
-	return inFile, nil
-}
-
-// WriteFile is like os.WriteFile().
-func (f *FS) WriteFile(path string, data []byte, perm fs.FileMode) error {
-	if f.mem == nil {
-		return os.WriteFile(path, data, perm)
-	}
-
-	path = strings.TrimPrefix(path, f.root)
-
-	return f.mem.WriteFile(path, data, perm)
-}
-
-// ReadFile is like os.ReadFile().
-func (f *FS) ReadFile(path string) (b []byte, err error) {
-	if f.mem == nil {
-		return os.ReadFile(path)
-	}
-
-	_, err = f.mem.Open(path)
-	if err != nil {
-		return
-	}
-
-	return fs.ReadFile(f.mem, path)
-}
-
-// File wraps the *os.File type with some in-memory helpers,
-// so that we can write/read to teamserver application files
-// regardless of where they are.
-// This should disappear if a Write() method set is added to the io/fs package.
-type File struct {
-	name string
-	file *os.File
-	mem  *memfs.FS
-}
-
-// Write implements the io.Writer interface by writing data either
-// to the file on disk, or to an in-memory file.
-func (f *File) Write(data []byte) (written int, err error) {
-	if f.file != nil {
-		return f.file.Write(data)
-	}
-
-	fileName := filepath.Base(f.name)
-
-	return len(data), f.mem.WriteFile(fileName, data, FileWritePerm)
-}
-
-// Close implements io.Closer by closing the file on the filesystem.
-func (f *File) Close() error {
-	if f.file != nil {
-		return f.file.Close()
-	}
-
-	return nil
 }

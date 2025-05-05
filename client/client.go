@@ -19,8 +19,6 @@ package client
 */
 
 import (
-	"os/user"
-	"path/filepath"
 	"runtime"
 	"sync"
 
@@ -122,15 +120,13 @@ func New(app string, client team.Client, options ...Options) (*Client, error) {
 		client:  client,
 		connect: &sync.Once{},
 		mutex:   &sync.RWMutex{},
-		fs:      &assets.FS{},
+		// fs:      &assets.FS{},
 	}
 
 	teamclient.apply(options...)
 
 	// Filesystem (in-memory or on disk)
-	user, _ := user.Current()
-	root := filepath.Join(user.HomeDir, "."+teamclient.name)
-	teamclient.fs = assets.NewFileSystem(root, teamclient.opts.inMemory)
+	teamclient.fs = assets.NewFileSystem(teamclient.opts.inMemory)
 
 	// Logging (if allowed)
 	if err := teamclient.initLogging(); err != nil {
