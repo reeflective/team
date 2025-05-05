@@ -12,7 +12,6 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/ncruces/go-sqlite3 v0.8.4
 	github.com/ncruces/go-sqlite3/gormlite v0.8.4
-	github.com/psanford/memfs v0.0.0-20230130182539-4dbf7e3e865e
 	github.com/rsteube/carapace v0.47.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.14.0
@@ -52,13 +51,13 @@ require (
 	github.com/rsteube/carapace-shlex v0.1.1 // indirect
 	github.com/stretchr/testify v1.8.2 // indirect
 	github.com/tetratelabs/wazero v1.4.0 // indirect
-	golang.org/x/crypto v0.23.0 // indirect
+	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/term v0.20.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/term v0.31.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
