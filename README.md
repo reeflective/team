@@ -343,8 +343,6 @@ This teamserver library aims to remain small, with a precise behavior and role.
 Overall, contributions and ideas should revolve around strenghening its core/transport code
 or around enhancing its interoperability with as much Go code/programs as possible.
 
-- [x] Use viper for configs.
-- [x] Use afero filesystem.
 - [ ] Add support for encrypted sqlite by default.
 - [ ] Encrypt in-memory channels, or add option for it.
 - [ ] Simpler/different listener/dialer backend interfaces, if it appears needed.
@@ -353,5 +351,4 @@ or around enhancing its interoperability with as much Go code/programs as possib
 - [ ] Review/refine/strenghen the dialer/listener init/close/start process, if it appears needed.
 - [ ] `teamclient update` downloads latest version of the server binary + method to `team.Client` for it.
 - [ ] Implement tests for most sensitive paths (certificates management, database functioning, etc)
-- [ ] Update carapace to carapace-sh
 
