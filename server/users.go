@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
