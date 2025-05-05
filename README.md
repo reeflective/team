@@ -55,31 +55,13 @@ are either _teamclients_ or _teamservers_ of others, within a defined -generally
 users, which shall generally be strictly and securely authenticated.
 
 -----
-## Components & Terms
-
-The result consists in 2 Go packages (`client` and `server`) for programs needing to act as:
-- A **Team client**: a program, or one of its components, that needs to rely on a "remote" program peer
-  to serve some functionality that is available to a team of users' tools. The program acting as a
-  _teamclient_ may do so for things as simple as sending a message to the team, or as complicated as a
-  compiler backend with which multiple client programs can send data to process and build.
-- A **Team server**: The remote, server-side counterpart of the software teamclient. Again, the
-  teamserver can be doing anything, from simply notifying users' teamclient connections to all the team
-  all the way to handling very complex and resource-hungry tasks that can only be ran on a server host.
-
-Throughout this library and its documentation, various words are repeatedly employed:
-- _teamclient_ refers to either the client-specific toolset provided by this library
-  (`team/client.Client` core type) or the software making use of this teamclient code.
-- _teamserver_ refers to either the server-specific toolset provided to make a program serve its
-  functionality remotely, or to the tools embedding this code in order to do so.
-- _team tool/s_ might be used to refer to programs using either or all of the library components at
-  large.
-
------
 ## CLI (Users)
 
 The following extracts assume a program binary named `teamserver`, which is simply the root command
 of the server-side team code. In this case therefore, the binary program only purpose its to be a
-teamserver, with no application-specific logic, (and is therefore quite useless on its own):
+teamserver, with no application-specific logic, (and is therefore quite useless on its own).
+For example, if your application `cracker` makes use of a teamserver/client, all the following
+commands would look like `cracker teamserver daemon`, `cracker teamserver client users`, etc:
 ```
 $ teamserver
 Manage the application server-side teamserver and users
@@ -155,6 +137,26 @@ teamclient import ~/Michael_localhost.teamclient.cfg
 teamclient users
 teamclient version
 ```
+
+-----
+## Components & Terms
+
+The result consists in 2 Go packages (`client` and `server`) for programs needing to act as:
+- A **Team client**: a program, or one of its components, that needs to rely on a "remote" program peer
+  to serve some functionality that is available to a team of users' tools. The program acting as a
+  _teamclient_ may do so for things as simple as sending a message to the team, or as complicated as a
+  compiler backend with which multiple client programs can send data to process and build.
+- A **Team server**: The remote, server-side counterpart of the software teamclient. Again, the
+  teamserver can be doing anything, from simply notifying users' teamclient connections to all the team
+  all the way to handling very complex and resource-hungry tasks that can only be ran on a server host.
+
+Throughout this library and its documentation, various words are repeatedly employed:
+- _teamclient_ refers to either the client-specific toolset provided by this library
+  (`team/client.Client` core type) or the software making use of this teamclient code.
+- _teamserver_ refers to either the server-specific toolset provided to make a program serve its
+  functionality remotely, or to the tools embedding this code in order to do so.
+- _team tool/s_ might be used to refer to programs using either or all of the library components at
+  large.
 
 -----
 ## API (Developers)

@@ -19,7 +19,6 @@ package client
 */
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -69,7 +68,7 @@ func (tc *Client) apply(options ...Options) {
 	// set once when created.
 	tc.initOpts.Do(func() {
 		// Application home directory.
-		homeDir := os.Getenv(fmt.Sprintf("%s_ROOT_DIR", strings.ToUpper(tc.name)))
+		homeDir := os.Getenv(strings.ToUpper(tc.name) + "_ROOT_DIR")
 		if homeDir != "" {
 			tc.homeDir = homeDir
 		} else {
@@ -114,7 +113,7 @@ func WithInMemory() Options {
 // to connect to, instead of using default on-disk user/application configurations.
 // This function will be very useful to library users who wish to implement specific
 // remote teamserver selection & connection strategies, depending on the domains and
-// and use cases of these tools.
+// use cases of these tools.
 func WithConfig(config *Config) Options {
 	return func(opts *opts) {
 		opts.config = config
