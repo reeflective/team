@@ -46,7 +46,7 @@ type opts struct {
 	noLogs   bool
 	logFile  string
 	inMemory bool
-	console  bool
+	noDisconnect  bool
 	stdout   io.Writer
 	config   *Config
 	logger   *logrus.Logger
@@ -211,6 +211,6 @@ func WithDialer(dialer Dialer) Options {
 // This option can only be used once, and should be passed client.New().
 func WithNoDisconnect() Options {
 	return func(opts *opts) {
-		opts.console = true
+		opts.noDisconnect = true
 	}
 }

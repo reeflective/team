@@ -186,7 +186,7 @@ func (tc *Client) Connect(options ...Options) (err error) {
 // If the teamclient has been passed the WithNoDisconnect() option, it won't
 // disconnect.
 func (tc *Client) Disconnect() error {
-	if tc.opts.console {
+	if tc.opts.noDisconnect {
 		return nil
 	}
 

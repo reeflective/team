@@ -344,11 +344,6 @@ Overall, contributions and ideas should revolve around strenghening its core/tra
 or around enhancing its interoperability with as much Go code/programs as possible.
 
 - [ ] Add support for encrypted sqlite by default.
-- [ ] Encrypt in-memory channels, or add option for it.
-- [ ] Simpler/different listener/dialer backend interfaces, if it appears needed.
-- [ ] Abstract away the client-side authentication, for pluggable auth/credential models.
 - [ ] Replace logrus entirely and restructure behind a single package used by both client/server.
-- [ ] Review/refine/strenghen the dialer/listener init/close/start process, if it appears needed.
-- [ ] `teamclient update` downloads latest version of the server binary + method to `team.Client` for it.
 - [ ] Implement tests for most sensitive paths (certificates management, database functioning, etc)
 
