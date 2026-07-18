@@ -156,7 +156,7 @@ have none yet.`,
 	iComps.PositionalCompletion(
 		carapace.Batch(
 			carapace.ActionCallback(ConfigsCompleter(cli, "teamclient/configs", ".teamclient.cfg", "other teamserver apps", true)),
-			carapace.ActionFiles().Tag("server configuration").StyleF(getConfigStyle(".teamclient.cfg")),
+			carapace.ActionFiles().Tag("server configuration").StyleF(GetConfigStyle(".teamclient.cfg")),
 		).ToA(),
 	)
 
@@ -206,7 +206,7 @@ func ConfigsAppCompleter(cli *client.Client, tag string) carapace.Action {
 			results = append(results, fmt.Sprintf("[%s] %s:%d", cfg.User, cfg.Host, cfg.Port))
 		}
 
-		configsAction := carapace.ActionValuesDescribed(results...).StyleF(getConfigStyle(command.ClientConfigExt))
+		configsAction := carapace.ActionValuesDescribed(results...).StyleF(GetConfigStyle(command.ClientConfigExt))
 
 		return carapace.Batch(append(
 			compErrors,
@@ -255,18 +255,20 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool
 
 					filePath := filepath.Join(configPath, file.Name())
 
-					cfg, err := cli.ReadConfig(filePath)
-					if err != nil || cfg == nil {
-						continue
+					// Teamclient configs parse into something we can describe as
+					// [user] host:port. Other importable files matched by the
+					// extension (eg. CA .pem files) don't parse as a config but
+					// should still be listed, just without that description.
+					if cfg, err := cli.ReadConfig(filePath); err == nil && cfg != nil {
+						results = append(results, filePath, fmt.Sprintf("[%s] %s:%d", cfg.User, cfg.Host, cfg.Port))
+					} else {
+						results = append(results, filePath, "")
 					}
-
-					results = append(results, filePath)
-					results = append(results, fmt.Sprintf("[%s] %s:%d", cfg.User, cfg.Host, cfg.Port))
 				}
 			}
 		}
 
-		configsAction := carapace.ActionValuesDescribed(results...).StyleF(getConfigStyle(ext))
+		configsAction := carapace.ActionValuesDescribed(results...).StyleF(GetConfigStyle(ext))
 
 		if len(compErrors) > 0 {
 			return carapace.Batch(append(compErrors, configsAction)...).ToA()
@@ -277,31 +279,37 @@ func ConfigsCompleter(cli *client.Client, filePath, ext, tag string, noSelf bool
 }
 
 func isConfigDir(cli *client.Client, dir fs.DirEntry, noSelf bool) bool {
-	if !strings.HasPrefix(dir.Name(), ".") {
+	// We look for hidden per-application directories (~/.<app>/...). The caller
+	// then probes a specific subpath inside, which filters out any hidden dir
+	// that is not actually a teamserver application directory.
+	if !dir.IsDir() || !strings.HasPrefix(dir.Name(), ".") {
 		return false
 	}
 
-	if !dir.IsDir() {
-		return false
-	}
-
-	if strings.TrimPrefix(dir.Name(), ".") != cli.Name() {
-		return false
-	}
-
-	if noSelf {
+	// When noSelf is set, exclude the current application's own directory so we
+	// only surface configs belonging to OTHER teamserver applications.
+	if noSelf && strings.TrimPrefix(dir.Name(), ".") == cli.Name() {
 		return false
 	}
 
 	return true
 }
 
-func getConfigStyle(ext string) func(s string, sc style.Context) string {
+// GetConfigStyle returns a carapace style function that highlights files with
+// the given extension (typically a teamserver/teamclient config or CA file), so
+// completion visually distinguishes them from ordinary files. It is exported so
+// that server-side command completers can share the same styling.
+//
+// For files that do not match the extension it falls back to carapace's default
+// path styling (style.ForPath, LS_COLORS): chaining a StyleF onto ActionFiles()
+// replaces that default, so without this fallback ordinary files (directories,
+// executables, ...) would lose all of their coloring.
+func GetConfigStyle(ext string) func(s string, sc style.Context) string {
 	return func(s string, sc style.Context) string {
 		if strings.HasSuffix(s, ext) {
 			return style.Red
 		}
 
-		return s
+		return style.ForPath(s, sc)
 	}
 }

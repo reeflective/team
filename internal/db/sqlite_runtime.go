@@ -22,64 +22,28 @@ package db
 
 import (
 	"math/bits"
-	"os"
-	"path/filepath"
 	"sync"
-
-	"github.com/ncruces/go-sqlite3"
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
 )
 
 // sqliteRuntimeOnce guards the one-time global wazero runtime configuration.
 var sqliteRuntimeOnce sync.Once
 
-// configureSQLiteRuntime makes the pure-Go (wazero) SQLite engine reuse a
-// persistent, on-disk cache of the compiled WASM module.
-//
-// Without it, wazero recompiles the ~1.5MB SQLite module on every process
-// start (~2s on a typical machine), which makes short-lived invocations —
-// shell completion in particular — painfully slow. With the cache, only the
-// first run per wazero version pays that cost; subsequent runs load the
-// precompiled module in tens of milliseconds.
-//
-// It is best-effort and never fatal: if the cache directory is unavailable, we
-// leave ncruces' default runtime configuration in place (correct, just not
-// cached). We also defer to any RuntimeConfig an embedding application may have
-// set itself.
+// configureSQLiteRuntime installs a global wazero runtime configuration for the
+// pure-Go SQLite engine, once, before the first connection is opened. The actual
+// setup (optimizing compiler + persistent module cache in normal builds, or the
+// interpreter under the race detector) is provided by setupSQLiteRuntime in a
+// build-tagged file. It is best-effort: on any failure ncruces' own default is
+// left in place.
 func configureSQLiteRuntime() {
-	sqliteRuntimeOnce.Do(func() {
-		if sqlite3.RuntimeConfig != nil {
-			return
-		}
+	sqliteRuntimeOnce.Do(setupSQLiteRuntime)
+}
 
-		cacheRoot, err := os.UserCacheDir()
-		if err != nil {
-			return
-		}
+// memoryLimitPages mirrors ncruces' default WASM memory limit, which is skipped
+// when we supply our own RuntimeConfig: 256MB on 64-bit, 32MB on 32-bit.
+func memoryLimitPages() uint32 {
+	if bits.UintSize < 64 {
+		return 512
+	}
 
-		cacheDir := filepath.Join(cacheRoot, "reeflective-team", "sqlite-wasm")
-		if err := os.MkdirAll(cacheDir, 0o700); err != nil {
-			return
-		}
-
-		cache, err := wazero.NewCompilationCacheWithDir(cacheDir)
-		if err != nil {
-			return
-		}
-
-		// Match ncruces' default memory limit, which is otherwise skipped when a
-		// custom RuntimeConfig is supplied: 256MB on 64-bit, 32MB on 32-bit.
-		pages := uint32(4096)
-		if bits.UintSize < 64 {
-			pages = 512
-		}
-
-		// NewRuntimeConfig() selects the optimizing compiler where supported and
-		// the interpreter otherwise; the cache is simply ignored by the latter.
-		sqlite3.RuntimeConfig = wazero.NewRuntimeConfig().
-			WithCompilationCache(cache).
-			WithMemoryLimitPages(pages).
-			WithCoreFeatures(api.CoreFeaturesV2)
-	})
+	return 4096
 }
