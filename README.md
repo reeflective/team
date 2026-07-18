@@ -375,8 +375,8 @@ The CLI and API are considered mostly stable; they may grow a little but are des
 and won't shrink. New behavior is expected to arrive through `client.Options` / `server.Options`
 rather than changes to the teamclient/teamserver types.
 
-The **Possible enhancements** below are roughly one minor release each (`0.1.0`, `0.2.0`, …) toward
-`v1.0.0`.
+The **Possible enhancements** below were each roughly one minor release (`0.1.0`, `0.2.0`, …) toward
+`v1.0.0`, and have now all landed.
 
 - Please open an issue or PR for any bug — it will be resolved promptly.
 - Features and PRs are welcome when they're likely to help most users.
@@ -387,6 +387,6 @@ Not a roadmap — these are changes the author would gladly review contributions
 library aims to stay small, with a precise role; contributions ideally strengthen the core/transport
 code or widen interoperability with other Go programs.
 
-- [ ] Add support for encrypted sqlite by default.
-- [ ] Finish replacing logrus with the standard-library `slog`, behind a single package shared by client and server.
-- [ ] Add tests for the most sensitive paths (certificate management, database, etc.).
+- [x] Add support for encrypted sqlite. _(Opt-in via `server.WithDatabaseKey(key)`: the default, file-based SQLite database is then transparently encrypted at rest through the pure-Go [adiantum](https://github.com/ncruces/go-sqlite3/tree/main/vfs/adiantum) VFS — no CGO, works on the default and `wasm_sqlite` builds. The key is never persisted next to the database. Leaving it unset keeps the current plaintext behavior.)_
+- [x] Finish replacing logrus with the standard-library `slog`, behind a single package shared by client and server. _(Core is now `slog`-only, behind the public `team/log` package; logrus remains only in one example transport to demonstrate a self-owned backend.)_
+- [x] Add tests for the most sensitive paths (certificate management, database, etc.). _(The `log` package, version/transport flow, the certificate manager (PKI generation, storage round-trips, CA chain verification — now ~80% covered), the database DSN layer, and the teamserver user lifecycle (create/authenticate/delete revocation, mutual-TLS config) are now unit-tested.)_

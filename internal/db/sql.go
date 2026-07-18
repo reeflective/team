@@ -85,6 +85,16 @@ func NewClient(dbConfig *Config, dbLogger *slog.Logger) (*gorm.DB, error) {
 		return nil, fmt.Errorf("%w: '%s'", ErrUnsupportedDialect, dbConfig.Dialect)
 	}
 
+	// For SQLite, force an actual page read now so that a wrong encryption key
+	// (or an otherwise corrupt/unreadable file) surfaces here as a clean error,
+	// instead of panicking later inside AutoMigrate's schema introspection.
+	if dbConfig.Dialect == Sqlite {
+		var count int
+		if err := dbClient.Raw("SELECT count(*) FROM sqlite_master").Scan(&count).Error; err != nil {
+			return nil, fmt.Errorf("Database open failed (wrong encryption key or corrupt database?): %w", err)
+		}
+	}
+
 	err = dbClient.AutoMigrate(Schema()...)
 	if err != nil {
 		dbLogger.Error(err.Error())

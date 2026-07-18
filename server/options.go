@@ -53,6 +53,7 @@ type opts struct {
 
 	config       *Config
 	dbConfig     *db.Config
+	dbKey        string
 	db           *gorm.DB
 	logger       slog.Handler
 	consoleStyle func(*log.ConsoleOptions)
@@ -162,6 +163,26 @@ func WithDatabase(db *gorm.DB) Options {
 func WithDatabaseConfig(config *db.Config) Options {
 	return func(opts *opts) {
 		opts.dbConfig = config
+	}
+}
+
+// WithDatabaseKey enables transparent encryption-at-rest for the default,
+// file-based SQLite database. The provided key is used to derive the encryption
+// key (via Argon2id) for the pure-Go adiantum VFS, so it works out of the box on
+// the default and wasm_sqlite builds, with no CGO and no external tooling.
+//
+// The key is never written to disk (in particular, it is not stored in the
+// database configuration file): the application is responsible for sourcing it
+// securely (environment variable, prompt, KMS, ...) on each start.
+//
+// This option has no effect on in-memory databases (nothing is persisted), on
+// user-provided backends passed with WithDatabase, or on the cgo_sqlite build
+// (whose SQLite engine does not provide the adiantum VFS).
+//
+// This option can only be used once, and must be passed to server.New().
+func WithDatabaseKey(key string) Options {
+	return func(opts *opts) {
+		opts.dbKey = key
 	}
 }
 

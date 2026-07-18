@@ -60,7 +60,7 @@ func RootOnlyVerifyCertificate(caCertificate string, rawCerts [][]byte) error {
 
 	ok := roots.AppendCertsFromPEM([]byte(caCertificate))
 	if !ok {
-		fmt.Errorf("Failed to parse root certificate")
+		return fmt.Errorf("Failed to parse root certificate")
 	}
 
 	cert, err := x509.ParseCertificate(rawCerts[0]) // We should only get one cert
