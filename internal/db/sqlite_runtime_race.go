@@ -21,17 +21,23 @@ package db
 */
 
 import (
+	"github.com/ncruces/go-sqlite3"
 	"github.com/tetratelabs/wazero"
 )
 
-// buildRuntimeConfig uses wazero's pure-Go interpreter under the race detector.
+// setupSQLiteRuntime uses wazero's pure-Go interpreter under the race detector.
 //
-// The optimizing compiler generates native machine code that the Go race
-// detector cannot instrument; under `-race` this occasionally traps with a
-// spurious "wasm error: out of bounds memory access" during query execution.
-// The interpreter is race-clean. Startup caching is irrelevant here (this build
-// is only produced by `go test -race`), so no compilation cache is configured.
-func buildRuntimeConfig() wazero.RuntimeConfig {
-	return wazero.NewRuntimeConfigInterpreter().
+// The optimizing compiler generates native machine code the Go race detector
+// cannot instrument; under `-race` this occasionally traps with a spurious
+// "wasm error: out of bounds memory access" during query execution. The
+// interpreter is race-clean. Startup caching (and thus the cross-process cache
+// lock) is irrelevant here, since this build is only produced by `go test
+// -race`.
+func setupSQLiteRuntime() {
+	if sqlite3.RuntimeConfig != nil {
+		return
+	}
+
+	sqlite3.RuntimeConfig = wazero.NewRuntimeConfigInterpreter().
 		WithMemoryLimitPages(memoryLimitPages())
 }

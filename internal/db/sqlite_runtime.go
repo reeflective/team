@@ -23,31 +23,19 @@ package db
 import (
 	"math/bits"
 	"sync"
-
-	"github.com/ncruces/go-sqlite3"
-	"github.com/tetratelabs/wazero/api"
 )
 
 // sqliteRuntimeOnce guards the one-time global wazero runtime configuration.
 var sqliteRuntimeOnce sync.Once
 
 // configureSQLiteRuntime installs a global wazero runtime configuration for the
-// pure-Go SQLite engine, once, before the first connection is opened.
-//
-// The actual configuration (an optimizing compiler with a persistent on-disk
-// module cache in normal builds, or the interpreter under the race detector) is
-// provided by buildRuntimeConfig in a build-tagged file. It is best-effort: when
-// that returns nil we leave ncruces' own default in place.
+// pure-Go SQLite engine, once, before the first connection is opened. The actual
+// setup (optimizing compiler + persistent module cache in normal builds, or the
+// interpreter under the race detector) is provided by setupSQLiteRuntime in a
+// build-tagged file. It is best-effort: on any failure ncruces' own default is
+// left in place.
 func configureSQLiteRuntime() {
-	sqliteRuntimeOnce.Do(func() {
-		if sqlite3.RuntimeConfig != nil {
-			return
-		}
-
-		if cfg := buildRuntimeConfig(); cfg != nil {
-			sqlite3.RuntimeConfig = cfg.WithCoreFeatures(api.CoreFeaturesV2)
-		}
-	})
+	sqliteRuntimeOnce.Do(setupSQLiteRuntime)
 }
 
 // memoryLimitPages mirrors ncruces' default WASM memory limit, which is skipped
