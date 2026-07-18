@@ -48,6 +48,66 @@ func TestDSNSqlite(t *testing.T) {
 	}
 }
 
+// TestDSNSqliteEncrypted verifies that supplying an encryption key routes an
+// on-disk SQLite database through the adiantum VFS, with the key carried as a
+// (URL-encoded) textkey parameter.
+func TestDSNSqliteEncrypted(t *testing.T) {
+	cfg := &Config{
+		Dialect:       Sqlite,
+		Database:      "/var/lib/team/app.db",
+		EncryptionKey: "s3cr3t key/with=chars",
+	}
+
+	dsn, err := cfg.DSN()
+	if err != nil {
+		t.Fatalf("DSN(encrypted sqlite): %v", err)
+	}
+
+	if !strings.Contains(dsn, "vfs=adiantum") {
+		t.Fatalf("encrypted DSN must select the adiantum VFS, got %q", dsn)
+	}
+	if !strings.Contains(dsn, "textkey="+url.QueryEscape("s3cr3t key/with=chars")) {
+		t.Fatalf("encrypted DSN must carry the URL-encoded textkey, got %q", dsn)
+	}
+	// The raw key with its unescaped special characters must not appear.
+	if strings.Contains(dsn, "s3cr3t key/with=chars") {
+		t.Fatalf("encrypted DSN leaked an unescaped key, got %q", dsn)
+	}
+}
+
+// TestDSNSqliteInMemoryNotEncrypted ensures the encryption key is ignored for
+// in-memory databases: there is nothing on disk to protect, and selecting the
+// adiantum VFS there would only add overhead.
+func TestDSNSqliteInMemoryNotEncrypted(t *testing.T) {
+	cfg := &Config{
+		Dialect:       Sqlite,
+		Database:      SQLiteInMemoryHost,
+		EncryptionKey: "ignored-for-memory",
+	}
+
+	dsn, err := cfg.DSN()
+	if err != nil {
+		t.Fatalf("DSN(in-memory): %v", err)
+	}
+	if strings.Contains(dsn, "adiantum") || strings.Contains(dsn, "textkey") {
+		t.Fatalf("in-memory DSN must not be encrypted, got %q", dsn)
+	}
+}
+
+// TestDSNSqlitePlaintextByDefault pins the opt-in contract: with no key, the
+// DSN is the plain file: URI with no VFS selected.
+func TestDSNSqlitePlaintextByDefault(t *testing.T) {
+	cfg := &Config{Dialect: Sqlite, Database: "/var/lib/team/app.db"}
+
+	dsn, err := cfg.DSN()
+	if err != nil {
+		t.Fatalf("DSN(plaintext): %v", err)
+	}
+	if strings.Contains(dsn, "adiantum") || strings.Contains(dsn, "textkey") {
+		t.Fatalf("default DSN must be plaintext (opt-in encryption), got %q", dsn)
+	}
+}
+
 // TestDSNMySQL checks the go-sql-driver/mysql DSN layout and, importantly, that
 // credentials and database names are URL-query-escaped so that special
 // characters in a password cannot corrupt the DSN.

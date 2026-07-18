@@ -47,6 +47,13 @@ type Config struct {
 	MaxOpenConns int `json:"max_open_conns"`
 
 	LogLevel string `json:"log_level"`
+
+	// EncryptionKey, when set, enables transparent encryption-at-rest for
+	// on-disk SQLite databases through the pure-Go adiantum VFS (available on
+	// the default and wasm_sqlite builds). It is deliberately NOT serialized:
+	// persisting the key next to the database it protects would defeat the
+	// purpose. Applications supply it out-of-band (option, env, KMS, prompt).
+	EncryptionKey string `json:"-"`
 }
 
 // DSN - Get the db connections string
@@ -55,9 +62,22 @@ func (c *Config) DSN() (string, error) {
 	switch c.Dialect {
 	case Sqlite:
 		filePath := c.Database
-		params := encodeParams(c.Params)
 
-		return fmt.Sprintf("file:%s?%s", filePath, params), nil
+		params := url.Values{}
+		for key, value := range c.Params {
+			params.Add(key, value)
+		}
+
+		// Enable transparent encryption-at-rest when a key is provided and the
+		// database actually lives on disk. The adiantum VFS is pure-Go, so this
+		// works on the default and wasm_sqlite builds; in-memory databases have
+		// nothing on disk to encrypt, and the cgo_sqlite build has no such VFS.
+		if c.EncryptionKey != "" && filePath != SQLiteInMemoryHost {
+			params.Set("vfs", "adiantum")
+			params.Set("textkey", c.EncryptionKey)
+		}
+
+		return fmt.Sprintf("file:%s?%s", filePath, params.Encode()), nil
 
 	case MySQL:
 		user := url.QueryEscape(c.Username)

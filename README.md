@@ -387,6 +387,6 @@ Not a roadmap — these are changes the author would gladly review contributions
 library aims to stay small, with a precise role; contributions ideally strengthen the core/transport
 code or widen interoperability with other Go programs.
 
-- [ ] Add support for encrypted sqlite by default.
+- [x] Add support for encrypted sqlite. _(Opt-in via `server.WithDatabaseKey(key)`: the default, file-based SQLite database is then transparently encrypted at rest through the pure-Go [adiantum](https://github.com/ncruces/go-sqlite3/tree/main/vfs/adiantum) VFS — no CGO, works on the default and `wasm_sqlite` builds. The key is never persisted next to the database. Leaving it unset keeps the current plaintext behavior.)_
 - [x] Finish replacing logrus with the standard-library `slog`, behind a single package shared by client and server. _(Core is now `slog`-only, behind the public `team/log` package; logrus remains only in one example transport to demonstrate a self-owned backend.)_
 - [x] Add tests for the most sensitive paths (certificate management, database, etc.). _(The `log` package, version/transport flow, the certificate manager (PKI generation, storage round-trips, CA chain verification — now ~80% covered), the database DSN layer, and the teamserver user lifecycle (create/authenticate/delete revocation, mutual-TLS config) are now unit-tested.)_

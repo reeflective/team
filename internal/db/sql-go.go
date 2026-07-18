@@ -24,6 +24,9 @@ import (
 	// Embed the sqlite code into our teamserver.
 	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/ncruces/go-sqlite3/gormlite"
+	// Register the pure-Go adiantum VFS so an encryption key in the DSN
+	// (vfs=adiantum&textkey=...) transparently encrypts the database at rest.
+	_ "github.com/ncruces/go-sqlite3/vfs/adiantum"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )

@@ -177,6 +177,12 @@ func (ts *Server) initDatabase() (err error) {
 			return
 		}
 
+		// Apply an out-of-band encryption key (never persisted to the config
+		// file) so the on-disk SQLite database is encrypted at rest.
+		if ts.opts.dbKey != "" {
+			ts.opts.dbConfig.EncryptionKey = ts.opts.dbKey
+		}
+
 		ts.db, err = db.NewClient(ts.opts.dbConfig, dbLogger)
 		if err != nil {
 			return
