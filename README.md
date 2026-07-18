@@ -3,7 +3,7 @@
   <br> <h1> Team </h1>
 
   <p>  Transform any Go program into a client of itself, remotely or locally.  </p>
-  <p>  Use, manage teamservers and clients with code, with their CLI, or both.  </p>
+  <p>  Use and manage teamservers and clients with code, with their CLI, or both.  </p>
 </div>
 
 
@@ -45,23 +45,174 @@
 
 
 -----
-## Summary
+## Overview
 
-The `reeflective/team` library provides a small toolset for arbitrary programs (and especially those
-controlled in more or less interactive ways) to collaborate together by acting as clients and
-servers of each others, as part of a team. Teams being made of players (humans _and_ their tools),
-the library focuses on offering a toolset for "human teaming": that is, treating software tools that
-are either _teamclients_ or _teamservers_ of others, within a defined -generally restricted- team of
-users, which shall generally be strictly and securely authenticated.
+You wrote a Go tool. Now your team wants to use *one shared instance* of it — together, securely,
+each from their own machine. Suddenly you need user authentication, TLS certificates, a database,
+one or more network listeners, a way to hand out and import connection configurations, and a CLI to
+manage all of it. None of that is your tool's actual job.
+
+`reeflective/team` is that infrastructure, done for you. It turns any Go program into a
+**teamserver** (serving its functionality to a team) and a **teamclient** (consuming it) — whether
+both run in the *same process*, or the client connects to a *remote* instance over the network. You
+keep writing your tool; the library handles collaboration, identity, transport and configuration.
+
+A few programs that fit the model:
+
+- A **C2 framework** whose operators all drive one shared server (this library was extracted from one).
+- A **password cracker** whose lightweight clients offload jobs to a GPU/compute host.
+- Any tool that should sometimes be *just a local command* and sometimes *a server for the team* —
+  same binary, same code, decided at runtime.
+
+Two things stay true throughout: a program is a client of its peers as much as a server to them, and
+**humans use software, not the inverse** — so the library serves both the developers embedding it and
+the users operating it, each through an interface fit for them.
+
+
+-----
+## Architecture
+
+```mermaid
+flowchart LR
+    U1["operator's tool<br/>(teamclient)"] -- "remote: mTLS + token" --> TR
+    U2["operator's tool<br/>(teamclient)"] -- "remote: mTLS + token" --> TR
+    SELF["same program<br/>(in-memory teamclient)"] -. "no network" .-> TR
+
+    subgraph S["your program as a teamserver"]
+        direction TB
+        TR["transport / RPC<br/>(gRPC example, or your own)"]
+        SEC["authentication & PKI<br/>certs · users · tokens"]
+        DB[("database<br/>sqlite by default")]
+        LOG["loggers · audit"]
+        TR --> SEC
+        SEC --> DB
+        SEC --> LOG
+    end
+```
+
+The core (`client` and `server` packages) owns users, certificates, the database and logging. It
+does **not** own the transport: you plug a transport/RPC backend into the server (a `Handler`) and a
+matching dialer into the client (a `Dialer`). A ready-made gRPC backend lives in `example/`. The same
+teamclient code talks to an in-process server or a remote one — the call site doesn't change.
+
+
+-----
+## Quickstart (Developers)
+
+Embedding a teamclient or teamserver should fit in a handful of function calls.
+
+**The teamserver is a *component* of your application, not the application itself.** A program built
+only around `server.New` — with no logic of its own — is a valid teamserver, but it just manages
+users, listeners and configs: it does nothing your tool actually does, and is useless on its own.
+That standalone shape is handy for demos, tests, or a dedicated admin binary, but in a real tool you
+don't make it your `main`. Instead you **graft the generated command tree onto your application's own
+root command**, where it becomes a `teamserver` subcommand alongside everything else your program
+does — which is exactly why users type `cracker teamserver daemon`, not `teamserver daemon`.
+
+`commands.Generate` returns a plain `*cobra.Command`, so embedding is one `AddCommand`:
+
+```go
+// Your application already has a root command and its own subcommands.
+rootCmd := newAppRootCommand() // "cracker", with its own logic
+
+// Build the teamserver core (no transport backend needed for a purely
+// in-memory server; add one — see below — to serve remote clients).
+teamserver, err := server.New("cracker")
+
+// Generate the teamserver command tree and graft it under your root.
+// It nests the client-only commands under a "client" subcommand too.
+teamCmds := commands.Generate(teamserver, teamserver.Self())
+rootCmd.AddCommand(teamCmds) // now: `cracker teamserver ...`
+
+rootCmd.Execute()
+```
+
+If you *do* want a dedicated, teamserver-only binary (the demo/admin shape above), just run the
+generated tree directly as your root — this is what the standalone `teamserver` binary in the CLI
+section is:
+
+```go
+teamserver, err := server.New("teamserver")
+serverCmds := commands.Generate(teamserver, teamserver.Self())
+serverCmds.Execute() // the whole binary IS the teamserver
+```
+
+Either way, serving remote clients means giving the server a transport backend. The same as above,
+over the gRPC example backend:
+
+```go
+// The example directory ships a ready-made gRPC listener backend.
+gTeamserver := grpc.NewListener()
+
+// Create the teamserver and register the gRPC backend with it:
+// any gRPC teamclient will now be able to connect to it.
+teamserver, err := server.New("teamserver", server.WithHandler(gTeamserver))
+
+// The server can also serve itself in-memory. Give it the matching
+// client-side gRPC backend so its own teamclient can dial it.
+gTeamclient := grpc.NewClientFrom(gTeamserver)
+teamclient := teamserver.Self(client.WithDialer(gTeamclient))
+
+// Generate and run the command tree.
+serverCmds := commands.Generate(teamserver, teamclient)
+serverCmds.Execute()
+```
+
+See the [`example/`](https://github.com/reeflective/team/tree/main/example) directory for complete
+client and server entrypoints.
+
+
+-----
+## What you get
+
+- **Works out of the box** — a pure-Go sqlite database, file + stdout logging, and a full mTLS PKI
+  are all configured for you. A usable teamserver is the two calls above.
+- **Local and remote, same code** — run the client in-process (no network) or against a remote
+  teamserver; the calling code is identical. Actual network location is irrelevant to the model.
+- **Secure by default** — mutual-TLS transport, certificate-based user authentication and per-user
+  tokens, in a zero-trust posture between clients and servers. The teamserver's job is to prove
+  *who* is calling; authorization stays with your application.
+- **Batteries, but swappable** — replace the transport/RPC layer, the database, the loggers or the
+  filesystem backend when you outgrow the defaults, without giving up the rest.
+- **Two audiences, two interfaces** — a small Go API for developers, and an embeddable
+  `teamserver`/`teamclient` CLI tree (with shell completion) for users.
+- **Transport-agnostic** — ships a gRPC example backend, but forces no transport on you, and needs
+  none at all for in-memory use.
+- **Automation-friendly** — non-blocking API, `systemd` unit generation, persistent listeners, and
+  importable client configuration files for painless deployment.
+
+
+-----
+## Components & Terms
+
+The library is two Go packages (`client` and `server`) for programs that need to act as:
+
+- A **teamclient** — a program (or one of its components) that relies on a peer to serve some
+  functionality shared across a team. That can be as simple as posting a message to the team, or as
+  involved as shipping data to a remote compiler backend to build.
+- A **teamserver** — the server-side counterpart. It can do anything, from merely notifying the team
+  of client connections all the way to running heavy, resource-hungry tasks that only belong on a
+  server host.
+
+Vocabulary used throughout the code and docs:
+
+- **teamclient** — the client-side toolset provided by the library (`team/client.Client`), or the
+  software embedding it.
+- **teamserver** — the server-side toolset (`team/server.Server`), or the software embedding it.
+- **team tool(s)** — any program using either or both of the components.
+
 
 -----
 ## CLI (Users)
 
-The following extracts assume a program binary named `teamserver`, which is simply the root command
-of the server-side team code. In this case therefore, the binary program only purpose its to be a
-teamserver, with no application-specific logic, (and is therefore quite useless on its own).
-For example, if your application `cracker` makes use of a teamserver/client, all the following
-commands would look like `cracker teamserver daemon`, `cracker teamserver client users`, etc:
+Users drive their team tools through an embeddable command tree. The examples below assume a binary
+named `teamserver` whose only purpose is to *be* a teamserver (no application logic of its own, so
+useless on its own). In a real tool `cracker`, these become `cracker teamserver daemon`,
+`cracker teamserver client users`, and so on.
+
+<details>
+<summary><b>Server and client command trees</b></summary>
+
 ```
 $ teamserver
 Manage the application server-side teamserver and users
@@ -84,8 +235,8 @@ user management
   user        Create a user for this teamserver and generate its client configuration file
 ```
 
-In this example, this program comes with a client-only binary counterpart, `teamclient`. The latter 
-does not include any team server-specific code, and has therefore a much smaller command set:
+A program may ship a client-only counterpart, `teamclient`, with no server code and a smaller set:
+
 ```
 $ teamclient
 Client-only teamserver commands (import configs, show users, etc)
@@ -98,252 +249,144 @@ Available Commands:
   users       Display a table of teamserver users and their status
   version     Print teamserver client version
 ```
+</details>
 
-With these example binaries at hand, below are some examples of workflows.
-Starting with the `teamserver` binary (which might be under access/control of a team admin):
-``` bash
+Typical **teamserver** workflow (often run by a team admin):
+
+```bash
 # 1 - Generate a user for a local teamserver, and import users from a file.
 teamserver user --name Michael --host localhost
 teamserver import ~/.other_app/teamserver/certs/other_app_user-ca-cert.teamserver.pem
 
-# 2 - Start some teamserver listeners, then start the teamserver daemon (blocking).
-# Use the application-defined default port in the first call, and instruct the server
-# to start the listeners automatically when used in daemon mode with --persistent.
-teamserver listen --host localhost --persistent 
+# 2 - Start some listeners, then start the daemon (blocking).
+# The first call uses the application-defined default port; --persistent makes
+# the listeners come back automatically when the server runs in daemon mode.
+teamserver listen --host localhost --persistent
 teamserver listen --host 172.10.0.10 --port 32333 --persistent
-teamserver status                                                   # Prints the saved listeners, configured loggers, databases, etc.
-teamserver daemon --host localhost --port 31337                     # Blocking: serves all persistent listeners and a main one at localhost:31337
+teamserver status                                                   # Saved listeners, loggers, databases, etc.
+teamserver daemon --host localhost --port 31337                     # Blocking: serves persistent listeners + one at localhost:31337
 
-# 3 - Export and enable a systemd service configuration for the teamserver.
-teamserver systemd                                                  # Use default host, port and listener stacks. 
-teamserver systemd --host localhost --binpath /path/to/teamserver   # Specify binary path.
-teamserver systemd --user --save ~/teamserver.service               # Print to file instead of stdout.
+# 3 - Export and enable a systemd service for the teamserver.
+teamserver systemd                                                  # Default host, port and listener stack.
+teamserver systemd --host localhost --binpath /path/to/teamserver   # Specify the binary path.
+teamserver systemd --user --save ~/teamserver.service               # Write to a file instead of stdout.
 
-# 4 - Import the "remote" administrator configuration for (1), and use it.
-teamserver client import ~/Michael_localhost.teamclient.cfg 
-teamserver client version                                   # Print the client and the server version information.
-teamserver client users                                     # Print all users registered to the teamserver and their status.
+# 4 - Import the admin's own "remote" config from (1), and use it.
+teamserver client import ~/Michael_localhost.teamclient.cfg
+teamserver client version                                          # Client and server version info.
+teamserver client users                                            # All registered users and their status.
 
-# 5 - Quality of life
-teamserver _carapace <shell> # Source detailed the completion engine for the teamserver.
+# 5 - Quality of life.
+teamserver _carapace <shell>                                       # Source the shell completion engine.
 ```
 
-Continuing the `teamclient` binary (which is available to all users' tool in the team):
+Typical **teamclient** workflow (available to every user's tool in the team):
+
 ```bash
-# Example 1 - Import a remote teamserver configuration file given by a team administrator.
+# Import a remote teamserver configuration handed out by an administrator.
 teamclient import ~/Michael_localhost.teamclient.cfg
 
-# Example 2 - Query the server for its information.
+# Query the server.
 teamclient users
 teamclient version
 ```
 
------
-## Components & Terms
-
-The result consists in 2 Go packages (`client` and `server`) for programs needing to act as:
-- A **Team client**: a program, or one of its components, that needs to rely on a "remote" program peer
-  to serve some functionality that is available to a team of users' tools. The program acting as a
-  _teamclient_ may do so for things as simple as sending a message to the team, or as complicated as a
-  compiler backend with which multiple client programs can send data to process and build.
-- A **Team server**: The remote, server-side counterpart of the software teamclient. Again, the
-  teamserver can be doing anything, from simply notifying users' teamclient connections to all the team
-  all the way to handling very complex and resource-hungry tasks that can only be ran on a server host.
-
-Throughout this library and its documentation, various words are repeatedly employed:
-- _teamclient_ refers to either the client-specific toolset provided by this library
-  (`team/client.Client` core type) or the software making use of this teamclient code.
-- _teamserver_ refers to either the server-specific toolset provided to make a program serve its
-  functionality remotely, or to the tools embedding this code in order to do so.
-- _team tool/s_ might be used to refer to programs using either or all of the library components at
-  large.
 
 -----
-## API (Developers)
+## Customization & backends
 
-The teamclient and teamserver APIs are designed with several things in mind as well:
-- While users are free to use their tools teamclients/servers within the bounds of the provided
-  command-line interface tree (`teamserver` and `teamclient` commands), the developers using the 
-  library have access to a slightly larger API, especially with regards to "selection strategies"
-  (grossly, the way tools' teamclients choose their remote teamservers before connecting to them).
-  This is equivalent of saying that tools developers should have identified 70% of all different
-  scenarios/valid operation mode for their tools, and program their teamclients accounting for this,
-  but let the users decide of the remaining 30% when using the tools teamclient/server CLI commands.
-- The library makes it easy to embed a teamclient or a teamserver in existing codebases, or easy to 
-  include it in the ones who will need it in the future. In any case, importing and using a default
-  teamclient/teamserver should fit into a couple of function calls at most.
-- To provide a documented code base, with a concise naming and programming model which allows equally
-  well to use default teamclient backends or to partially/fully reimplement different layers.
+Developers get a slightly larger surface than the CLI exposes, and can replace parts or all of the
+default backends while keeping the rest:
 
-Below is the simplest, shortest example of the above's `teamserver` binary `main()` function:
-```go
-// Generate a teamserver, without any specific transport/RPC backend.
-// Such backends are only needed when the teamserver serves remote clients.
-teamserver, err := server.New("teamserver")
+- **Transport / RPC** — implement the server `Handler` (init/listen) and client `Dialer`
+  (init/dial/close) interfaces to bring your own transport. The gRPC backend in
+  `example/transports/` is one such implementation, not a hard dependency. In-memory servers need no
+  transport at all.
+- **Database** — the default is a file-based, pure-Go sqlite DB, and can be configured to run in
+  memory (`server.WithInMemory()`); swap it via the database option.
+- **Loggers** — pass your own logger; otherwise the cores log to stdout (≥ warning) and to default
+  files (≥ info). Provide a custom logger and the cores stop writing to stdout and their own files.
+- **Filesystem** — the app directory, certs and config locations are configurable.
 
-// Generate a tree of server-side commands: this tree also has client-only
-// commands as a subcommand "client" of the "teamserver" command root here.
-serverCmds := commands.Generate(teamserver, teamserver.Self())
+A useful rule of thumb: a tool's developers can usually anticipate ~70% of the valid ways their tool
+will be operated, and should program their teamclients for those; the remaining ~30% is left to users
+through the CLI (notably the *selection strategy* — how a teamclient picks the teamserver it connects
+to).
 
-// Run the teamserver CLI.
-serverCmds.Execute()
-```
 
-Another slightly more complex example, involving a gRPC transport/RPC backend:
-```go
-// The examples directory has a default teamserver listener backend.
-gTeamserver := grpc.NewListener()
+-----
+## Behavioral notes
 
-// Create a new teamserver, register the gRPC backend with it.
-// All gRPC teamclients will be able to connect to our teamserver.
-teamserver, err := server.New("teamserver", server.WithHandler(gTeamserver))
+- All errors returned by the API are logged before being returned (per the configured log behavior).
+- Filesystem interactions are deferred until they actually need to happen.
+- Critical errors are returned rather than `log.Fatal`/`panic` — except the certificate
+  infrastructure, which must succeed for security reasons.
+- Except `server.ServeDaemon` (behind `teamserver daemon`), all API functions and interface methods
+  are non-blocking; the code documentation flags this where relevant.
+- The loggers handed out by the cores are never nil.
 
-// Since our teamserver offers its functionality through a gRPC layer,
-// our teamclients must have the corresponding client-side RPC client backend.
-// Create an in-memory gRPC teamclient backend for the server to serve itself.
-gTeamclient := grpc.NewClientFrom(gTeamserver)
-
-// Create a new teamclient, registering the gRPC backend to it.
-teamclient := teamserver.Self(client.WithDialer(gTeamclient))
-
-// Generate the commands for the teamserver.
-serverCmds := commands.Generate(teamserver, teamclient)
-
-// Run any of the commands.
-serverCmds.Execute()
-```
-
-Some additional and preliminary/example notes about the codebase:
-- All errors returned by the API are always logged before return (with configured log behavior).
-- Interactions with the filesystem restrained until they need to happen.
-- The default database is a pure Go file-based sqlite db, which can be configured to run in memory.
-- Unless absolutely needed or specified otherwise, return all critical errors instead of log
-  fatal/panicking (exception made of the certificate infrastructure which absolutely needs to work
-  for security reasons).
-- Exception made of the `teamserver daemon` command related `server.ServeDaemon` function, all API
-  functions and interface methods are non-blocking. Mentions of this are found throughout the
-  code documentation when needed.
-- Loggers offered by the teamclient/server cores are never nil, and will log to both stdout (above
-  warning level) and to default files (above info level) if no custom logger is passed to them.
-  If such a custom logger is given, team clients/servers won't log to stdout or their default files.
-
-Please see the [example](https://github.com/reeflective/team/tree/main/example) directory for all client/server entrypoint examples.
 
 -----
 ## Documentation
 
-- Go code documentation is available at the [Godoc website](https://pkg.go.dev/github.com/reeflective/team).
-- Client and server documentation can be found in the [directories section](https://pkg.go.dev/github.com/reeflective/team#section-directories) of the Go documentation.
-- The `example/` subdirectories also include documentation for their own code, and should provide
-a good introduction to this library usage. 
+- Go API reference: [pkg.go.dev/github.com/reeflective/team](https://pkg.go.dev/github.com/reeflective/team).
+- Client and server packages: see the
+  [directories section](https://pkg.go.dev/github.com/reeflective/team#section-directories) of the Go docs.
+- The `example/` subdirectories are documented and are the best introduction to using the library.
+
+
+-----
+## Comparison with the Hashicorp Go plugin system
+
+The [Hashicorp plugin system](https://github.com/hashicorp/go-plugin) solves a nearby but different
+problem — emulating dynamic code loading in a compiled language over a gRPC backend. The key
+differences:
+
+- **In-memory *and* remote.** Hashicorp plugins are always a separate binary (executed out of
+  process even when they look in-memory). `team` clients and servers are meant to run both in memory
+  and remotely (here "remote" means a distinct process; network location is irrelevant).
+- **Not about dynamic code execution.** `team`'s goal isn't to emulate plugins; it's to let a
+  program that *should* be a server to several clients act as one, easily and securely.
+- **No forced transport.** Hashicorp mandates gRPC. `team` uses gRPC only for its example backend and
+  forces no transport on you — nor requires one for in-memory use.
+- **First-class users.** Both use certificate-based connections, but `team` builds in a notion of
+  authenticated users, promotes Mutual TLS, and ships loggers and a database for working data.
+
 
 -----
 ## Background
 
-The project originates from the refactoring of a security-oriented tool that used this approach to
-clearly segregate client and server binary code (the former's not needing most of the latter's).
-Besides, the large exposure of the said-tool to the CLI prompted the author of the
-`reeflective/team` library to rethink how the notion of "collaborative programs" could be approached
-and explored from different viewpoints: distinguishing between the tools' developers, and their
-users. After having to reuse this core code for other projects, the idea appeared to extract the
-relevant parts and to restructure and repackage them behind coherent interfaces (API and CLI).
+The project was extracted from a security-oriented tool that used this approach to cleanly separate
+client and server binaries (the former needing little of the latter's code). Its heavy CLI exposure
+prompted a rethink of how "collaborative programs" could be approached from two distinct viewpoints —
+the tools' developers and their users — and the reusable core was then restructured and repackaged
+behind coherent API and CLI interfaces.
 
-The client-server paradigm is an ubiquitous concept in computer science. Equally large and common is
-the problem of building software that _collaborates_ easily with other peer programs. Although
-writing collaborative software seems to be the daily task of many engineers around the world,
-succeedingly and easily doing so in big programs as well as in smaller ones is not more easily done
-than said. Difficulty still increases -and keeping in mind that humans use software and not the
-inverse- when programs must enhance the capacity of humans to collaborate while not restricting the
-number of ways they can do so, for small tasks as well as for complex ones.
+The client-server paradigm is ubiquitous, and so is the problem of writing software that collaborates
+easily with peer programs. Doing that *well* in large and small programs alike is harder than it
+sounds — especially when the software must extend humans' ability to collaborate without narrowing
+the number of ways they can, for simple and complex tasks both.
 
------
-## Principles, Constraints & Features
-
-The library rests on several principles, constraints and ideas to fulfill its intended purpose:
-- The library's sole aim is to **make most programs able to collaborate together** under the
-  paradigm of team clients and team servers, and to do so while ensuring performance, coherence,
-  ease of use and security of all processes and workflows involved. This, under the _separate
-  viewpoints_ of tool development, enhancement and usage.
-- Ensure a **working-by-default toolset**, assuming that the time spent on any tool's configuration
-  is inversely proportional to its usage. Emphasis on this aspect should apply equally well to team
-  tools' users and developers.
-- Ensure the **full, secure and reliable authentication of all team clients and servers'
-  interactions**, by using certificate-based communication encryption and user authentication, _aka_
-  "zero-trust" model. Related and equally important, ensure the various team toolset interfaces
-  provide for easy and secure usage of their host tools.
-- **Accomodate for the needs of developers to use more specific components**, at times or at points,
-  while not hampering on the working-by-default aspects of the team client/server toolset. Examples
-  include replacing parts or all of the transport, RPC, loggers, database and filesystem
-  backends.
-- To that effect, the library offers **different interfaces to its functionality**: an API (Go code)
-  provides developers a working-by-default, simple and powerful way to instruct their software how 
-  to collaborate with peers, and a CLI, for users to operate their team tools, manage their related 
-  team configurations with ease, with a featured command-line tree to embed anywhere.
-- Ensure that team client/server functionality can be **easily integrated in automated workflows**: 
-  this is done by offering clear code/execution paths and behaviors, for both users and developers,
-  and by providing commands and functions to ease deployment of said tools.
-
------
-## Differences with the Hashicorp Go plugin system
-
-At first glance, different and not much related to our current topic is the equally large problem of
-dynamic code loading and execution for arbitrary programs. In the spectrum of major programming
-languages, various approaches have been taken to tackle the dynamic linking, loading and execution
-problem, with interpreted languages offering the most common solutioning approach to this.
-
-The Go language (and many other compiled languages that do not encourage dynamic linking for that
-matter) has to deal with the problem through other means, the first of which simply being the
-adoption of different architectural designs in the first place (eg. "microservices"). Another path
-has been the "plugin system" for emulating the dynamic workflows of interpreted languages, of which
-the most widely used attempt being the [Hashicorp plugin
-system](https://github.com/hashicorp/go-plugin), which entirely rests on an (g)RPC backend.
-
-Consequently, differences and similarities can be resumed as follows:
-- The **Hashicorp plugins only support "remote" plugins** in that each plugin must be a different
-  binary. Although those plugins seem to be executed "in-memory", they are not. On the contrary,
-  the `reeflective/team` clients and servers can (should, and will) be used both in memory and
-  remotely (here remotely means as a distinct subprocess: actual network location is irrelevant).
-- The purpose of the `reeflective/team` library is **not** to emulate dynamic code execution behavior.
-  Rather, its intent is to make programs that should or might be better used as servers to several
-  clients to act as such easily and securely in many different scenarios.
-- The **Hashicorp plugins are by essence restrained to an API problem**, and while the `team` library
-  is equally (but not mandatorily or exclusively) about interactive usage of arbitrary programs.
-- **The Hashicorp plugin relies mandatorily (since it's built on) a gRPC transport backend**. While
-  gRPC is a very sensible choice for many reasons (and is therefore used for the default example
-  backend in `example/transports/`), the `team` library does not force library users to use a given
-  transport/RPC backend, nor even to use one. Again, this would be beyond the library scope, but
-  what is in scope is the capacity of this library to interface with or use different transports.
-- Finally, the Hashicorp plugins are not aware of any concept of users as they are considered by
-  the team library, although both use certificate-based connections. However, `team` promotes and
-  makes easy to use mutually authenticated (Mutual TLS) connections (see the default gRPC example 
-  backend). Related to this, teamservers integrate loggers and a database to store working data.
 
 -----
 ## Status
 
-The Command-Line and Application-Programming Interfaces of this library are unlikely to change
-much in the future, and should be considered mostly stable. These might grow a little bit, but
-will not shrink, as they been already designed to be as minimal as they could be.
+The CLI and API are considered mostly stable; they may grow a little but are designed to be minimal
+and won't shrink. New behavior is expected to arrive through `client.Options` / `server.Options`
+rather than changes to the teamclient/teamserver types.
 
-In particular, `client.Options` and `server.Options` APIs might grow, so that new features/behaviors
-can be integrated without the need for the teamclients and teamservers types APIs to change.
+The **Possible enhancements** below are roughly one minor release each (`0.1.0`, `0.2.0`, …) toward
+`v1.0.0`.
 
-The section **Possible Enhancements** below includes 9 points, which should grossly be equal
-to 9 minor releases (`0.1.0`, `0.2.0`, `0.3.0`, etc...), ending up in `v1.0.0`.
+- Please open an issue or PR for any bug — it will be resolved promptly.
+- Features and PRs are welcome when they're likely to help most users.
 
-- Please open a PR or an issue if you face any bug, it will be promptly resolved.
-- New features and/or PRs are welcome if they are likely to be useful to most users.
-
------
 ## Possible enhancements
 
-The list below is not an indication on the roadmap of this repository, but should be viewed as
-things the author of this library would be very glad to merge contributions for, or get ideas. 
-This teamserver library aims to remain small, with a precise behavior and role.
-Overall, contributions and ideas should revolve around strenghening its core/transport code
-or around enhancing its interoperability with as much Go code/programs as possible.
+Not a roadmap — these are changes the author would gladly review contributions or ideas for. The
+library aims to stay small, with a precise role; contributions ideally strengthen the core/transport
+code or widen interoperability with other Go programs.
 
 - [ ] Add support for encrypted sqlite by default.
-- [ ] Replace logrus entirely and restructure behind a single package used by both client/server.
-- [ ] Implement tests for most sensitive paths (certificates management, database functioning, etc)
-
+- [ ] Finish replacing logrus with the standard-library `slog`, behind a single package shared by client and server.
+- [ ] Add tests for the most sensitive paths (certificate management, database, etc.).
