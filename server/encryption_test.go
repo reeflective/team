@@ -35,8 +35,13 @@ func TestDatabaseEncryptionAtRest(t *testing.T) {
 
 	home := t.TempDir()
 
+	// WithNoLogs keeps the database on disk (unlike WithInMemory) while avoiding
+	// an open log-file handle, which on Windows would block the t.TempDir()
+	// cleanup ("the process cannot access the file because it is being used by
+	// another process").
 	ts, err := New("enctest",
 		WithHomeDirectory(home),
+		WithNoLogs(true),
 		WithDatabaseKey("correct horse battery staple"),
 	)
 	if err != nil {
