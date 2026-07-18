@@ -284,7 +284,7 @@ working.`,
 
 	rmUserComps := carapace.Gen(rmUserCmd)
 
-	rmUserComps.PositionalCompletion(carapace.ActionCallback(userCompleter(client, server)))
+	rmUserComps.PositionalCompletion(carapace.ActionCallback(userCompleter(server)))
 
 	rmUserComps.PreRun(func(cmd *cobra.Command, args []string) {
 		if cmd.PersistentPreRunE != nil {
