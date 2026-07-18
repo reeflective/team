@@ -375,8 +375,8 @@ The CLI and API are considered mostly stable; they may grow a little but are des
 and won't shrink. New behavior is expected to arrive through `client.Options` / `server.Options`
 rather than changes to the teamclient/teamserver types.
 
-The **Possible enhancements** below are roughly one minor release each (`0.1.0`, `0.2.0`, …) toward
-`v1.0.0`.
+The **Possible enhancements** below were each roughly one minor release (`0.1.0`, `0.2.0`, …) toward
+`v1.0.0`, and have now all landed.
 
 - Please open an issue or PR for any bug — it will be resolved promptly.
 - Features and PRs are welcome when they're likely to help most users.
