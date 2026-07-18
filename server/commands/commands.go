@@ -312,7 +312,7 @@ users to this one. The file is JSON of the form {"certificate":"...","private_ke
 	iComps.PositionalCompletion(
 		carapace.Batch(
 			carapace.ActionCallback(cli.ConfigsCompleter(client, "teamserver/certs", ".teamserver.pem", "other teamservers user CAs", true)),
-			carapace.ActionFiles().Tag("teamserver user CAs"),
+			carapace.ActionFiles().Tag("teamserver user CAs").StyleF(cli.GetConfigStyle(".teamserver.pem")),
 		).ToA(),
 	)
 
