@@ -38,12 +38,13 @@ type TokenAuth string
 // This transport uses its own logrus logger (common.Logrus) for the gRPC stack/requests
 // events, independently of the core teamclient's slog loggers.
 func LogMiddlewareOptions() []grpc.DialOption {
+	// NOTE: we deliberately do NOT call grpc_logrus.ReplaceGrpcLogger here: it
+	// mutates gRPC's process-global logger (grpclog.SetLoggerV2), which races
+	// with running gRPC goroutines when dialers are (re)initialized.
 	logrusEntry := common.LogEntry("transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
 		grpc_logrus.WithLevels(common.CodeToLevel),
 	}
-
-	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
 
 	// Intercepting client requests.
 	requestIntercept := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {

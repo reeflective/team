@@ -68,12 +68,15 @@ func LogMiddlewareOptions(serv *server.Server) ([]grpc.ServerOption, error) {
 	)
 
 	// Logging interceptors (this transport's own logrus backend).
+	//
+	// NOTE: we deliberately do NOT call grpc_logrus.ReplaceGrpcLogger here: it
+	// mutates gRPC's process-global logger (grpclog.SetLoggerV2), which races
+	// with running gRPC server goroutines when listeners are (re)initialized.
+	// Per-request logging below is unaffected.
 	logrusEntry := common.LogEntry("transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
 		grpc_logrus.WithLevels(common.CodeToLevel),
 	}
-
-	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
 
 	requestOpts = append(requestOpts,
 		grpc_logrus.UnaryServerInterceptor(logrusEntry, logrusOpts...),
