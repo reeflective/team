@@ -73,6 +73,17 @@ func (ts *Server) UserCreate(name string, lhost string, lport uint16) (*client.C
 		return nil, ts.errorf("%w: %w", ErrUserConfig, err)
 	}
 
+	// Enforce one identity per name. A teamserver user is keyed by its Name (the
+	// application authorization model resolves permissions against it), so a user
+	// name must map to exactly one record. Re-creating an existing user therefore
+	// ROTATES its credentials in place rather than inserting a duplicate row:
+	// delete any user(s) currently holding this name before saving the new one.
+	// The previously issued token/certificate for this name are thereby revoked.
+	if err = ts.Database().Where(&db.User{Name: name}).Delete(&db.User{}).Error; err != nil {
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
+	}
+	ts.userTokens = &sync.Map{}
+
 	digest := sha256.Sum256([]byte(rawToken))
 	dbuser := &db.User{
 		Name:  name,
@@ -231,6 +242,32 @@ func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
 		return nil, ts.errorWith(log, "%w: failed to load server certificate: %w", ErrCertificate, err)
 	}
 
+	// Ensure the server certificate still belongs to the CURRENT users-CA and is
+	// within its validity window. UserServerGetCertificate only reports an error
+	// when the certificate is entirely absent, so after a users-CA rotation the
+	// teamserver would otherwise keep serving an orphaned certificate forever --
+	// every remote handshake then failing with "tls: bad certificate" while the
+	// clients (whose bundles carry the NEW CA) reject the old server cert. If the
+	// cached cert no longer chains to the live CA or has expired, regenerate it
+	// and reload the key pair so the daemon self-heals on restart.
+	if !serverCertValidFor(cert, caCertPtr) {
+		log.Warn("server certificate does not match the current users CA (or expired); regenerating")
+
+		if _, _, err = ts.certs.UserServerGenerateCertificate(); err != nil {
+			return nil, ts.errorWith(log, "%w: failed to regenerate server certificate after CA change: %w", ErrCertificate, err)
+		}
+
+		certPEM, keyPEM, err = ts.certs.UserServerGetCertificate()
+		if err != nil {
+			return nil, ts.errorWith(log, "%w: failed to fetch regenerated server certificate: %w", ErrCertificate, err)
+		}
+
+		cert, err = tls.X509KeyPair(certPEM, keyPEM)
+		if err != nil {
+			return nil, ts.errorWith(log, "%w: failed to load regenerated server certificate: %w", ErrCertificate, err)
+		}
+	}
+
 	tlsConfig := &tls.Config{
 		RootCAs:      caCertPool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
@@ -244,6 +281,29 @@ func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
+}
+
+// serverCertValidFor reports whether the leaf certificate of the given server
+// key pair is signed by ca (i.e. still chains to the current users-CA) and is
+// currently within its validity window. It is intentionally conservative: any
+// parse/verification failure returns false so the caller regenerates the cert.
+func serverCertValidFor(cert tls.Certificate, ca *x509.Certificate) bool {
+	if ca == nil || len(cert.Certificate) == 0 {
+		return false
+	}
+
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return false
+	}
+
+	if err := leaf.CheckSignatureFrom(ca); err != nil {
+		return false
+	}
+
+	now := time.Now()
+
+	return !now.Before(leaf.NotBefore) && !now.After(leaf.NotAfter)
 }
 
 // UsersGetCA returns the bytes of a PEM-encoded certificate authority,
