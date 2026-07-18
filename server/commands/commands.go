@@ -66,9 +66,27 @@ func Generate(teamserver *server.Server, teamclient *client.Client) *cobra.Comma
 }
 
 func serverCommands(server *server.Server, client *client.Client) *cobra.Command {
+	name := server.Name()
 	teamCmd := &cobra.Command{
-		Use:          "teamserver",
-		Short:        fmt.Sprintf("Manage the %s teamserver and users", server.Name()),
+		Use:   "teamserver",
+		Short: fmt.Sprintf("Manage the %s teamserver and users", name),
+		Long: fmt.Sprintf(`Manage the %[1]s teamserver: users, listeners, and the connection configs
+operators use to reach it.
+
+The teamserver is embedded in %[1]s; these commands administer it. A typical
+bring-up is:
+
+  1. Create users     teamserver user --name alice --host <bind>
+  2. Add listeners    teamserver listen --host <bind> --persistent
+  3. Run the server   teamserver daemon --host <bind> --port <port>
+
+Each 'user' command writes a *.teamclient.cfg file to hand to that operator; they
+import it with 'teamserver client import' (or a client-only binary's 'import'). The
+teamserver only AUTHENTICATES users (proves identity); what a user is allowed to do
+is decided by %[1]s itself.
+
+Client-side commands (import a config, list users, show version) live under the
+'client' subcommand. Run 'teamserver guide' for a fuller walkthrough.`, name),
 		SilenceUsage: true,
 	}
 
@@ -79,7 +97,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	)
 
 	teamFlags := pflag.NewFlagSet("teamserver", pflag.ContinueOnError)
-	teamFlags.CountP("verbosity", "v", "Counter flag (-vvv) to increase log verbosity on stdout (1:info-> 3:trace)")
+	teamFlags.CountP("verbosity", "v", "Increase stdout log verbosity; repeat to go louder (-v, -vv, -vvv)")
 	teamFlags.String("log-format", "", "console log format (console, text, json)")
 	teamCmd.PersistentFlags().AddFlagSet(teamFlags)
 
@@ -100,8 +118,16 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// Start a listener
 	listenCmd := &cobra.Command{
-		Use:     "listen",
-		Short:   "Start a teamserver listener (non-blocking)",
+		Use:   "listen",
+		Short: "Start a teamserver listener (non-blocking)",
+		Long: `Start a listener (a bind job) for a registered transport stack, without blocking.
+Use --persistent to save it so 'daemon' restarts it automatically. Pick a non-default
+transport with --listener (completed by stack name).`,
+		Example: `  # Default stack on localhost, remembered across restarts
+  teamserver listen --host localhost --persistent
+
+  # A specific stack on another interface/port
+  teamserver listen --host 10.0.0.5 --port 32333 --listener gRPC --persistent`,
 		GroupID: command.TeamServerGroup,
 		RunE:    startListenerCmd(server),
 	}
@@ -122,8 +148,12 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// Close a listener
 	closeCmd := &cobra.Command{
-		Use:     "close",
-		Short:   "Close a listener and remove it from persistent ones if it's one",
+		Use:   "close",
+		Short: "Close a listener and remove it from persistent ones if it's one",
+		Long: `Close one or more running listeners by ID (a unique prefix is enough) and remove
+them from the saved/persistent set. IDs are shown by 'status' and are completed.`,
+		Example: `  teamserver close 3f9ab21c
+  teamserver close 3f9ab21c 8c1de490`,
 		Args:    cobra.MinimumNArgs(1),
 		GroupID: command.TeamServerGroup,
 		Run:     closeCmd(server),
@@ -146,8 +176,13 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// Daemon (blocking listener and persistent jobs)
 	daemonCmd := &cobra.Command{
-		Use:     "daemon",
-		Short:   "Start the teamserver in daemon mode (blocking)",
+		Use:   "daemon",
+		Short: "Start the teamserver in daemon mode (blocking)",
+		Long: `Run the teamserver in the foreground (blocking) until SIGTERM / Ctrl-C. Starts the
+main listener plus every persistent listener. With no --host/--port, the values from
+the teamserver config are used.`,
+		Example: `  teamserver daemon --host 0.0.0.0 --port 31337
+  teamserver daemon                         # use config defaults`,
 		GroupID: command.TeamServerGroup,
 		RunE:    daemoncmd(server),
 	}
@@ -162,8 +197,13 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// Systemd configuration output
 	systemdCmd := &cobra.Command{
-		Use:     "systemd",
-		Short:   "Print a systemd unit file for the application teamserver, with options",
+		Use:   "systemd",
+		Short: "Print a systemd unit file for the application teamserver, with options",
+		Long: `Render a systemd unit that runs 'teamserver daemon'. Prints to stdout unless --save
+is given. --user sets the OS user the service runs as (a value, e.g. --user myapp),
+--binpath the executable path baked into the unit.`,
+		Example: `  teamserver systemd --binpath /usr/local/bin/myapp --host 0.0.0.0 --port 31337
+  teamserver systemd --user myapp --save /etc/systemd/system/myapp.service`,
 		GroupID: command.TeamServerGroup,
 		RunE:    systemdConfigCmd(server),
 	}
@@ -185,8 +225,10 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	teamCmd.AddCommand(systemdCmd)
 
 	statusCmd := &cobra.Command{
-		Use:     "status",
-		Short:   "Show the status of the teamserver (listeners, configurations, health...)",
+		Use:   "status",
+		Short: "Show the status of the teamserver (listeners, configurations, health...)",
+		Long: `Show the teamserver's home directory, database, config path, log files and levels,
+certificate files, and the state of all listeners (running and saved/persistent).`,
 		GroupID: command.TeamServerGroup,
 		Run:     statusCmd(server),
 	}
@@ -197,8 +239,15 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// Add user
 	userCmd := &cobra.Command{
-		Use:     "user",
-		Short:   "Create a user for this teamserver and generate its client configuration file",
+		Use:   "user",
+		Short: "Create a user for this teamserver and generate its client configuration file",
+		Long: `Create a user and generate its connection config (*.teamclient.cfg): a client
+certificate and API token the operator uses to authenticate. The file is written to
+the current directory unless --save <dir> is given, or --system (use the current OS
+user and save into this app's client configs directory).`,
+		Example: `  teamserver user --name alice --host teamserver.example.com
+  teamserver user --name bob   --host 10.0.0.5 --port 32333 --save ~/handout/
+  teamserver user --system`,
 		GroupID: command.UserManagementGroup,
 		Run:     createUserCmd(server, client),
 	}
@@ -220,8 +269,12 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// Delete and kick user
 	rmUserCmd := &cobra.Command{
-		Use:     "delete",
-		Short:   "Remove a user from the teamserver, and revoke all its current tokens",
+		Use:   "delete",
+		Short: "Remove a user from the teamserver, and revoke all its current tokens",
+		Long: `Delete a user and its cryptographic material. This takes effect immediately: the
+user's live sessions are refused on their next request and its TLS credentials stop
+working.`,
+		Example: `  teamserver delete alice`,
 		GroupID: command.UserManagementGroup,
 		Args:    cobra.ExactArgs(1),
 		Run:     rmUserCmd(server),
@@ -231,7 +284,7 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	rmUserComps := carapace.Gen(rmUserCmd)
 
-	rmUserComps.PositionalCompletion(carapace.ActionCallback(userCompleter(client, server)))
+	rmUserComps.PositionalCompletion(carapace.ActionCallback(userCompleter(server)))
 
 	rmUserComps.PreRun(func(cmd *cobra.Command, args []string) {
 		if cmd.PersistentPreRunE != nil {
@@ -245,8 +298,11 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// Import a list of users and their credentials.
 	cmdImportCA := &cobra.Command{
-		Use:     "import",
-		Short:   "Import a certificate Authority file containing teamserver users",
+		Use:   "import",
+		Short: "Import a certificate Authority file containing teamserver users",
+		Long: `Import a users Certificate Authority exported by another teamserver, adding its
+users to this one. The file is JSON of the form {"certificate":"...","private_key":"..."}.`,
+		Example: `  teamserver import ~/.other_app/teamserver/certs/other_app_user-ca-cert.teamserver.pem`,
 		GroupID: command.UserManagementGroup,
 		Args:    cobra.ExactArgs(1),
 		Run:     importCACmd(server),
@@ -264,8 +320,12 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	// Export the list of users and their credentials.
 	cmdExportCA := &cobra.Command{
-		Use:     "export",
-		Short:   "Export a Certificate Authority file containing the teamserver users",
+		Use:   "export",
+		Short: "Export a Certificate Authority file containing the teamserver users",
+		Long: `Export this teamserver's users CA (all users) to a file, so another teamserver can
+import and trust the same operators. Writes to the current directory when no path is
+given.`,
+		Example: `  teamserver export ~/myapp-users.teamserver.ca`,
 		GroupID: command.UserManagementGroup,
 		Args:    cobra.RangeArgs(0, 1),
 		Run:     exportCACmd(server),
@@ -273,6 +333,60 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	carapace.Gen(cmdExportCA).PositionalCompletion(carapace.ActionFiles())
 	teamCmd.AddCommand(cmdExportCA)
+
+	// [ Holistic help ] -------------------------------------------------------------------
+
+	// A cobra "additional help topic" (no Run): a single walkthrough that stays out of
+	// the command list but is discoverable via '<app> teamserver guide'.
+	guideCmd := &cobra.Command{
+		Use:   "guide",
+		Short: "In-depth guide: user lifecycle, listeners, daemon/systemd, revocation",
+		Long: fmt.Sprintf(`%[1]s teamserver — operator guide
+
+The teamserver is embedded directly in %[1]s. There is no separate server to install:
+the same binary authenticates operators, serves listeners, and (as a client) connects
+to them.
+
+1. Users and configs
+   Create one config per operator:
+       teamserver user --name alice --host <bind-address>
+   This writes alice's *.teamclient.cfg (a client certificate + API token) to the
+   current directory (or --save <dir>, or --system for the current OS user). Hand that
+   file to the operator; they import it with:
+       teamserver client import alice.teamclient.cfg
+   The teamserver only proves WHO an operator is. Authorization — what each operator
+   may do — is entirely up to %[1]s.
+
+2. Listeners
+   A listener is a bind job for a transport stack. Start one without blocking:
+       teamserver listen --host <bind> --port <port> --persistent
+   --persistent saves it so the daemon restarts it automatically. Inspect and close
+   listeners with:
+       teamserver status
+       teamserver close <id-prefix>
+
+3. Running as a service
+   Run in the foreground (starts the main + all persistent listeners):
+       teamserver daemon --host <bind> --port <port>
+   Generate a systemd unit for it:
+       teamserver systemd --binpath $(which %[1]s) --save unit.service
+
+4. Sharing users between servers
+   Export the users CA and import it on another teamserver so both trust the same
+   operators:
+       teamserver export users.ca
+       teamserver import users.ca
+
+5. Revoking access
+   Delete a user; its live sessions are refused on the next request and its TLS
+   credentials stop working immediately:
+       teamserver delete alice
+
+Shell completion:
+    source <(teamserver _carapace <shell>)`, name),
+	}
+
+	teamCmd.AddCommand(guideCmd)
 
 	return teamCmd
 }

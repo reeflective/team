@@ -36,16 +36,36 @@ var ErrNoBuildInfo = errors.New("No binary build info")
 // Semantic - Get the structured semantic
 // version of the application binary.
 func Semantic() []int {
-	semVer := make([]int, semVerLen)
-
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
-		return semVer
+		return make([]int, semVerLen)
 	}
 
-	version := info.Main.Version
+	return parseSemantic(info.Main.Version)
+}
+
+// parseSemantic turns a module version string into a fixed-length
+// [major, minor, patch] slice. It is tolerant of anything the Go module system
+// can hand us: a leading "v", pre-release/build metadata ("-rc1", "+incompatible"),
+// pseudo-versions ("v0.3.1-0.20260718181500-abcdef"), "(devel)", or an empty
+// string. Missing or non-numeric fields become 0, and any parts beyond patch are
+// ignored (rather than panicking with an out-of-range index).
+func parseSemantic(version string) []int {
+	semVer := make([]int, semVerLen)
+
+	version = strings.TrimPrefix(version, "v")
+
+	// Drop pre-release and build metadata so extra '.'-separated fields inside
+	// them (as in pseudo-versions) can't overflow the semantic version.
+	if i := strings.IndexAny(version, "-+"); i != -1 {
+		version = version[:i]
+	}
 
 	for i, part := range strings.Split(version, ".") {
+		if i >= semVerLen {
+			break
+		}
+
 		number, _ := strconv.ParseInt(part, 10, 32)
 		semVer[i] = int(number)
 	}

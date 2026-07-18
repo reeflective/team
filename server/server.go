@@ -45,7 +45,7 @@ import (
 //   - Listen is the transport-SPECIFIC binding phase.
 //
 // Keeping them separate lets implementations compose by embedding a base handler
-// and overriding only Listen() (see the Tailscale variant in the example transports).
+// and overriding only Listen() (see the gRPC handler under example/transports/grpc).
 //
 // Errors: all errors returned by the handler interface methods are considered
 // critical, and thus will stop the handler start/serve process when raised. Thus,
@@ -265,7 +265,24 @@ func (ts *Server) init(opts ...Options) error {
 		// contained in options, or the default one.
 		ts.opts.config = ts.GetConfig()
 
-		// Certificate infrastructure, will make the code panic if unable to work properly.
+		// Certificate infrastructure.
+		err = ts.initCerts()
+	})
+
+	return err
+}
+
+// initCerts initializes the certificate infrastructure exactly once, lazily.
+// It is called both from init() (the serve path) and directly from the user/
+// certificate methods (UserCreate, UsersTLSConfig, ...), so that these keep
+// working when driven from the CLI without ever starting a listener.
+func (ts *Server) initCerts() (err error) {
+	ts.certsInit.Do(func() {
+		if err = ts.initDatabase(); err != nil {
+			return
+		}
+
+		// Will make the code panic if unable to work properly.
 		certsLog := ts.NamedLogger("certs", "certificates")
 		ts.certs = certs.NewManager(ts.fs, ts.Database(), certsLog, ts.Name(), ts.TeamDir())
 	})

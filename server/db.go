@@ -63,12 +63,9 @@ func (ts *Server) DatabaseConfig() *db.Config {
 // GetDatabaseConfigPath - File path to config.json.
 func (ts *Server) dbConfigPath() string {
 	appDir := ts.ConfigsDir()
-	log := ts.NamedLogger("config", "database")
 	dbFileName := fmt.Sprintf("%s.%s", ts.Name()+"_database", command.ServerConfigExt)
-	databaseConfigPath := filepath.Join(appDir, dbFileName)
-	log.Debug(fmt.Sprintf("Loading config from %s", databaseConfigPath))
 
-	return databaseConfigPath
+	return filepath.Join(appDir, dbFileName)
 }
 
 // Save - Save config file to disk. If the server is configured
@@ -113,6 +110,8 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 
 	configPath := ts.dbConfigPath()
 	if _, err := ts.fs.Stat(configPath); !os.IsNotExist(err) {
+		log.Debug(fmt.Sprintf("Loading database config from %s", configPath))
+
 		data, err := ts.fs.ReadFile(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to read config file %w", err)

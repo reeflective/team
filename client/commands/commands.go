@@ -90,13 +90,23 @@ func PostRun(client *client.Client) command.CobraRunnerE {
 
 func clientCommands(cli *client.Client) *cobra.Command {
 	teamCmd := &cobra.Command{
-		Use:          "teamclient",
-		Short:        "Client-only teamserver commands (import configs, show users, etc)",
+		Use:   "teamclient",
+		Short: "Client-only teamserver commands (import configs, show users, etc)",
+		Long: fmt.Sprintf(`Client-only commands for reaching the %s teamserver.
+
+Import a connection config an administrator gave you, then query the server:
+
+  import   save a *.teamclient.cfg into your client configs directory
+  users    list the team's users and their online status
+  version  show client and server build versions
+
+Commands connect automatically using your imported config. If you have several and
+none is marked default, you'll be prompted to choose one.`, cli.Name()),
 		SilenceUsage: true,
 	}
 
 	teamFlags := pflag.NewFlagSet("teamserver", pflag.ContinueOnError)
-	teamFlags.CountP("verbosity", "v", "Counter flag (-vvv) to increase log verbosity on stdout (1:panic -> 7:debug)")
+	teamFlags.CountP("verbosity", "v", "Increase stdout log verbosity; repeat to go louder (-v, -vv, -vvv)")
 	teamFlags.String("log-format", "", "console log format (console, text, json)")
 	teamCmd.PersistentFlags().AddFlagSet(teamFlags)
 
@@ -116,7 +126,10 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print teamserver client version",
-		RunE:  versionCmd(cli),
+		Long: `Print the client build version and, after connecting to the teamserver, the
+server's version (both include commit and build platform).`,
+		Example: `  teamclient version`,
+		RunE:    versionCmd(cli),
 	}
 
 	teamCmd.AddCommand(versionCmd)
@@ -124,7 +137,12 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	importCmd := &cobra.Command{
 		Use:   "import",
 		Short: "Import a teamserver client configuration file for " + cli.Name(),
-		Run:   importCmd(cli),
+		Long: `Import one or more *.teamclient.cfg connection files (given by an administrator)
+into your client configs directory. Use --default to mark it the default when you
+have none yet.`,
+		Example: `  teamclient import ~/alice_teamserver.example.com.teamclient.cfg
+  teamclient import --default ~/alice_teamserver.example.com.teamclient.cfg`,
+		Run: importCmd(cli),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return []string{}, cobra.ShellCompDirectiveDefault
 		},
@@ -147,7 +165,10 @@ func clientCommands(cli *client.Client) *cobra.Command {
 	usersCmd := &cobra.Command{
 		Use:   "users",
 		Short: "Display a table of teamserver users and their status",
-		RunE:  usersCmd(cli),
+		Long: `Connect to the teamserver and print a table of its users with online status and
+the time since each was last seen.`,
+		Example: `  teamclient users`,
+		RunE:    usersCmd(cli),
 	}
 
 	teamCmd.AddCommand(usersCmd)

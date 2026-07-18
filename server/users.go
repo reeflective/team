@@ -48,7 +48,7 @@ var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanume
 // user permissions/roles. Applications that need per-user authorization own that model
 // themselves (a separate table keyed by name), and enforce it in their own middleware.
 func (ts *Server) UserCreate(name string, lhost string, lport uint16) (*client.Config, error) {
-	if err := ts.initDatabase(); err != nil {
+	if err := ts.initCerts(); err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
@@ -119,7 +119,7 @@ func (ts *Server) UserCreate(name string, lhost string, lport uint16) (*client.C
 // Certificate files, API authentication token are deleted from the teamserver database,
 // conformingly to its configured backend/filesystem (can be in-memory or on filesystem).
 func (ts *Server) UserDelete(name string) error {
-	if err := ts.initDatabase(); err != nil {
+	if err := ts.initCerts(); err != nil {
 		return ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
@@ -202,7 +202,7 @@ func (ts *Server) Authenticate(rawToken string) (*team.User, error) {
 func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
 	log := ts.NamedLogger("certs", "mtls")
 
-	if err := ts.initDatabase(); err != nil {
+	if err := ts.initCerts(); err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
@@ -249,7 +249,7 @@ func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
 // UsersGetCA returns the bytes of a PEM-encoded certificate authority,
 // which contains certificates of all users of this teamserver.
 func (ts *Server) UsersGetCA() ([]byte, []byte, error) {
-	if err := ts.initDatabase(); err != nil {
+	if err := ts.initCerts(); err != nil {
 		return nil, nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
@@ -259,7 +259,7 @@ func (ts *Server) UsersGetCA() ([]byte, []byte, error) {
 // UsersSaveCA accepts the public and private parts of a Certificate
 // Authority containing one or more users to add to the teamserver.
 func (ts *Server) UsersSaveCA(cert, key []byte) {
-	if err := ts.initDatabase(); err != nil {
+	if err := ts.initCerts(); err != nil {
 		return
 	}
 

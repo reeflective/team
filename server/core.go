@@ -72,6 +72,7 @@ type Server struct {
 	// Users
 	userTokens *sync.Map      // Refreshed entirely when a user is kicked.
 	certs      *certs.Manager // Manages all the certificate infrastructure.
+	certsInit  sync.Once      // The certificate infrastructure is initialized once, lazily.
 	db         *gorm.DB       // Stores certificates and users data.
 	dbInit     sync.Once      // A single database can be used in a teamserver lifetime.
 

@@ -59,7 +59,7 @@ func NewClient(dbConfig *Config, dbLogger *slog.Logger) (*gorm.DB, error) {
 
 	switch dbConfig.Dialect {
 	case Sqlite:
-		dbLogger.Info(fmt.Sprintf("Connecting to SQLite database %s", logDbDsn))
+		dbLogger.Debug(fmt.Sprintf("Connecting to SQLite database %s", logDbDsn))
 
 		dbClient, err = sqliteClient(dsn, dbLog)
 		if err != nil {
@@ -67,7 +67,7 @@ func NewClient(dbConfig *Config, dbLogger *slog.Logger) (*gorm.DB, error) {
 		}
 
 	case Postgres:
-		dbLogger.Info(fmt.Sprintf("Connecting to PostgreSQL database %s", logDbDsn))
+		dbLogger.Debug(fmt.Sprintf("Connecting to PostgreSQL database %s", logDbDsn))
 
 		dbClient, err = postgresClient(dsn, dbLog)
 		if err != nil {
@@ -75,7 +75,7 @@ func NewClient(dbConfig *Config, dbLogger *slog.Logger) (*gorm.DB, error) {
 		}
 
 	case MySQL:
-		dbLogger.Info(fmt.Sprintf("Connecting to MySQL database %s", logDbDsn))
+		dbLogger.Debug(fmt.Sprintf("Connecting to MySQL database %s", logDbDsn))
 
 		dbClient, err = mySQLClient(dsn, dbLog)
 		if err != nil {

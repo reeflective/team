@@ -26,7 +26,7 @@ go install github.com/reeflective/team/example/teamclient
 
 # Install the completion engine and source both tools' scripts (optional)
 # See this project documentation for setup with your own shell. Below is bash/zsh.
-go install github.com/rsteube/carapace-bin@latest
+go install github.com/carapace-sh/carapace-bin@latest
 source <(teamserver _carapace)
 source <(teamclient _carapace)
 
