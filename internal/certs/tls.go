@@ -40,11 +40,11 @@ func (c *Manager) OpenTLSKeyLogFile() *os.File {
 	if present {
 		keyFile, err := os.OpenFile(keyFilePath, assets.FileWriteOpenMode, assets.FileReadPerm)
 		if err != nil {
-			c.log.Errorf("Failed to open TLS key file %v", err)
+			c.log.Error(fmt.Sprintf("Failed to open TLS key file %v", err))
 			return nil
 		}
 
-		c.log.Warnf("NOTICE: TLS Keys logged to '%s'\n", keyFilePath)
+		c.log.Warn(fmt.Sprintf("NOTICE: TLS Keys logged to '%s'\n", keyFilePath))
 
 		return keyFile
 	}

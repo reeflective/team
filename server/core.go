@@ -22,7 +22,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
 	"github.com/reeflective/team"
@@ -31,6 +30,7 @@ import (
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/version"
+	"github.com/reeflective/team/log"
 )
 
 // Server is the core driver of an application teamserver.
@@ -67,8 +67,7 @@ type Server struct {
 	initOpts sync.Once  // Some options can only be set once when creating the server.
 
 	// Logging
-	fileLog  *logrus.Logger // Can be in-memory if the teamserver is configured.
-	stdioLog *logrus.Logger // Logging level independent from the file logger.
+	logger *log.Logger // Console (stdout/stderr) and optional file logging.
 
 	// Users
 	userTokens *sync.Map      // Refreshed entirely when a user is kicked.
@@ -76,17 +75,17 @@ type Server struct {
 	db         *gorm.DB       // Stores certificates and users data.
 	dbInit     sync.Once      // A single database can be used in a teamserver lifetime.
 
-	// Listeners and job control
-	initServe sync.Once           // Some options can only have an effect at first start.
-	self      Listener            // The default listener stack used by the teamserver.
-	handlers  map[string]Listener // Other listeners available by name.
-	jobs      *jobs               // Listeners job control
+	// Handlers (transport stacks) and job control
+	initServe sync.Once          // Some options can only have an effect at first start.
+	self      Handler            // The default handler (transport stack) used by the teamserver.
+	handlers  map[string]Handler // Other handlers available by name.
+	jobs      *jobs              // Listener (bind) job control
 }
 
 // New creates a new teamserver for the provided application name.
 // Only one such teamserver should be created an application of any given name.
 // Since by default, any teamserver can have any number of runtime clients, you
-// are not required to provide any specific server.Listener type to serve clients.
+// are not required to provide any specific server.Handler type to serve clients.
 //
 // This call to create the server only creates the application default directory.
 // No files, logs, connections or any interaction with the os/filesystem are made.
@@ -105,7 +104,7 @@ func New(application string, options ...Options) (*Server, error) {
 		opts:       newDefaultOpts(),
 		userTokens: &sync.Map{},
 		jobs:       newJobs(),
-		handlers:   make(map[string]Listener),
+		handlers:   make(map[string]Handler),
 	}
 
 	server.apply(options...)
@@ -149,18 +148,14 @@ func (ts *Server) Name() string {
 // to this function and by providing the corresponding server options for your
 // pair, you can use in-memory clients which will use the complete RPC stack
 // of the application using this teamserver.
-// See the server.Listener and client.Dialer types documentation for more.
+// See the server.Handler and client.Dialer types documentation for more.
 func (ts *Server) Self(opts ...client.Options) *client.Client {
-	teamclient, _ := client.New(ts.Name(), ts, opts...)
+	// The server itself is the team.Client backend answering the in-memory
+	// teamclient's Users()/VersionServer() calls.
+	clientOpts := append([]client.Options{client.WithTeamClient(ts)}, opts...)
+	teamclient, _ := client.New(ts.Name(), clientOpts...)
 
 	return teamclient
-}
-
-// VersionClient implements team.Client.VersionClient() interface
-// method, so that the teamserver can be a teamclient of itself.
-// This simply returns the server.VersionServer() output.
-func (ts *Server) VersionClient() (team.Version, error) {
-	return ts.VersionServer()
 }
 
 // VersionServe returns the teamserver binary version information.

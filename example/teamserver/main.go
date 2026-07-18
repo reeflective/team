@@ -40,7 +40,7 @@ func mainSmallest() {
 func main() {
 	// 1) Teamserver & listeners
 	//
-	// Create a new gTeamserver, implementing the team/server.Listener interface.
+	// Create a new gTeamserver, implementing the team/server.Handler interface.
 	// This gTeamserver is able to serve both remote (TLS-authenticated) teamclients, and
 	// in-memory (non-authenticated/encrypted) ones alike. See below when creating the teamclient.
 	//
@@ -56,7 +56,7 @@ func main() {
 	// write to them. It does not connect to its configured database backend yet.
 	//
 	// We register our gRPC listener for the teamserver to be able to serve remote teamclients.
-	teamserver, err := server.New("teamserver", server.WithListener(gTeamserver))
+	teamserver, err := server.New("teamserver", server.WithHandler(gTeamserver))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func main() {
 	// We specify which dialing backend we want (in this case, our custom gRPC dialer/RPC client)
 	// Note here that our gRPC client is a concrete type which implements two different interfaces
 	// at once, so that our teamclient core is in effect only-gRPC configured/enabled.
-	teamclient, err := client.New(teamserver.Name(), gTeamclient, client.WithDialer(gTeamclient))
+	teamclient, err := client.New(teamserver.Name(), client.WithDialer(gTeamclient))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func mainSmallGRPC() {
 	// Server
 	gTeamserver := grpc.NewListener()
 
-	teamserver, err := server.New("teamserver", server.WithListener(gTeamserver))
+	teamserver, err := server.New("teamserver", server.WithHandler(gTeamserver))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func mainNoCommands() {
 	// Server
 	gTeamserver := grpc.NewListener()
 
-	teamserver, err := server.New("teamserver", server.WithListener(gTeamserver))
+	teamserver, err := server.New("teamserver", server.WithHandler(gTeamserver))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -198,9 +198,9 @@ func mainIntegrated() {
 		server.WithLogFile("path/to/log.file"), // Or we are fine with default teamserver logger, but a specific file.
 
 		// Network (listeners and settings).
-		server.WithDefaultPort(31340),    // Default port of daemon/listeners.
-		server.WithListener(gTeamserver), // Please see above examples, and the documentation. Any number of them can be registered.
-		server.WithListener(nil),         // Another listener/RPC backend stack used/needed by your application.
+		server.WithDefaultPort(31340),   // Default port of daemon/listeners.
+		server.WithHandler(gTeamserver), // Please see above examples, and the documentation. Any number of them can be registered.
+		server.WithHandler(nil),         // Another listener/RPC backend stack used/needed by your application.
 
 		// Database (stores users certificates)
 		server.WithDatabase(nil),       // Either pass the teamserver a running DB to store/fetch users certificates data.

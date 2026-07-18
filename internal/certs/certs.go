@@ -30,17 +30,18 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	insecureRand "math/rand"
 	"net"
 	"path/filepath"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/db"
+	"github.com/reeflective/team/log"
 )
 
 const (
@@ -65,7 +66,7 @@ var ErrCertDoesNotExist = errors.New("Certificate does not exist")
 type Manager struct {
 	appName  string
 	appDir   string
-	log      *logrus.Entry
+	log      *slog.Logger
 	database *gorm.DB
 	fs       *assets.FS
 }
@@ -73,10 +74,10 @@ type Manager struct {
 // NewManager initializes and returns a certificate manager for a given teamserver.
 // The returned manager will have ensured that all certificate authorities are initialized
 // and working, or will create them if needed.
-// Any critical error happening at initialization time will send a log.Fatal event to the
-// provided logger. If the latter has no modified log.ExitFunc, this will make the server
-// panic and exit.
-func NewManager(filesystem *assets.FS, db *gorm.DB, logger *logrus.Entry, appName, appDir string) *Manager {
+// Any critical error happening at initialization time will log a fatal event to
+// the provided logger and exit the program: the certificate infrastructure must
+// work for the teamserver to operate securely.
+func NewManager(filesystem *assets.FS, db *gorm.DB, logger *slog.Logger, appName, appDir string) *Manager {
 	certs := &Manager{
 		appName:  appName,
 		appDir:   appDir,
@@ -112,7 +113,7 @@ func (c *Manager) GetCertificate(caType string, keyType string, commonName strin
 		return nil, nil, fmt.Errorf("Invalid key type '%s'", keyType)
 	}
 
-	c.log.Infof("Getting certificate ca type = %s, cn = '%s'", caType, commonName)
+	c.log.Info(fmt.Sprintf("Getting certificate ca type = %s, cn = '%s'", caType, commonName))
 
 	certModel := db.Certificate{}
 	result := c.db().Where(&db.Certificate{
@@ -138,7 +139,7 @@ func (c *Manager) RemoveCertificate(caType string, keyType string, commonName st
 		return fmt.Errorf("Invalid key type '%s'", keyType)
 	}
 
-	c.log.Infof("Deleting certificate for cn = '%s'", commonName)
+	c.log.Info(fmt.Sprintf("Deleting certificate for cn = '%s'", commonName))
 
 	err := c.db().Where(&db.Certificate{
 		CAType:     caType,
@@ -157,7 +158,7 @@ func (c *Manager) RemoveCertificate(caType string, keyType string, commonName st
 // We choose some reasonable defaults like Curve, Key Size, ValidFor, etc.
 // Returns two strings `cert` and `key` (PEM Encoded).
 func (c *Manager) GenerateECCCertificate(caType string, commonName string, isCA bool, isClient bool) ([]byte, []byte) {
-	c.log.Infof("Generating TLS certificate (ECC) for '%s' ...", commonName)
+	c.log.Info(fmt.Sprintf("Generating TLS certificate (ECC) for '%s' ...", commonName))
 
 	var privateKey interface{}
 	var err error
@@ -168,7 +169,7 @@ func (c *Manager) GenerateECCCertificate(caType string, commonName string, isCA 
 
 	privateKey, err = ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
-		c.log.Fatalf("Failed to generate private key: %s", err)
+		log.Fatal(c.log, fmt.Sprintf("Failed to generate private key: %s", err))
 	}
 
 	subject := pkix.Name{
@@ -180,7 +181,7 @@ func (c *Manager) GenerateECCCertificate(caType string, commonName string, isCA 
 
 // GenerateRSACertificate - Generates an RSA Certificate.
 func (c *Manager) GenerateRSACertificate(caType string, commonName string, isCA bool, isClient bool) ([]byte, []byte) {
-	c.log.Debugf("Generating TLS certificate (RSA) for '%s' ...", commonName)
+	c.log.Debug(fmt.Sprintf("Generating TLS certificate (RSA) for '%s' ...", commonName))
 
 	var privateKey interface{}
 	var err error
@@ -188,7 +189,7 @@ func (c *Manager) GenerateRSACertificate(caType string, commonName string, isCA 
 	// Generate private key
 	privateKey, err = rsa.GenerateKey(rand.Reader, rsaKeySize())
 	if err != nil {
-		c.log.Fatalf("Failed to generate private key: %s", err)
+		log.Fatal(c.log, fmt.Sprintf("Failed to generate private key: %s", err))
 	}
 
 	subject := pkix.Name{
@@ -204,19 +205,19 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 	days := randomInt(daysInYear) * -1 // Within -1 year
 	notBefore = notBefore.AddDate(0, 0, days)
 	notAfter := notBefore.Add(randomValidFor())
-	c.log.Debugf("Valid from %v to %v", notBefore, notAfter)
+	c.log.Debug(fmt.Sprintf("Valid from %v to %v", notBefore, notAfter))
 
 	// Serial number
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), serialNumberLen)
 	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
-	c.log.Debugf("Serial Number: %d", serialNumber)
+	c.log.Debug(fmt.Sprintf("Serial Number: %d", serialNumber))
 
 	keyUsage := x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	var extKeyUsage []x509.ExtKeyUsage
 
 	switch {
 	case isCA:
-		c.log.Debugf("Authority certificate")
+		c.log.Debug("Authority certificate")
 
 		keyUsage = x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 		extKeyUsage = []x509.ExtKeyUsage{
@@ -224,16 +225,16 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 			x509.ExtKeyUsageClientAuth,
 		}
 	case isClient:
-		c.log.Debugf("Client authentication certificate")
+		c.log.Debug("Client authentication certificate")
 
 		extKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 	default:
-		c.log.Debugf("Server authentication certificate")
+		c.log.Debug("Server authentication certificate")
 
 		extKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 	}
 
-	c.log.Debugf("ExtKeyUsage = %v", extKeyUsage)
+	c.log.Debug(fmt.Sprintf("ExtKeyUsage = %v", extKeyUsage))
 
 	// Certificate template
 	template := x509.Certificate{
@@ -249,14 +250,14 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 	if !isClient {
 		// Host or IP address
 		if ip := net.ParseIP(subject.CommonName); ip != nil {
-			c.log.Debugf("Certificate authenticates IP address: %v", ip)
+			c.log.Debug(fmt.Sprintf("Certificate authenticates IP address: %v", ip))
 			template.IPAddresses = append(template.IPAddresses, ip)
 		} else {
-			c.log.Debugf("Certificate authenticates host: %v", subject.CommonName)
+			c.log.Debug(fmt.Sprintf("Certificate authenticates host: %v", subject.CommonName))
 			template.DNSNames = append(template.DNSNames, subject.CommonName)
 		}
 	} else {
-		c.log.Debugf("Client certificate authenticates CN: %v", subject.CommonName)
+		c.log.Debug(fmt.Sprintf("Client certificate authenticates CN: %v", subject.CommonName))
 	}
 
 	// Sign certificate or self-sign if CA
@@ -264,7 +265,7 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 	var derBytes []byte
 
 	if isCA {
-		c.log.Debugf("Certificate is an AUTHORITY")
+		c.log.Debug("Certificate is an AUTHORITY")
 
 		template.IsCA = true
 		template.KeyUsage |= x509.KeyUsageCertSign
@@ -272,14 +273,14 @@ func (c *Manager) generateCertificate(caType string, subject pkix.Name, isCA boo
 	} else {
 		caCert, caKey, err := c.getCA(caType) // Sign the new certificate with our CA
 		if err != nil {
-			c.log.Fatalf("Invalid ca type (%s): %s", caType, err)
+			log.Fatal(c.log, fmt.Sprintf("Invalid ca type (%s): %s", caType, err))
 		}
 		derBytes, certErr = x509.CreateCertificate(rand.Reader, &template, caCert, publicKey(privateKey), caKey)
 	}
 
 	if certErr != nil {
 		// We maybe don't want this to be fatal, but it should basically never happen afaik
-		c.log.Fatalf("Failed to create certificate: %s", certErr)
+		log.Fatal(c.log, fmt.Sprintf("Failed to create certificate: %s", certErr))
 	}
 
 	// Encode certificate and key
@@ -297,7 +298,7 @@ func (c *Manager) saveCertificate(caType string, keyType string, commonName stri
 		return fmt.Errorf("Invalid key type '%s'", keyType)
 	}
 
-	c.log.Infof("Saving certificate for cn = '%s'", commonName)
+	c.log.Info(fmt.Sprintf("Saving certificate for cn = '%s'", commonName))
 
 	certModel := &db.Certificate{
 		CommonName:     commonName,
@@ -319,7 +320,7 @@ func (c *Manager) getCertDir() string {
 
 	err := c.fs.MkdirAll(certDir, assets.DirPerm)
 	if err != nil {
-		c.log.Fatalf("Failed to create cert dir: %s", err)
+		log.Fatal(c.log, fmt.Sprintf("Failed to create cert dir: %s", err))
 	}
 
 	return certDir
@@ -333,7 +334,7 @@ func (c *Manager) pemBlockForKey(priv interface{}) *pem.Block {
 	case *ecdsa.PrivateKey:
 		data, err := x509.MarshalECPrivateKey(key)
 		if err != nil {
-			c.log.Fatalf("Unable to marshal ECDSA private key: %v", err)
+			log.Fatal(c.log, fmt.Sprintf("Unable to marshal ECDSA private key: %v", err))
 		}
 
 		return &pem.Block{Type: "EC PRIVATE KEY", Bytes: data}

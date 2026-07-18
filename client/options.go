@@ -19,13 +19,13 @@ package client
 */
 
 import (
-	"io"
+	"log/slog"
 	"os"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
+	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/assets"
+	"github.com/reeflective/team/log"
 )
 
 const noTeamdir = "no team subdirectory"
@@ -41,16 +41,18 @@ const noTeamdir = "no team subdirectory"
 type Options func(opts *opts)
 
 type opts struct {
-	homeDir  string
-	teamDir  string
-	noLogs   bool
-	logFile  string
-	inMemory bool
-	noDisconnect  bool
-	stdout   io.Writer
-	config   *Config
-	logger   *logrus.Logger
-	dialer   Dialer
+	homeDir      string
+	teamDir      string
+	noLogs       bool
+	logFile      string
+	inMemory     bool
+	noDisconnect bool
+	config       *Config
+	logger       slog.Handler
+	consoleStyle func(*log.ConsoleOptions)
+	logFormat    log.Format
+	dialer       Dialer
+	client       team.Client
 }
 
 func defaultOpts() *opts {
@@ -81,15 +83,22 @@ func (tc *Client) apply(options ...Options) {
 		tc.dialer = tc.opts.dialer
 	}
 
+	// Resolve the team.Client backend that answers Users()/VersionServer().
+	// An explicit WithTeamClient() wins; otherwise, if the dialer happens to
+	// implement team.Client (the common case for RPC transports), use it.
+	if tc.opts.client != nil {
+		tc.client = tc.opts.client
+	} else if tc.client == nil && tc.dialer != nil {
+		if backend, ok := tc.dialer.(team.Client); ok {
+			tc.client = backend
+		}
+	}
+
 	// Team directory.
 	if tc.opts.teamDir == noTeamdir {
 		tc.opts.teamDir = ""
 	} else if tc.opts.teamDir == "" {
 		tc.opts.teamDir = assets.DirClient
-	}
-
-	if tc.opts.stdout != nil {
-		tc.stdoutLogger.Out = tc.opts.stdout
 	}
 }
 
@@ -172,12 +181,15 @@ func WithLogFile(filePath string) Options {
 	}
 }
 
-// WithLogger sets the teamclient to use a specific logger for logging.
+// WithLogger sets the teamclient to use a specific slog.Handler as its sole
+// logging backend, in place of the default console+file loggers. Since the
+// handler fully controls formatting and routing, the teamclient's runtime
+// level/output controls (SetLogLevel/SetLogWriter) do not apply to it.
 //
 // This option can only be used once, and should be passed client.New().
-func WithLogger(logger *logrus.Logger) Options {
+func WithLogger(handler slog.Handler) Options {
 	return func(opts *opts) {
-		opts.logger = logger
+		opts.logger = handler
 	}
 }
 
@@ -188,17 +200,56 @@ func WithLogger(logger *logrus.Logger) Options {
 // WithDialer sets a custom dialer to connect to the teamserver.
 // See the Dialer type documentation for implementation/usage details.
 //
-// It accepts an optional list of hooks to run on the generic clientConn
-// returned by the client.Dialer Dial() method (see Dialer doc for details).
-// This client object can be pretty much any client-side conn/RPC object.
-// You will have to typecast this conn in your hooks, casting it to the type
-// that your teamclient Dialer.Dial() method returns.
+// If the dialer also implements the team.Client interface (Users and
+// VersionServer, the common case for RPC transports), it is automatically used
+// as the teamclient backend as well, so you do not need to register it twice.
+// Use WithTeamClient() only to provide a backend that is a distinct object.
 //
 // This option can be used multiple times, either when using
 // team/client.New() or when using the teamclient.Connect() method.
 func WithDialer(dialer Dialer) Options {
 	return func(opts *opts) {
 		opts.dialer = dialer
+	}
+}
+
+// WithConsoleOptions restyles the built-in console logger (level markers/colors,
+// package/time/message colors, column widths, timestamp) while KEEPING the
+// default console+file loggers and their runtime level control. The callback
+// receives the console options pre-filled with the library defaults; tweak only
+// what you want. Use this instead of WithLogger when you want the team look with
+// small changes rather than a completely custom backend.
+//
+// This option can only be used once, and should be passed client.New().
+func WithConsoleOptions(style func(*log.ConsoleOptions)) Options {
+	return func(opts *opts) {
+		opts.consoleStyle = style
+	}
+}
+
+// WithLogFormat selects how the teamclient console/stdout stream is rendered:
+// log.FormatConsole (default, aligned+colored), log.FormatText (logfmt) or
+// log.FormatJSON (structured). The file logger always stays plain text. This is
+// the programmatic equivalent of the teamclient `--log-format` CLI flag.
+//
+// This option can only be used once, and should be passed client.New().
+func WithLogFormat(format log.Format) Options {
+	return func(opts *opts) {
+		opts.logFormat = format
+	}
+}
+
+// WithTeamClient sets the team.Client backend answering the teamclient core
+// Users() and VersionServer() calls. This is only needed when the backend is a
+// distinct object from the dialer (a dialer that also implements team.Client is
+// picked up automatically by WithDialer). It is used, for example, by
+// teamserver.Self() so that a teamserver can be an in-memory client of itself.
+//
+// This option can be used multiple times, either when using
+// team/client.New() or when using the teamclient.Connect() method.
+func WithTeamClient(client team.Client) Options {
+	return func(opts *opts) {
+		opts.client = client
 	}
 }
 

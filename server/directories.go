@@ -19,6 +19,7 @@ package server
 */
 
 import (
+	"fmt"
 	"os/user"
 	"path"
 	"path/filepath"
@@ -47,7 +48,7 @@ func (ts *Server) HomeDir() string {
 
 	err := ts.fs.MkdirAll(dir, assets.DirPerm)
 	if err != nil {
-		ts.log().Errorf("cannot write to %s root dir: %s", dir, err)
+		ts.log().Error(fmt.Sprintf("cannot write to %s root dir: %s", dir, err))
 	}
 
 	return dir
@@ -61,7 +62,7 @@ func (ts *Server) TeamDir() string {
 
 	err := ts.fs.MkdirAll(dir, assets.DirPerm)
 	if err != nil {
-		ts.log().Errorf("cannot write to %s root dir: %s", dir, err)
+		ts.log().Error(fmt.Sprintf("cannot write to %s root dir: %s", dir, err))
 	}
 
 	return dir
@@ -74,7 +75,7 @@ func (ts *Server) LogsDir() string {
 
 	err := ts.fs.MkdirAll(logDir, assets.DirPerm)
 	if err != nil {
-		ts.log().Errorf("cannot write to %s root dir: %s", logDir, err)
+		ts.log().Error(fmt.Sprintf("cannot write to %s root dir: %s", logDir, err))
 	}
 
 	return logDir
@@ -88,7 +89,7 @@ func (ts *Server) ConfigsDir() string {
 
 	err := ts.fs.MkdirAll(logDir, assets.DirPerm)
 	if err != nil {
-		ts.log().Errorf("cannot write to %s root dir: %s", logDir, err)
+		ts.log().Error(fmt.Sprintf("cannot write to %s root dir: %s", logDir, err))
 	}
 
 	return logDir
@@ -101,7 +102,7 @@ func (ts *Server) CertificatesDir() string {
 
 	err := ts.fs.MkdirAll(certDir, assets.DirPerm)
 	if err != nil {
-		ts.log().Errorf("cannot write to %s root dir: %s", certDir, err)
+		ts.log().Error(fmt.Sprintf("cannot write to %s root dir: %s", certDir, err))
 	}
 
 	return certDir

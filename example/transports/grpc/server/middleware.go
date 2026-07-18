@@ -55,14 +55,9 @@ func LogMiddlewareOptions(serv *server.Server) ([]grpc.ServerOption, error) {
 
 	cfg := serv.GetConfig()
 
-	// Audit-log all requests. Any failure to audit-log the requests
-	// of this server will themselves be logged to the root teamserver log.
-	auditLog, err := serv.AuditLogger()
-	if err != nil {
-		return nil, err
-	}
-
-	requestOpts = append(requestOpts, auditLogUnaryServerInterceptor(serv, auditLog))
+	// Audit-log all requests through this transport's own logrus logger,
+	// independently of the slog-based core teamserver loggers.
+	requestOpts = append(requestOpts, auditLogUnaryServerInterceptor(common.Logrus()))
 
 	requestOpts = append(requestOpts,
 		grpc_tags.UnaryServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
@@ -72,13 +67,16 @@ func LogMiddlewareOptions(serv *server.Server) ([]grpc.ServerOption, error) {
 		grpc_tags.StreamServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
 	)
 
-	// Logging interceptors
-	logrusEntry := serv.NamedLogger("transport", "grpc")
+	// Logging interceptors (this transport's own logrus backend).
+	//
+	// NOTE: we deliberately do NOT call grpc_logrus.ReplaceGrpcLogger here: it
+	// mutates gRPC's process-global logger (grpclog.SetLoggerV2), which races
+	// with running gRPC server goroutines when listeners are (re)initialized.
+	// Per-request logging below is unaffected.
+	logrusEntry := common.LogEntry("transport", "grpc")
 	logrusOpts := []grpc_logrus.Option{
 		grpc_logrus.WithLevels(common.CodeToLevel),
 	}
-
-	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
 
 	requestOpts = append(requestOpts,
 		grpc_logrus.UnaryServerInterceptor(logrusEntry, logrusOpts...),
@@ -168,7 +166,7 @@ func serverAuthFunc(ctx context.Context) (context.Context, error) {
 
 // tokenAuthFunc uses the core reeflective/team/server to authenticate user requests.
 func (ts *Teamserver) tokenAuthFunc(ctx context.Context) (context.Context, error) {
-	log := ts.NamedLogger("transport", "grpc")
+	log := common.LogEntry("transport", "grpc")
 
 	rawToken, err := grpc_auth.AuthFromMD(ctx, "Bearer")
 	if err != nil {
@@ -176,16 +174,19 @@ func (ts *Teamserver) tokenAuthFunc(ctx context.Context) (context.Context, error
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
-	// Let our core teamserver driver authenticate the user.
-	// The teamserver has its credentials, tokens and everything in database.
-	user, authorized, err := ts.UserAuthenticate(rawToken)
-	if err != nil || !authorized || user.Name == "" {
+	// Authentication: let the core teamserver verify the token and tell us WHO
+	// is calling. This is the only identity primitive the teamserver provides;
+	// it carries no permissions/roles.
+	user, err := ts.Authenticate(rawToken)
+	if err != nil || user.Name == "" {
 		log.Errorf("Authentication failure: %s", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
-	// Fetch the user in database for permissions.
-
+	// Authorization/identity is the APPLICATION's job. This example simply
+	// injects the authenticated team.User, but a real consumer would resolve
+	// user.Name against its own model (roles, permissions, an Operator record)
+	// and store its OWN identity type under its OWN context key here.
 	newCtx := context.WithValue(ctx, Transport, user)
 	newCtx = context.WithValue(newCtx, User, user)
 
@@ -197,8 +198,8 @@ type auditUnaryLogMsg struct {
 	Method  string `json:"method"`
 }
 
-func auditLogUnaryServerInterceptor(ts *server.Server, auditLog *logrus.Logger) grpc.UnaryServerInterceptor {
-	log := ts.NamedLogger("grpc", "audit")
+func auditLogUnaryServerInterceptor(auditLog *logrus.Logger) grpc.UnaryServerInterceptor {
+	log := common.LogEntry("grpc", "audit")
 
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (_ interface{}, err error) {
 		rawRequest, err := json.Marshal(req)

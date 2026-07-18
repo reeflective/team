@@ -22,15 +22,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	insecureRand "math/rand"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/log"
 )
 
 const (
@@ -92,35 +92,30 @@ func (ts *Server) GetConfig() *Config {
 
 	configPath := ts.ConfigPath()
 	if _, err := ts.fs.Stat(configPath); !os.IsNotExist(err) {
-		cfgLog.Debugf("Loading config from %s", configPath)
+		cfgLog.Debug(fmt.Sprintf("Loading config from %s", configPath))
 
 		data, err := ts.fs.ReadFile(configPath)
 		if err != nil {
-			cfgLog.Errorf("Failed to read config file %s", err)
+			cfgLog.Error(fmt.Sprintf("Failed to read config file %s", err))
 			return ts.opts.config
 		}
 
 		err = json.Unmarshal(data, ts.opts.config)
 		if err != nil {
-			cfgLog.Errorf("Failed to parse config file %s", err)
+			cfgLog.Error(fmt.Sprintf("Failed to parse config file %s", err))
 			return ts.opts.config
 		}
 	} else {
-		cfgLog.Warnf("Teamserver: no config file found, using and saving defaults")
+		cfgLog.Warn("Teamserver: no config file found, using and saving defaults")
 	}
 
-	if ts.opts.config.Log.Level < 0 {
-		ts.opts.config.Log.Level = 0
-	}
-
-	if int(logrus.TraceLevel) < ts.opts.config.Log.Level {
-		ts.opts.config.Log.Level = int(logrus.TraceLevel)
-	}
+	// Clamp the configured level to the supported [Trace, Panic] slog range.
+	ts.opts.config.Log.Level = int(log.LevelFrom(ts.opts.config.Log.Level))
 
 	// This updates the config with any missing fields
 	err := ts.SaveConfig(ts.opts.config)
 	if err != nil {
-		cfgLog.Errorf("Failed to save default config %s", err)
+		cfgLog.Error(fmt.Sprintf("Failed to save default config %s", err))
 	}
 
 	return ts.opts.config
@@ -137,7 +132,7 @@ func (ts *Server) SaveConfig(cfg *Config) error {
 		return err
 	}
 
-	cfgLog.Debugf("Saving config to %s", configPath)
+	cfgLog.Debug(fmt.Sprintf("Saving config to %s", configPath))
 
 	err = ts.fs.WriteFile(configPath, data, assets.FileReadPerm)
 	if err != nil {
@@ -161,7 +156,7 @@ func getDefaultServerConfig() *Config {
 			GRPCStreamPayloads bool `json:"grpc_stream_payloads"`
 			TLSKeyLogger       bool `json:"tls_key_logger"`
 		}{
-			Level: int(logrus.InfoLevel),
+			Level: int(slog.LevelInfo),
 		},
 		Listeners: []struct {
 			Name string `json:"name"`

@@ -1,10 +1,37 @@
-# List of PR labels for readline
+# List of PR labels for team (actions/labeler v5+ config format)
 
-# Shell core
-# main:
-# - readline.go
-# - shell.go
-# tests:
-# - '*_test.go'
-# terminal:
-# - internal/term/
+client:
+  - changed-files:
+      - any-glob-to-any-file: ['client/**']
+
+server:
+  - changed-files:
+      - any-glob-to-any-file: ['server/**']
+
+logging:
+  - changed-files:
+      - any-glob-to-any-file: ['log/**']
+
+transport:
+  - changed-files:
+      - any-glob-to-any-file: ['example/transports/**']
+
+certs:
+  - changed-files:
+      - any-glob-to-any-file: ['internal/certs/**']
+
+database:
+  - changed-files:
+      - any-glob-to-any-file: ['internal/db/**']
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.md']
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*_test.go']
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**']

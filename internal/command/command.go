@@ -19,9 +19,12 @@ package command
 */
 
 import (
+	"github.com/carapace-sh/carapace"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
+
+	"github.com/reeflective/team/log"
 )
 
 type (
@@ -44,6 +47,19 @@ const (
 	// UserManagementGroup is the group to manage teamserver users.
 	UserManagementGroup = "user management"
 )
+
+// LogFormatCompleter completes the --log-format flag values (console/text/json),
+// each with a short description, for both teamserver and teamclient trees.
+func LogFormatCompleter() carapace.Action {
+	return carapace.ActionCallback(func(carapace.Context) carapace.Action {
+		values := make([]string, 0, len(log.Formats())*2)
+		for _, format := range log.Formats() {
+			values = append(values, format.String(), format.Describe())
+		}
+
+		return carapace.ActionValuesDescribed(values...)
+	})
+}
 
 // Colors / effects.
 const (

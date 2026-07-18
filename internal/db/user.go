@@ -22,18 +22,18 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
-// User - A teamserver user.
+// User - A teamserver user (an authenticated identity + its credentials).
+// The teamserver stores no authorization/permission data: applications own
+// their own role model, keyed by the user Name.
 type User struct {
-	ID          uuid.UUID `gorm:"primaryKey;->;<-:create;type:uuid;"`
-	CreatedAt   time.Time `gorm:"->;<-:create;"`
-	LastSeen    time.Time
-	Name        string
-	Token       string         `gorm:"uniqueIndex"`
-	Permissions pq.StringArray `gorm:"type:text[]"`
+	ID        uuid.UUID `gorm:"primaryKey;->;<-:create;type:uuid;"`
+	CreatedAt time.Time `gorm:"->;<-:create;"`
+	LastSeen  time.Time
+	Name      string
+	Token     string `gorm:"uniqueIndex"`
 }
 
 // BeforeCreate - GORM hook.
@@ -46,11 +46,4 @@ func (o *User) BeforeCreate(tx *gorm.DB) (err error) {
 	o.CreatedAt = time.Now()
 
 	return nil
-}
-
-type Permissions struct {
-	ID        uuid.UUID `gorm:"primaryKey;->;<-:create;type:uuid;"`
-	CreatedAt time.Time `gorm:"->;<-:create;"`
-	LastSeen  time.Time
-	Name      string
 }

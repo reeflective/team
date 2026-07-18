@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	clientConn "github.com/reeflective/team/example/transports/grpc/client"
+	"github.com/reeflective/team/example/transports/grpc/common"
 	"github.com/reeflective/team/example/transports/grpc/proto"
 	teamserver "github.com/reeflective/team/server"
 	"google.golang.org/grpc"
@@ -137,7 +138,7 @@ func (h *Teamserver) Init(serv *teamserver.Server) (err error) {
 // If the teamserver has previously been given an in-memory connection,
 // it returns it as the listener without errors.
 func (h *Teamserver) Listen(addr string) (ln net.Listener, err error) {
-	rpcLog := h.NamedLogger("transport", "mTLS")
+	rpcLog := common.LogEntry("transport", "mTLS")
 
 	// Only wrap the connection in TLS when remote.
 	// In-memory connection are not authenticated.
@@ -192,15 +193,4 @@ func (h *Teamserver) Listen(addr string) (ln net.Listener, err error) {
 	}()
 
 	return ln, nil
-}
-
-// Close implements team/server.Handler.Close().
-// In this implementation, the function does nothing. Thus the underlying
-// *grpc.Server.Shutdown() method is not called, and only the listener
-// will be closed by the server automatically when using CloseListener().
-//
-// This is probably not optimal from a resource usage standpoint, but currently it
-// fits most use cases. Feel free to reimplement or propose changes to this lib.
-func (h *Teamserver) Close() error {
-	return nil
 }

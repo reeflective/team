@@ -72,11 +72,11 @@ func (c *Manager) UserClientListCertificates() []*x509.Certificate {
 
 	result := c.db().Where(&db.Certificate{CAType: userCA}).Find(&userCerts)
 	if result.Error != nil {
-		c.log.Error(result.Error)
+		c.log.Error(result.Error.Error())
 		return []*x509.Certificate{}
 	}
 
-	c.log.Infof("Found %d user certs ...", len(userCerts))
+	c.log.Info(fmt.Sprintf("Found %d user certs ...", len(userCerts)))
 
 	certs := []*x509.Certificate{}
 
@@ -89,7 +89,7 @@ func (c *Manager) UserClientListCertificates() []*x509.Certificate {
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			c.log.Warnf("failed to parse x.509 certificate %v", err)
+			c.log.Warn(fmt.Sprintf("failed to parse x.509 certificate %v", err))
 			continue
 		}
 

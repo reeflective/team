@@ -19,9 +19,41 @@ package common
 */
 
 import (
+	"os"
+
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 )
+
+// This example transport demonstrates that a transport backend is free to use a
+// logging library entirely of its own (here logrus), independent of the slog
+// backend used by the reeflective/team core. Its gRPC middleware logs through
+// the logrus logger below, while the core keeps logging through its slog
+// handlers. See the sibling "grpcslog" example for a transport that instead
+// plugs into the core's slog loggers via Server/Client.NamedLogger().
+var exampleLogrus = newExampleLogrus()
+
+func newExampleLogrus() *logrus.Logger {
+	logger := logrus.New()
+	logger.SetOutput(os.Stdout)
+	logger.SetLevel(logrus.InfoLevel)
+	logger.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
+
+	return logger
+}
+
+// Logrus returns the shared *logrus.Logger used by this example transport's
+// gRPC middleware. Consumers modelling their own logrus-based transport can use
+// this as a reference for wiring a self-owned logging backend.
+func Logrus() *logrus.Logger {
+	return exampleLogrus
+}
+
+// LogEntry returns a *logrus.Entry tagged with a package/stream, mirroring the
+// shape of the core's NamedLogger() but backed by this example's own logrus logger.
+func LogEntry(pkg, stream string) *logrus.Entry {
+	return exampleLogrus.WithField("logger", pkg).WithField("stream", stream)
+}
 
 // CodeToLevel maps a grpc response code to a logging level.
 func CodeToLevel(code codes.Code) logrus.Level {

@@ -21,36 +21,40 @@ package team
 import "time"
 
 // Client is the smallest interface which should be implemented by all
-// teamclients of any sort, regardless of their use of the client/server
+// teamclient transport backends, regardless of their use of the client/server
 // packages in the reeflective/team Go module.
 // This interface has been declared with various aims in mind:
 //   - To provide a base reference/hint about what minimum functionality
-//     is to be provided by the teamclients and teamservers alike.
+//     is to be provided by a remote teamserver backend.
 //   - To harmonize the use of team/client and team/server core drivers.
+//
+// Note that this interface only contains the calls that must be answered by a
+// (possibly remote) teamserver. Client-local version information is NOT part of
+// it: the team/client.Client core always computes its own VersionClient()
+// locally, since a client reporting its own binary version never needs a peer.
 type Client interface {
 	// Users returns the list of teamserver users and their status.
 	Users() ([]User, error)
-	// VersionClient returns the compilation/version information for the client.
-	VersionClient() (Version, error)
 	// VersionServer returns the compilation/version information from a connected teamserver.
 	VersionServer() (Version, error)
 }
 
-// User represents a teamserver user.
-// This user shall be registered to a teamserver (ie. the teamserver should
-// be in possession of the user cryptographic materials required to serve him)
+// User represents a teamserver user: a registered identity for which the
+// teamserver holds the cryptographic materials (token + client certificate)
+// required to authenticate its connecting teamclients.
 // This type is returned by both team/clients and team/servers.
+//
+// Note on authorization: the teamserver is deliberately an AUTHENTICATION-only
+// authority. It proves who a caller is (this identity), and does not carry,
+// store, or interpret any permission/role model. Applications embedding the
+// teamserver own their authorization entirely: resolve this user's Name against
+// your own model and inject whatever identity object you want into the request
+// context from your own transport middleware.
 type User struct {
 	Name     string    // Name of the user
 	Online   bool      // Are one or more of the user's clients connected.
 	LastSeen time.Time // Last time the user made an RPC call or something.
 	Clients  int       // Number of clients connected.
-
-	// Permissions is a list of arbitrary strings that clients/servers
-	// might want to use for permissions: domain names, tools, tokens...
-	// These permissions can be specified with --permissions on the CLI,
-	// and will be always stored along with the user in the database.
-	Permissions []string
 }
 
 // Version returns complete version/compilation information for a given binary.

@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/reeflective/team/internal/assets"
+	"github.com/reeflective/team/log"
 )
 
 // -----------------------
@@ -58,14 +59,14 @@ func (c *Manager) generateCA(caType string, commonName string) (*x509.Certificat
 
 	certFilePath := filepath.Join(storageDir, fmt.Sprintf("%s_%s-ca-cert.%s", c.appName, caType, certFileExt))
 	if _, err := os.Stat(certFilePath); os.IsNotExist(err) {
-		c.log.Infof("Generating certificate authority for '%s'", caType)
+		c.log.Info(fmt.Sprintf("Generating certificate authority for '%s'", caType))
 		cert, key := c.GenerateECCCertificate(caType, commonName, true, false)
 		c.saveCA(caType, cert, key)
 	}
 
 	cert, key, err := c.getCA(caType)
 	if err != nil {
-		c.log.Fatalf("Failed to load CA: %s", err)
+		log.Fatal(c.log, fmt.Sprintf("Failed to load CA: %s", err))
 	}
 
 	return cert, key
@@ -98,7 +99,7 @@ func (c *Manager) getCA(caType string) (*x509.Certificate, *ecdsa.PrivateKey, er
 
 	key, err := x509.ParseECPrivateKey(keyBlock.Bytes)
 	if err != nil {
-		c.log.Error(err)
+		c.log.Error(err.Error())
 		return nil, nil, err
 	}
 
@@ -113,13 +114,13 @@ func (c *Manager) getCAPEM(caType string) ([]byte, []byte, error) {
 
 	certPEM, err := c.fs.ReadFile(caCertPath)
 	if err != nil {
-		c.log.Error(err)
+		c.log.Error(err.Error())
 		return nil, nil, err
 	}
 
 	keyPEM, err := c.fs.ReadFile(caKeyPath)
 	if err != nil {
-		c.log.Error(err)
+		c.log.Error(err.Error())
 		return nil, nil, err
 	}
 
@@ -139,11 +140,11 @@ func (c *Manager) saveCA(caType string, cert []byte, key []byte) {
 
 	err := c.fs.WriteFile(certFilePath, cert, assets.FileReadPerm)
 	if err != nil {
-		c.log.Fatalf("Failed write certificate data to %s, %s", certFilePath, err)
+		log.Fatal(c.log, fmt.Sprintf("Failed write certificate data to %s, %s", certFilePath, err))
 	}
 
 	err = c.fs.WriteFile(keyFilePath, key, assets.FileReadPerm)
 	if err != nil {
-		c.log.Fatalf("Failed write certificate data to %s: %s", keyFilePath, err)
+		log.Fatal(c.log, fmt.Sprintf("Failed write certificate data to %s: %s", keyFilePath, err))
 	}
 }

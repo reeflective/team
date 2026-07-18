@@ -12,8 +12,8 @@ import (
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/command"
 	"github.com/reeflective/team/server"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"log/slog"
 )
 
 func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Command, args []string) {
@@ -21,7 +21,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 
@@ -30,7 +30,6 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 		lport, _ := cmd.Flags().GetUint16("port")
 		save, _ := cmd.Flags().GetString("save")
 		system, _ := cmd.Flags().GetBool("system")
-		perms, _ := cmd.Flags().GetStringSlice("permissions")
 
 		if save == "" {
 			save, _ = os.Getwd()
@@ -71,7 +70,7 @@ func createUserCmd(serv *server.Server, cli *client.Client) func(cmd *cobra.Comm
 
 		fmt.Fprintf(cmd.OutOrStdout(), command.Info+"Generating new client certificate, please wait ... \n")
 
-		config, err := serv.UserCreate(name, lhost, lport, perms...)
+		config, err := serv.UserCreate(name, lhost, lport)
 		if err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), command.Warn+"%s\n", err)
 			return
@@ -100,7 +99,7 @@ func rmUserCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 
@@ -123,7 +122,7 @@ func importCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 
@@ -163,7 +162,7 @@ func exportCACmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 

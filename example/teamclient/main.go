@@ -25,10 +25,10 @@ func main() {
 	gTeamclient := grpc.NewTeamClient()
 
 	// Create a new teamclient core, specifying the transport/RPC backend to use.
-	// There is no way to make a teamclient work with a remote server if it is not
-	// being given at least a team.Client type, and will most likely involve passing
-	// a full dialer backend like in the call below.
-	teamclient, err := client.New("teamserver", gTeamclient, client.WithDialer(gTeamclient))
+	// The gRPC dialer also implements team.Client (Users/VersionServer), so passing
+	// it with WithDialer() is enough: the core uses it as its backend automatically,
+	// and there is no way to reach a remote server without at least such a dialer.
+	teamclient, err := client.New("teamserver", client.WithDialer(gTeamclient))
 	if err != nil {
 		log.Fatal(err)
 	}
