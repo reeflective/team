@@ -32,6 +32,10 @@ import (
 )
 
 func sqliteClient(dsn string, log logger.Interface) (*gorm.DB, error) {
+	// Reuse a persistent on-disk cache of the compiled SQLite WASM module, so we
+	// don't pay the ~2s wazero compilation cost on every process start.
+	configureSQLiteRuntime()
+
 	return gorm.Open(gormlite.Open(dsn), &gorm.Config{
 		PrepareStmt: true,
 		Logger:      log,

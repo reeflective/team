@@ -12,11 +12,11 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/ncruces/go-sqlite3 v0.22.0
 	github.com/ncruces/go-sqlite3/gormlite v0.22.0
-	github.com/rsteube/carapace v0.47.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.14.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
+	github.com/tetratelabs/wazero v1.8.2
 	google.golang.org/grpc v1.56.1
 	google.golang.org/protobuf v1.31.0
 	gorm.io/driver/mysql v1.5.7
@@ -46,9 +46,7 @@ require (
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
-	github.com/rsteube/carapace-shlex v0.1.1 // indirect
 	github.com/stretchr/testify v1.8.2 // indirect
-	github.com/tetratelabs/wazero v1.8.2 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sync v0.13.0 // indirect
