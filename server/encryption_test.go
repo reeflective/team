@@ -22,6 +22,8 @@ package server
 
 import (
 	"bytes"
+	"io"
+	"log/slog"
 	"os"
 	"testing"
 )
@@ -35,13 +37,15 @@ func TestDatabaseEncryptionAtRest(t *testing.T) {
 
 	home := t.TempDir()
 
-	// WithNoLogs keeps the database on disk (unlike WithInMemory) while avoiding
-	// an open log-file handle, which on Windows would block the t.TempDir()
-	// cleanup ("the process cannot access the file because it is being used by
-	// another process").
+	// Inject a discard log handler so the server opens no log file. That keeps
+	// the database on disk (unlike WithInMemory) while avoiding a lingering open
+	// log-file handle, which on Windows would block the t.TempDir() cleanup ("the
+	// process cannot access the file because it is being used by another
+	// process"). The SQLite database file itself is deletable while open.
+	discard := slog.NewTextHandler(io.Discard, nil)
 	ts, err := New("enctest",
 		WithHomeDirectory(home),
-		WithNoLogs(true),
+		WithLogger(discard),
 		WithDatabaseKey("correct horse battery staple"),
 	)
 	if err != nil {
