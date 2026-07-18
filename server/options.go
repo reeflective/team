@@ -50,11 +50,11 @@ type opts struct {
 	inMemory        bool
 	continueOnError bool
 
-	config    *Config
-	dbConfig  *db.Config
-	db        *gorm.DB
-	logger    *logrus.Logger
-	listeners []Listener
+	config   *Config
+	dbConfig *db.Config
+	db       *gorm.DB
+	logger   *logrus.Logger
+	handlers []Handler
 }
 
 // default in-memory configuration, ready to run.
@@ -97,18 +97,18 @@ func (ts *Server) apply(options ...Options) {
 		}
 	})
 
-	// Load any listener backends any number of times.
-	for _, listener := range ts.opts.listeners {
-		ts.handlers[listener.Name()] = listener
+	// Load any handler (transport stack) backends any number of times.
+	for _, handler := range ts.opts.handlers {
+		ts.handlers[handler.Name()] = handler
 	}
 
-	// Make the first one as the default if needed.
-	if len(ts.opts.listeners) > 0 && ts.self == nil {
-		ts.self = ts.opts.listeners[0]
+	// Make the first one the default if needed.
+	if len(ts.opts.handlers) > 0 && ts.self == nil {
+		ts.self = ts.opts.handlers[0]
 	}
 
-	// And clear the most recent listeners passed via options.
-	ts.opts.listeners = make([]Listener, 0)
+	// And clear the most recent handlers passed via options.
+	ts.opts.handlers = make([]Handler, 0)
 }
 
 //
@@ -227,25 +227,25 @@ func WithLogger(logger *logrus.Logger) Options {
 // *** Server network/RPC options ***
 //
 
-// WithListener registers a listener/server stack with the teamserver.
-// The teamserver can then serve this listener stack for any number of bind
-// addresses, which users can trigger through the various server.Serve*() methods.
+// WithHandler registers a handler (transport/server/RPC stack) with the teamserver.
+// The teamserver can then serve this stack for any number of bind addresses, which
+// users can trigger through the various server.Serve*() methods. Each such bind
+// becomes a Listener (job), controllable with the server Listeners()/ListenerClose()
+// methods. See the server.Handler type documentation for details.
 //
-// It accepts an optional list of pre-serve hook functions:
-// These should accept a generic object parameter which is none other than the
-// serverConn returned by the listener.Serve(ln) method. These hooks will
-// be very useful- if not necessary- for library users to manipulate their server.
-// See the server.Listener type documentation for details.
+// Handlers that need to run pre-serve hooks (eg. to register extra RPC services)
+// should expose their own mechanism for it, as the gRPC example transport does with
+// its PostServe() method.
 //
 // This option can be used multiple times, either when using
 // team/server.New() or with the different server.Serve*() methods.
-func WithListener(ln Listener) Options {
+func WithHandler(ln Handler) Options {
 	return func(opts *opts) {
 		if ln == nil {
 			return
 		}
 
-		opts.listeners = append(opts.listeners, ln)
+		opts.handlers = append(opts.handlers, ln)
 	}
 }
 

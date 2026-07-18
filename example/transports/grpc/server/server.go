@@ -193,14 +193,3 @@ func (h *Teamserver) Listen(addr string) (ln net.Listener, err error) {
 
 	return ln, nil
 }
-
-// Close implements team/server.Handler.Close().
-// In this implementation, the function does nothing. Thus the underlying
-// *grpc.Server.Shutdown() method is not called, and only the listener
-// will be closed by the server automatically when using CloseListener().
-//
-// This is probably not optimal from a resource usage standpoint, but currently it
-// fits most use cases. Feel free to reimplement or propose changes to this lib.
-func (h *Teamserver) Close() error {
-	return nil
-}

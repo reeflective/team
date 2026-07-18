@@ -59,8 +59,8 @@ func (ts *Server) SetLogLevel(level int) {
 
 // AuditLogger returns a special logger writing its event entries to an audit
 // log file (default audit.json), distinct from other teamserver log files.
-// Listener implementations will want to use this for logging various teamclient
-// application requests, with this logger used somewhere in your listener middleware.
+// Handler implementations will want to use this for logging various teamclient
+// application requests, with this logger used somewhere in your handler middleware.
 func (ts *Server) AuditLogger() (*logrus.Logger, error) {
 	if ts.opts.inMemory || ts.opts.noLogs {
 		return ts.log(), nil

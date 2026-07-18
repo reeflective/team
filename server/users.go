@@ -192,7 +192,7 @@ func (ts *Server) UserAuthenticate(rawToken string) (*team.User, bool, error) {
 // The configuration performs all and every verifications that the teamserver should do,
 // and peer TLS clients (teamclient.Config) are not allowed to choose any TLS parameters.
 //
-// This should be used by team/server.Listeners at the net.Listener/net.Conn level.
+// This should be used by team/server.Handlers at the net.Listener/net.Conn level.
 // As for all errors of the teamserver API, any error returned here is defered-logged.
 func (ts *Server) UsersTLSConfig() (*tls.Config, error) {
 	log := ts.NamedLogger("certs", "mtls")

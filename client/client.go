@@ -62,25 +62,27 @@ type Client struct {
 	dialer  Dialer     // Connection backend for the teamclient.
 	connect *sync.Once // A client can only connect once per run.
 
-	// Client is the implementation of the core teamclient functionality,
+	// client is the implementation of the remote teamclient functionality,
 	// which is to query a server version and its current users.
-	// This type is either implementated by a teamserver when the client
-	// is in-memory, or by a user-defined type which is generally a RPC.
+	// This type is either implemented by a teamserver when the client
+	// is in-memory, or by a user-defined type which is generally an RPC.
+	// It is resolved from the dialer (when the dialer implements team.Client)
+	// or set explicitly with the WithTeamClient() option.
 	client team.Client
 }
 
 // Dialer represents a type using a teamclient core (and its configured teamserver
 // remote) to setup, initiate and use a connection to this remote teamserver.
 //
-// The type parameter `clientConn` of this interface is a purely syntactic sugar
-// to indicate that any dialer should/may return a user-defined but specific object
-// from its Dial() method. Library users can register hooks to the teamclient.Client
-// using this dialer, and this clientConn will be provided to these hooks.
+// A dialer will very often also implement the team.Client interface (Users and
+// VersionServer), since the connection it dials is what answers those queries. In
+// that case the teamclient core uses the dialer as its backend automatically, so
+// there is no need to register it twice: WithDialer() alone is enough. Only pass
+// a separate backend with WithTeamClient() if it is a distinct object.
 //
-// Examples of what this clientConn can be:
-//   - The clientConn is a specific, but non-idiomatic RPC client (ex: a *grpc.ClientConn).
-//   - A simple net.Conn over which anything can be done further.
-//   - Nothing: a dialer might not need to use or even create a client connection.
+// Init is a transport-agnostic preparation phase, Dial the transport-specific
+// binding phase; keeping them separate lets implementations compose by embedding
+// a base dialer and overriding only Dial().
 type Dialer interface {
 	// Init is used by any dialer to query the teamclient driving it about:
 	//   - The remote teamserver address and transport credentials
@@ -100,12 +102,13 @@ type Dialer interface {
 // Parameters:
 //   - The name of the application using the teamclient.
 //   - Variadic options (...Options) which are applied at creation time.
-//   - A type implementing the team.Client interface.
 //
-// Depending on constraints and use cases, the client uses different
-// backends and/or RPC implementations providing this functionality:
-//   - When used in-memory and as a client of teamserver.
-//   - When being provided a specific dialer/client/RPC backend.
+// The team.Client backend that answers Users()/VersionServer() is resolved from
+// the options:
+//   - From the dialer passed with WithDialer(), when that dialer also implements
+//     team.Client (the common case for RPC transports).
+//   - From a backend passed explicitly with WithTeamClient() (used, for instance,
+//     by teamserver.Self() so a server can be an in-memory client of itself).
 //
 // The teamclient will only perform a few init things before being returned:
 //   - Setup its filesystem, either on-disk (default behavior) or in-memory.
@@ -114,11 +117,10 @@ type Dialer interface {
 // This may return an error if the teamclient is unable to work with the provided
 // options (or lack thereof), which may happen if the teamclient cannot use and write
 // to its directories and log files. No client is returned if the error is not nil.
-func New(app string, client team.Client, options ...Options) (*Client, error) {
+func New(app string, options ...Options) (*Client, error) {
 	teamclient := &Client{
 		name:    app,
 		opts:    defaultOpts(),
-		client:  client,
 		connect: &sync.Once{},
 		mutex:   &sync.RWMutex{},
 	}
@@ -225,13 +227,11 @@ func (tc *Client) Users() (users []team.User, err error) {
 
 // VersionClient returns the version information of the client, and thus
 // does not require the teamclient to be connected to a teamserver.
-// This function satisfies the VersionClient() function of the team.Client interface,
-// which means that library users are free to reimplement it however they wish.
+//
+// This is always computed locally from the client binary's own build
+// information: a client reporting its own version never needs to reach a peer,
+// so this call never traverses the transport backend.
 func (tc *Client) VersionClient() (ver team.Version, err error) {
-	if tc.client != nil {
-		return tc.client.VersionClient()
-	}
-
 	semVer := version.Semantic()
 	compiled, _ := version.Compiled()
 

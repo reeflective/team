@@ -21,17 +21,20 @@ package team
 import "time"
 
 // Client is the smallest interface which should be implemented by all
-// teamclients of any sort, regardless of their use of the client/server
+// teamclient transport backends, regardless of their use of the client/server
 // packages in the reeflective/team Go module.
 // This interface has been declared with various aims in mind:
 //   - To provide a base reference/hint about what minimum functionality
-//     is to be provided by the teamclients and teamservers alike.
+//     is to be provided by a remote teamserver backend.
 //   - To harmonize the use of team/client and team/server core drivers.
+//
+// Note that this interface only contains the calls that must be answered by a
+// (possibly remote) teamserver. Client-local version information is NOT part of
+// it: the team/client.Client core always computes its own VersionClient()
+// locally, since a client reporting its own binary version never needs a peer.
 type Client interface {
 	// Users returns the list of teamserver users and their status.
 	Users() ([]User, error)
-	// VersionClient returns the compilation/version information for the client.
-	VersionClient() (Version, error)
 	// VersionServer returns the compilation/version information from a connected teamserver.
 	VersionServer() (Version, error)
 }

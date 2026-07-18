@@ -196,7 +196,7 @@ gTeamserver := grpc.NewListener()
 
 // Create a new teamserver, register the gRPC backend with it.
 // All gRPC teamclients will be able to connect to our teamserver.
-teamserver, err := server.New("teamserver", server.WithListener(gTeamserver))
+teamserver, err := server.New("teamserver", server.WithHandler(gTeamserver))
 
 // Since our teamserver offers its functionality through a gRPC layer,
 // our teamclients must have the corresponding client-side RPC client backend.

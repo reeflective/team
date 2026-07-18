@@ -25,6 +25,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/assets"
 )
 
@@ -41,16 +42,17 @@ const noTeamdir = "no team subdirectory"
 type Options func(opts *opts)
 
 type opts struct {
-	homeDir  string
-	teamDir  string
-	noLogs   bool
-	logFile  string
-	inMemory bool
-	noDisconnect  bool
-	stdout   io.Writer
-	config   *Config
-	logger   *logrus.Logger
-	dialer   Dialer
+	homeDir      string
+	teamDir      string
+	noLogs       bool
+	logFile      string
+	inMemory     bool
+	noDisconnect bool
+	stdout       io.Writer
+	config       *Config
+	logger       *logrus.Logger
+	dialer       Dialer
+	client       team.Client
 }
 
 func defaultOpts() *opts {
@@ -79,6 +81,17 @@ func (tc *Client) apply(options ...Options) {
 
 	if tc.opts.dialer != nil {
 		tc.dialer = tc.opts.dialer
+	}
+
+	// Resolve the team.Client backend that answers Users()/VersionServer().
+	// An explicit WithTeamClient() wins; otherwise, if the dialer happens to
+	// implement team.Client (the common case for RPC transports), use it.
+	if tc.opts.client != nil {
+		tc.client = tc.opts.client
+	} else if tc.client == nil && tc.dialer != nil {
+		if backend, ok := tc.dialer.(team.Client); ok {
+			tc.client = backend
+		}
 	}
 
 	// Team directory.
@@ -188,17 +201,30 @@ func WithLogger(logger *logrus.Logger) Options {
 // WithDialer sets a custom dialer to connect to the teamserver.
 // See the Dialer type documentation for implementation/usage details.
 //
-// It accepts an optional list of hooks to run on the generic clientConn
-// returned by the client.Dialer Dial() method (see Dialer doc for details).
-// This client object can be pretty much any client-side conn/RPC object.
-// You will have to typecast this conn in your hooks, casting it to the type
-// that your teamclient Dialer.Dial() method returns.
+// If the dialer also implements the team.Client interface (Users and
+// VersionServer, the common case for RPC transports), it is automatically used
+// as the teamclient backend as well, so you do not need to register it twice.
+// Use WithTeamClient() only to provide a backend that is a distinct object.
 //
 // This option can be used multiple times, either when using
 // team/client.New() or when using the teamclient.Connect() method.
 func WithDialer(dialer Dialer) Options {
 	return func(opts *opts) {
 		opts.dialer = dialer
+	}
+}
+
+// WithTeamClient sets the team.Client backend answering the teamclient core
+// Users() and VersionServer() calls. This is only needed when the backend is a
+// distinct object from the dialer (a dialer that also implements team.Client is
+// picked up automatically by WithDialer). It is used, for example, by
+// teamserver.Self() so that a teamserver can be an in-memory client of itself.
+//
+// This option can be used multiple times, either when using
+// team/client.New() or when using the teamclient.Connect() method.
+func WithTeamClient(client team.Client) Options {
+	return func(opts *opts) {
+		opts.client = client
 	}
 }
 
