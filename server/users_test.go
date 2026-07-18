@@ -42,6 +42,32 @@ func newTestServer(t *testing.T) *Server {
 	return ts
 }
 
+// TestUserCreateWithoutServe is a regression guard for the nil-certificate
+// panic: creating a user through the API (as the `user` CLI command does) must
+// work without a prior Serve()/init() call. Previously UserCreate only ran
+// initDatabase(), while ts.certs was built solely on the serve path, so this
+// dereferenced a nil *certs.Manager.
+func TestUserCreateWithoutServe(t *testing.T) {
+	ts, err := New("nocerts", WithInMemory())
+	if err != nil {
+		t.Fatalf("server.New: %v", err)
+	}
+
+	// Deliberately NOT calling ts.init() / Serve() here.
+	cfg, err := ts.UserCreate("alice", "localhost", 31337)
+	if err != nil {
+		t.Fatalf("UserCreate without serve: %v", err)
+	}
+	if cfg == nil || cfg.Token == "" {
+		t.Fatal("expected a valid client config with a non-empty token")
+	}
+
+	// The freshly-minted identity must authenticate.
+	if u, err := ts.Authenticate(cfg.Token); err != nil || u == nil || u.Name != "alice" {
+		t.Fatalf("authenticate minted identity: user=%v err=%v", u, err)
+	}
+}
+
 // TestUserCreateValidation pins the input validation on UserCreate: user names
 // are restricted to alphanumerics (plus - and _), and neither the name nor the
 // host may be empty. All rejections surface as ErrUserConfig.
