@@ -389,4 +389,4 @@ code or widen interoperability with other Go programs.
 
 - [ ] Add support for encrypted sqlite by default.
 - [x] Finish replacing logrus with the standard-library `slog`, behind a single package shared by client and server. _(Core is now `slog`-only, behind the public `team/log` package; logrus remains only in one example transport to demonstrate a self-owned backend.)_
-- [ ] Add tests for the most sensitive paths (certificate management, database, etc.). _(Started: the `log` package and the version/transport paths are now unit-tested; certificate and database coverage still to do.)_
+- [x] Add tests for the most sensitive paths (certificate management, database, etc.). _(The `log` package, version/transport flow, the certificate manager (PKI generation, storage round-trips, CA chain verification — now ~80% covered), the database DSN layer, and the teamserver user lifecycle (create/authenticate/delete revocation, mutual-TLS config) are now unit-tested.)_
