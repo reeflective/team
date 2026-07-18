@@ -21,13 +21,14 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"time"
 
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 
 	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/example/transports/grpc/common"
+	"github.com/reeflective/team/example/transports/grpcslog/common"
 )
 
 // TokenAuth extracts authentication metadata from contexts,
@@ -35,32 +36,31 @@ import (
 type TokenAuth string
 
 // LogMiddlewareOptions is an example list of gRPC options with logging middleware set up.
-// This transport uses its own logrus logger (common.Logrus) for the gRPC stack/requests
-// events, independently of the core teamclient's slog loggers.
-func LogMiddlewareOptions() []grpc.DialOption {
-	logrusEntry := common.LogEntry("transport", "grpc")
-	logrusOpts := []grpc_logrus.Option{
-		grpc_logrus.WithLevels(common.CodeToLevel),
-	}
+// This function uses the core teamclient loggers to log the gRPC stack/requests events.
+// The Teamclient of this package uses them by default.
+func LogMiddlewareOptions(cli *client.Client) []grpc.DialOption {
+	logger := cli.NamedLogger("transport", "grpc")
 
-	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
-
-	// Intercepting client requests.
-	requestIntercept := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		rawRequest, err := json.Marshal(req)
-		if err != nil {
-			logrusEntry.Errorf("Failed to serialize: %s", err)
-			return invoker(ctx, method, req, reply, cc, opts...)
+	// Log the outcome of each unary call at a level derived from its gRPC code,
+	// and dump the raw request payload at debug level.
+	requestIntercept := func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		if rawRequest, err := json.Marshal(req); err != nil {
+			logger.Error("Failed to serialize request", "method", method, "error", err)
+		} else {
+			logger.Debug("Raw request", "method", method, "payload", string(rawRequest))
 		}
 
-		logrusEntry.Debugf("Raw request: %s", string(rawRequest))
+		start := time.Now()
+		err := invoker(ctx, method, req, reply, cc, opts...)
 
-		return invoker(ctx, method, req, reply, cc, opts...)
+		logger.Log(ctx, common.CodeToLevel(status.Code(err)), "unary call",
+			"method", method, "duration", time.Since(start).String(), "error", err)
+
+		return err
 	}
 
 	options := []grpc.DialOption{
 		grpc.WithBlock(),
-		grpc.WithUnaryInterceptor(grpc_logrus.UnaryClientInterceptor(logrusEntry, logrusOpts...)),
 		grpc.WithUnaryInterceptor(requestIntercept),
 	}
 

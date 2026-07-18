@@ -19,14 +19,15 @@ package server
 */
 
 import (
+	"log/slog"
 	"os"
 	"strings"
 
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/db"
+	"github.com/reeflective/team/log"
 )
 
 const noTeamdir = "no team subdirectory"
@@ -50,11 +51,12 @@ type opts struct {
 	inMemory        bool
 	continueOnError bool
 
-	config   *Config
-	dbConfig *db.Config
-	db       *gorm.DB
-	logger   *logrus.Logger
-	handlers []Handler
+	config       *Config
+	dbConfig     *db.Config
+	db           *gorm.DB
+	logger       slog.Handler
+	consoleStyle func(*log.ConsoleOptions)
+	handlers     []Handler
 }
 
 // default in-memory configuration, ready to run.
@@ -213,13 +215,29 @@ func WithLogFile(filePath string) Options {
 	}
 }
 
-// WithLogger sets the teamserver to use a specific logger for
-// all logging, except the audit log which is indenpendent.
+// WithLogger sets the teamserver to use a specific slog.Handler as its sole
+// logging backend (except the audit log, which is independent), in place of the
+// default console+file loggers. Since the handler fully controls formatting and
+// routing, the teamserver's runtime level control (SetLogLevel) does not apply to it.
 //
 // This option can only be used once, and must be passed to server.New().
-func WithLogger(logger *logrus.Logger) Options {
+func WithLogger(handler slog.Handler) Options {
 	return func(opts *opts) {
-		opts.logger = logger
+		opts.logger = handler
+	}
+}
+
+// WithConsoleOptions restyles the built-in console logger (level markers/colors,
+// package/time/message colors, column widths, timestamp) while KEEPING the
+// default console+file loggers and their runtime level control. The callback
+// receives the console options pre-filled with the library defaults; tweak only
+// what you want. Use this instead of WithLogger when you want the team look with
+// small changes rather than a completely custom backend.
+//
+// This option can only be used once, and must be passed to server.New().
+func WithConsoleOptions(style func(*log.ConsoleOptions)) Options {
+	return func(opts *opts) {
+		opts.consoleStyle = style
 	}
 }
 

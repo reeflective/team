@@ -1,4 +1,4 @@
-package log
+package db
 
 /*
    team - Embedded teamserver for Go programs and CLI applications
@@ -19,29 +19,32 @@ package log
 */
 
 import (
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm/logger"
 )
 
-// gorm middleware for database queries/results logging.
+// gormWriter adapts an slog.Logger to the Printf-style writer that gorm's
+// logger expects, emitting each database line at Info level.
 type gormWriter struct {
-	log *logrus.Entry
+	log *slog.Logger
 }
 
-func (w gormWriter) Printf(format string, args ...interface{}) {
-	w.log.Printf(format, args...)
+func (w gormWriter) Printf(format string, args ...any) {
+	w.log.Info(fmt.Sprintf(format, args...))
 }
 
-// NewDatabase returns a logger suitable as logrus database logging middleware.
-func NewDatabase(log *logrus.Entry, level string) logger.Interface {
+// newGormLogger returns a gorm database logging middleware backed by slog.
+func newGormLogger(log *slog.Logger, level string) logger.Interface {
 	logConfig := logger.Config{
 		SlowThreshold: time.Second,
 		Colorful:      true,
 		LogLevel:      logger.Info,
 	}
+
 	switch strings.ToLower(level) {
 	case "silent":
 		logConfig.LogLevel = logger.Silent

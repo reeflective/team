@@ -22,7 +22,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
 	"github.com/reeflective/team"
@@ -31,6 +30,7 @@ import (
 	"github.com/reeflective/team/internal/certs"
 	"github.com/reeflective/team/internal/db"
 	"github.com/reeflective/team/internal/version"
+	"github.com/reeflective/team/log"
 )
 
 // Server is the core driver of an application teamserver.
@@ -67,8 +67,7 @@ type Server struct {
 	initOpts sync.Once  // Some options can only be set once when creating the server.
 
 	// Logging
-	fileLog  *logrus.Logger // Can be in-memory if the teamserver is configured.
-	stdioLog *logrus.Logger // Logging level independent from the file logger.
+	logger *log.Logger // Console (stdout/stderr) and optional file logging.
 
 	// Users
 	userTokens *sync.Map      // Refreshed entirely when a user is kicked.

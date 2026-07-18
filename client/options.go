@@ -19,14 +19,13 @@ package client
 */
 
 import (
-	"io"
+	"log/slog"
 	"os"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/assets"
+	"github.com/reeflective/team/log"
 )
 
 const noTeamdir = "no team subdirectory"
@@ -48,9 +47,9 @@ type opts struct {
 	logFile      string
 	inMemory     bool
 	noDisconnect bool
-	stdout       io.Writer
 	config       *Config
-	logger       *logrus.Logger
+	logger       slog.Handler
+	consoleStyle func(*log.ConsoleOptions)
 	dialer       Dialer
 	client       team.Client
 }
@@ -99,10 +98,6 @@ func (tc *Client) apply(options ...Options) {
 		tc.opts.teamDir = ""
 	} else if tc.opts.teamDir == "" {
 		tc.opts.teamDir = assets.DirClient
-	}
-
-	if tc.opts.stdout != nil {
-		tc.stdoutLogger.Out = tc.opts.stdout
 	}
 }
 
@@ -185,12 +180,15 @@ func WithLogFile(filePath string) Options {
 	}
 }
 
-// WithLogger sets the teamclient to use a specific logger for logging.
+// WithLogger sets the teamclient to use a specific slog.Handler as its sole
+// logging backend, in place of the default console+file loggers. Since the
+// handler fully controls formatting and routing, the teamclient's runtime
+// level/output controls (SetLogLevel/SetLogWriter) do not apply to it.
 //
 // This option can only be used once, and should be passed client.New().
-func WithLogger(logger *logrus.Logger) Options {
+func WithLogger(handler slog.Handler) Options {
 	return func(opts *opts) {
-		opts.logger = logger
+		opts.logger = handler
 	}
 }
 
@@ -211,6 +209,20 @@ func WithLogger(logger *logrus.Logger) Options {
 func WithDialer(dialer Dialer) Options {
 	return func(opts *opts) {
 		opts.dialer = dialer
+	}
+}
+
+// WithConsoleOptions restyles the built-in console logger (level markers/colors,
+// package/time/message colors, column widths, timestamp) while KEEPING the
+// default console+file loggers and their runtime level control. The callback
+// receives the console options pre-filled with the library defaults; tweak only
+// what you want. Use this instead of WithLogger when you want the team look with
+// small changes rather than a completely custom backend.
+//
+// This option can only be used once, and should be passed client.New().
+func WithConsoleOptions(style func(*log.ConsoleOptions)) Options {
+	return func(opts *opts) {
+		opts.consoleStyle = style
 	}
 }
 

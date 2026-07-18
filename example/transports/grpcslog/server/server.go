@@ -20,13 +20,13 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"runtime/debug"
 	"sync"
 
-	clientConn "github.com/reeflective/team/example/transports/grpc/client"
-	"github.com/reeflective/team/example/transports/grpc/common"
-	"github.com/reeflective/team/example/transports/grpc/proto"
+	clientConn "github.com/reeflective/team/example/transports/grpcslog/client"
+	"github.com/reeflective/team/example/transports/grpcslog/proto"
 	teamserver "github.com/reeflective/team/server"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -138,7 +138,7 @@ func (h *Teamserver) Init(serv *teamserver.Server) (err error) {
 // If the teamserver has previously been given an in-memory connection,
 // it returns it as the listener without errors.
 func (h *Teamserver) Listen(addr string) (ln net.Listener, err error) {
-	rpcLog := common.LogEntry("transport", "mTLS")
+	rpcLog := h.NamedLogger("transport", "mTLS")
 
 	// Only wrap the connection in TLS when remote.
 	// In-memory connection are not authenticated.
@@ -169,24 +169,24 @@ func (h *Teamserver) Listen(addr string) (ln net.Listener, err error) {
 
 	for _, hook := range h.hooks {
 		if err := hook(grpcServer); err != nil {
-			rpcLog.Errorf("service bind error: %s", err)
+			rpcLog.Error(fmt.Sprintf("service bind error: %s", err))
 			return nil, err
 		}
 	}
 
-	rpcLog.Infof("Serving gRPC teamserver on %s", ln.Addr())
+	rpcLog.Info(fmt.Sprintf("Serving gRPC teamserver on %s", ln.Addr()))
 
 	// Start serving the listener
 	go func() {
 		panicked := true
 		defer func() {
 			if panicked {
-				rpcLog.Errorf("stacktrace from panic: %s", string(debug.Stack()))
+				rpcLog.Error(fmt.Sprintf("stacktrace from panic: %s", string(debug.Stack())))
 			}
 		}()
 
 		if err := grpcServer.Serve(ln); err != nil {
-			rpcLog.Errorf("gRPC server exited with error: %v", err)
+			rpcLog.Error(fmt.Sprintf("gRPC server exited with error: %v", err))
 		} else {
 			panicked = false
 		}

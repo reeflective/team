@@ -30,8 +30,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lib/pq"
-
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/certs"
@@ -39,14 +37,17 @@ import (
 )
 
 var namePattern = regexp.MustCompile("^[a-zA-Z0-9_-]*$") // Only allow alphanumeric chars
-const permissionsSep = ","
 
 // UserCreate creates a new teamserver user, with all cryptographic material and server remote
 // endpoints needed by this user to connect to us.
 //
 // Certificate files and the API authentication token are saved into the teamserver database,
 // conformingly to its configured backend/filesystem (can be in-memory or on filesystem).
-func (ts *Server) UserCreate(name string, lhost string, lport uint16, perms ...string) (*client.Config, error) {
+//
+// The teamserver stores only the identity and its credentials: it has no notion of
+// user permissions/roles. Applications that need per-user authorization own that model
+// themselves (a separate table keyed by name), and enforce it in their own middleware.
+func (ts *Server) UserCreate(name string, lhost string, lport uint16) (*client.Config, error) {
 	if err := ts.initDatabase(); err != nil {
 		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
@@ -74,9 +75,8 @@ func (ts *Server) UserCreate(name string, lhost string, lport uint16, perms ...s
 
 	digest := sha256.Sum256([]byte(rawToken))
 	dbuser := &db.User{
-		Name:        name,
-		Token:       hex.EncodeToString(digest[:]),
-		Permissions: pq.StringArray(perms),
+		Name:  name,
+		Token: hex.EncodeToString(digest[:]),
 	}
 
 	err = ts.Database().Save(dbuser).Error
@@ -107,10 +107,10 @@ func (ts *Server) UserCreate(name string, lhost string, lport uint16, perms ...s
 // the teamserver database, clearing the API auth tokens cache.
 //
 // WARN: This function has two very precise effects/consequences:
-//  1. The server-side Mutual TLS configuration obtained with server.GetUserTLSConfig()
+//  1. The server-side Mutual TLS configuration obtained with server.UsersTLSConfig()
 //     will refuse all connections using the deleted user TLS credentials, returning
 //     an authentication failure.
-//  2. The server.AuthenticateUser(token) method will always return an ErrUnauthenticated
+//  2. The server.Authenticate(token) method will always return an ErrUnauthenticated
 //     error from the call, because the delete user is not in the database anymore.
 //
 // Thus, it is up to the users of this library to use the builting teamserver TLS
@@ -137,22 +137,28 @@ func (ts *Server) UserDelete(name string) error {
 	return ts.certs.UserClientRemoveCertificate(name)
 }
 
-// UserAuthenticate accepts a raw 128-bits long API Authentication token belonging to the
-// user of a connected/connecting teamclient. The token is hashed and checked against the
-// teamserver users database for the matching user.
-// This function shall alternatively return:
-//   - The name of the authenticated user, true for authenticated and no error.
-//   - No name, false for authenticated, and an ErrUnauthenticated error.
-//   - No name, false for authenticated, and a database error, if was ignited now.
+// Authenticate is the teamserver's authentication primitive: it accepts a raw
+// 128-bits long API authentication token belonging to a connected/connecting
+// teamclient, hashes it, and checks it against the teamserver users database.
+//
+// On success it returns the authenticated user's identity (the registered
+// team.User: name and registry metadata, NO permissions). On failure it returns
+// a nil user and an ErrUnauthenticated (or ErrDatabase) error.
+//
+// This is authentication ONLY. The teamserver has no notion of what an
+// authenticated user is allowed to do: applications resolve the returned Name
+// against their own authorization model and inject their own identity object
+// into the request context from their own transport middleware. This call is the
+// single seam through which an embedding application learns "who is calling".
 //
 // This call updates the last time the user has been seen by the server.
-func (ts *Server) UserAuthenticate(rawToken string) (*team.User, bool, error) {
+func (ts *Server) Authenticate(rawToken string) (*team.User, error) {
 	if err := ts.initDatabase(); err != nil {
-		return nil, false, ts.errorf("%w: %w", ErrDatabase, err)
+		return nil, ts.errorf("%w: %w", ErrDatabase, err)
 	}
 
 	log := ts.NamedLogger("server", "auth")
-	log.Debugf("Authorization-checking user token ...")
+	log.Debug(fmt.Sprintf("Authenticating user token ..."))
 
 	// Check auth cache
 	digest := sha256.Sum256([]byte(rawToken))
@@ -164,28 +170,27 @@ func (ts *Server) UserAuthenticate(rawToken string) (*team.User, bool, error) {
 	if ok {
 		user := userFound.(*team.User)
 
-		log.Debugf("Token in cache!")
+		log.Debug(fmt.Sprintf("Token in cache!"))
 		ts.updateLastSeen(user.Name)
 
-		return user, true, nil
+		return user, nil
 	}
 
 	dbUser, err := ts.userByToken(token)
 	if err != nil || dbUser == nil {
-		return nil, false, ts.errorf("%w: %w", ErrUnauthenticated, err)
+		return nil, ts.errorf("%w: %w", ErrUnauthenticated, err)
 	}
 
-	// Transfer data to the exportable user type
+	// Transfer data to the exportable identity type (no authorization data).
 	user := &team.User{
-		Name:        dbUser.Name,
-		Permissions: []string(dbUser.Permissions),
+		Name: dbUser.Name,
 	}
 	ts.updateLastSeen(user.Name)
 
-	log.Debugf("Valid user token for %s", user.Name)
+	log.Debug(fmt.Sprintf("Valid user token for %s", user.Name))
 	ts.userTokens.Store(token, user)
 
-	return user, true, nil
+	return user, nil
 }
 
 // UsersTLSConfig returns a server-side Mutual TLS configuration struct, ready to run.
@@ -334,18 +339,18 @@ func (ts *Server) updateLastSeen(name string) {
 // 	GenerateCertificateAuthority(OperatorCA, "")
 // 	cert1, key1, err := OperatorClientGenerateCertificate("test3")
 // 	if err != nil {
-// 		t.Errorf("Failed to store ecc certificate %v", err)
+// 		t.Error(fmt.Sprintf("Failed to store ecc certificate %v", err))
 // 		return
 // 	}
 //
 // 	cert2, key2, err := OperatorClientGetCertificate("test3")
 // 	if err != nil {
-// 		t.Errorf("Failed to get ecc certificate %v", err)
+// 		t.Error(fmt.Sprintf("Failed to get ecc certificate %v", err))
 // 		return
 // 	}
 //
 // 	if !bytes.Equal(cert1, cert2) || !bytes.Equal(key1, key2) {
-// 		t.Errorf("Stored ecc cert/key does match generated cert/key: %v != %v", cert1, cert2)
+// 		t.Error(fmt.Sprintf("Stored ecc cert/key does match generated cert/key: %v != %v", cert1, cert2))
 // 		return
 // 	}
 // }

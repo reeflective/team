@@ -21,76 +21,60 @@ package client
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"path/filepath"
 
-	"github.com/sirupsen/logrus"
-
-	"github.com/reeflective/team/internal/log"
+	"github.com/reeflective/team/internal/assets"
+	"github.com/reeflective/team/log"
 )
 
-// NamedLogger returns a new logging "thread" with two fields (optional)
-// to indicate the package/general domain, and a more precise flow/stream.
-// The events are logged according to the teamclient logging backend setup.
-func (tc *Client) NamedLogger(pkg, stream string) *logrus.Entry {
-	return tc.log().WithFields(logrus.Fields{
-		log.PackageFieldKey: pkg,
-		"stream":            stream,
-	})
+// NamedLogger returns a new logger tagged with a package/domain and a more
+// precise flow/stream. The events are logged according to the teamclient
+// logging backend setup.
+func (tc *Client) NamedLogger(pkg, stream string) *slog.Logger {
+	return tc.logger.Named(pkg, stream)
 }
 
-// SetLogWriter sets the stream to which the stdio logger (not the file logger)
-// should write to. This option is used by the teamclient cobra command tree to
-// synchronize its basic I/O/err with the teamclient backend.
+// SetLogWriter sets the streams to which the console logger (not the file logger)
+// should write. This is used by the teamclient cobra command tree to synchronize
+// its stdout/stderr with the teamclient backend.
 func (tc *Client) SetLogWriter(stdout, stderr io.Writer) {
-	tc.stdoutLogger.Out = stdout
-	// TODO: Pass stderr to log internals.
+	tc.logger.SetOutput(stdout, stderr)
 }
 
 // SetLogLevel sets the logging level of all teamclient loggers.
 func (tc *Client) SetLogLevel(level int) {
-	if tc.stdoutLogger == nil {
+	if tc.logger == nil {
 		return
 	}
 
-	if uint32(level) > uint32(logrus.TraceLevel) {
-		level = int(logrus.TraceLevel)
-	}
-
-	tc.stdoutLogger.SetLevel(logrus.Level(uint32(level)))
-
-	if tc.fileLogger != nil {
-		tc.fileLogger.SetLevel(logrus.Level(uint32(level)))
-	}
+	tc.logger.SetLevel(log.LevelFrom(level))
 }
 
-// log returns a non-nil logger for the client:
-// if file logging is disabled, it returns the stdout-only logger,
-// otherwise returns the file logger equipped with a stdout hook.
-func (tc *Client) log() *logrus.Logger {
-	if tc.fileLogger != nil {
-		return tc.fileLogger
+// log returns the underlying, non-nil *slog.Logger for the client.
+func (tc *Client) log() *slog.Logger {
+	if tc.logger == nil {
+		tc.logger = log.NewStdio(slog.LevelWarn)
 	}
 
-	if tc.stdoutLogger == nil {
-		tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
-	}
-
-	return tc.stdoutLogger
+	return tc.logger.Logger()
 }
 
 func (tc *Client) errorf(msg string, format ...any) error {
 	logged := fmt.Errorf(msg, format...)
-	tc.log().Error(logged)
+	tc.log().Error(logged.Error())
 
 	return logged
 }
 
 func (tc *Client) initLogging() (err error) {
-	// By default, the stdout logger is never nil.
-	// We might overwrite it below if using our defaults.
-	tc.stdoutLogger = log.NewStdio(logrus.WarnLevel)
+	// If the user supplied a logging handler, it becomes the sole backend.
+	if tc.opts.logger != nil {
+		tc.logger = log.NewFromHandler(tc.opts.logger)
+		return nil
+	}
 
-	// Path to our client log file, and open it (in mem or on disk)
+	// Path to our client log file, and open it (in mem or on disk).
 	logFile := filepath.Join(tc.LogsDir(), log.FileName(tc.Name(), false))
 
 	// If the teamclient should log to a predefined file.
@@ -98,18 +82,15 @@ func (tc *Client) initLogging() (err error) {
 		logFile = tc.opts.logFile
 	}
 
-	// If user supplied a logger, use it in place of the
-	// file-based logger, since the file logger is optional.
-	if tc.opts.logger != nil {
-		tc.fileLogger = tc.opts.logger
-		return nil
-	}
-
-	// Create the loggers writing to this file, and hooked to write to stdout as well.
-	tc.fileLogger, tc.stdoutLogger, err = log.Init(tc.fs, logFile, logrus.InfoLevel)
+	// Open the log file (on disk or in the in-memory filesystem).
+	logfile, err := tc.fs.OpenFile(logFile, assets.FileWriteOpenMode, assets.FileWritePerm)
 	if err != nil {
 		return err
 	}
+
+	// Console logs warnings and above by default, the file logs from info;
+	// the console can be restyled via WithConsoleOptions.
+	tc.logger = log.New(logfile, slog.LevelWarn, slog.LevelInfo, tc.opts.consoleStyle)
 
 	return nil
 }

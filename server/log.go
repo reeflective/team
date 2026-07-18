@@ -20,67 +20,54 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
-	"github.com/sirupsen/logrus"
-
-	"github.com/reeflective/team/internal/log"
+	"github.com/reeflective/team/internal/assets"
+	"github.com/reeflective/team/log"
 )
 
-// NamedLogger returns a new logging "thread" with two fields (optional)
-// to indicate the package/general domain, and a more precise flow/stream.
-// The events are logged according to the teamclient logging backend setup.
-func (ts *Server) NamedLogger(pkg, stream string) *logrus.Entry {
-	return ts.log().WithFields(logrus.Fields{
-		log.PackageFieldKey: pkg,
-		"stream":            stream,
-	})
+// NamedLogger returns a new logger tagged with a package/domain and a more
+// precise flow/stream. The events are logged according to the teamserver
+// logging backend setup.
+func (ts *Server) NamedLogger(pkg, stream string) *slog.Logger {
+	return ts.logger.Named(pkg, stream)
 }
 
 // SetLogLevel sets the logging level of teamserver loggers (excluding audit ones).
 func (ts *Server) SetLogLevel(level int) {
-	if ts.stdioLog == nil {
+	if ts.logger == nil {
 		return
 	}
 
-	if uint32(level) > uint32(logrus.TraceLevel) {
-		level = int(logrus.TraceLevel)
-	}
-
-	ts.stdioLog.SetLevel(logrus.Level(uint32(level)))
-
-	// Also Change the file-based logging level:
-	// - If they app runs a memfs, this wont have any effect.
-	// - If the user wants to debug anyway, better two sources than one.
-	if ts.fileLog != nil {
-		ts.fileLog.SetLevel(logrus.Level(uint32(level)))
-	}
+	ts.logger.SetLevel(log.LevelFrom(level))
 }
 
 // AuditLogger returns a special logger writing its event entries to an audit
 // log file (default audit.json), distinct from other teamserver log files.
 // Handler implementations will want to use this for logging various teamclient
 // application requests, with this logger used somewhere in your handler middleware.
-func (ts *Server) AuditLogger() (*logrus.Logger, error) {
+func (ts *Server) AuditLogger() (*slog.Logger, error) {
 	if ts.opts.inMemory || ts.opts.noLogs {
 		return ts.log(), nil
 	}
 
-	// Generate a new audit logger
-	auditLog, err := log.NewAudit(ts.fs, ts.LogsDir())
+	// Open the audit file and wrap it in a JSON audit logger.
+	auditPath := filepath.Join(ts.LogsDir(), "audit.json")
+
+	auditFile, err := ts.fs.OpenFile(auditPath, assets.FileWriteOpenMode, assets.FileWritePerm)
 	if err != nil {
 		return nil, ts.errorf("%w: %w", ErrLogging, err)
 	}
 
-	return auditLog, nil
+	return log.NewAudit(auditFile), nil
 }
 
 // Initialize loggers in files/stdout according to options.
 func (ts *Server) initLogging() (err error) {
-	// If user supplied a logger, use it in place of the
-	// file-based logger, since the file logger is optional.
+	// If the user supplied a logging handler, it becomes the sole backend.
 	if ts.opts.logger != nil {
-		ts.fileLog = ts.opts.logger
+		ts.logger = log.NewFromHandler(ts.opts.logger)
 		return nil
 	}
 
@@ -91,42 +78,44 @@ func (ts *Server) initLogging() (err error) {
 		logFile = ts.opts.logFile
 	}
 
-	level := logrus.Level(ts.opts.config.Log.Level)
+	fileLevel := log.LevelFrom(ts.opts.config.Log.Level)
 
-	// Create any additional/configured logger and related/missing hooks.
-	ts.fileLog, ts.stdioLog, err = log.Init(ts.fs, logFile, level)
+	// Open the log file (on disk or in the in-memory filesystem).
+	logfile, err := ts.fs.OpenFile(logFile, assets.FileWriteOpenMode, assets.FileWritePerm)
 	if err != nil {
 		return err
 	}
 
+	// Console logs warnings and above by default, the file logs at the
+	// configured level; the console can be restyled via WithConsoleOptions.
+	ts.logger = log.New(logfile, slog.LevelWarn, fileLevel, ts.opts.consoleStyle)
+
 	return nil
 }
 
-// log returns a non-nil logger for the server:
-// if file logging is disabled, it returns the stdout-only logger,
-// otherwise returns the file logger equipped with a stdout hook.
-func (ts *Server) log() *logrus.Logger {
-	if ts.fileLog == nil {
-		return ts.stdioLog
+// log returns the underlying, non-nil *slog.Logger for the server.
+func (ts *Server) log() *slog.Logger {
+	if ts.logger == nil {
+		ts.logger = log.NewStdio(slog.LevelWarn)
 	}
 
-	return ts.fileLog
+	return ts.logger.Logger()
 }
 
 func (ts *Server) errorf(msg string, format ...any) error {
 	logged := fmt.Errorf(msg, format...)
-	ts.log().Error(logged)
+	ts.log().Error(logged.Error())
 
 	return logged
 }
 
-func (ts *Server) errorWith(log *logrus.Entry, msg string, format ...any) error {
+func (ts *Server) errorWith(logger *slog.Logger, msg string, format ...any) error {
 	logged := fmt.Errorf(msg, format...)
 
-	if log != nil {
-		log.Error(logged)
+	if logger != nil {
+		logger.Error(logged.Error())
 	} else {
-		ts.log().Error(logged)
+		ts.log().Error(logged.Error())
 	}
 
 	return logged

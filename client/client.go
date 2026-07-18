@@ -22,11 +22,10 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/internal/assets"
 	"github.com/reeflective/team/internal/version"
+	"github.com/reeflective/team/log"
 )
 
 // Client is the core driver of an application teamclient.
@@ -50,14 +49,13 @@ import (
 // Various combinations of teamclient/teamserver usage are possible.
 // Please see the Go module example/ directory for a list of them.
 type Client struct {
-	name         string         // Name of the teamclient/teamserver application.
-	homeDir      string         // APP_ROOT_DIR var, evaluated once when creating the server.
-	opts         *opts          // All configurable things for the teamclient.
-	fileLogger   *logrus.Logger // By default, hooked to also provide stdout logging.
-	stdoutLogger *logrus.Logger // Fallback logger.
-	fs           *assets.FS     // Embedded or on-disk application filesystem.
-	mutex        *sync.RWMutex  // Sync access.
-	initOpts     sync.Once      // Some options can only be set once when creating the server.
+	name     string        // Name of the teamclient/teamserver application.
+	homeDir  string        // APP_ROOT_DIR var, evaluated once when creating the server.
+	opts     *opts         // All configurable things for the teamclient.
+	logger   *log.Logger   // Console (stdout/stderr) and optional file logging.
+	fs       *assets.FS    // Embedded or on-disk application filesystem.
+	mutex    *sync.RWMutex // Sync access.
+	initOpts sync.Once     // Some options can only be set once when creating the server.
 
 	dialer  Dialer     // Connection backend for the teamclient.
 	connect *sync.Once // A client can only connect once per run.
@@ -203,7 +201,7 @@ func (tc *Client) Disconnect() error {
 
 	err := tc.dialer.Close()
 	if err != nil {
-		tc.log().Error(err)
+		tc.log().Error(err.Error())
 	}
 
 	return err

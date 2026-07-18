@@ -96,7 +96,7 @@ func (tc *Client) GetConfigs() map[string]*Config {
 
 	configFiles, err := os.ReadDir(configDir)
 	if err != nil {
-		tc.log().Errorf("No configs found: %s", err)
+		tc.log().Error(fmt.Sprintf("No configs found: %s", err))
 		return map[string]*Config{}
 	}
 
@@ -173,7 +173,7 @@ func (tc *Client) SaveConfig(config *Config) error {
 		return tc.errorf("Failed to write config to: %s (%w)", saveTo, err)
 	}
 
-	tc.log().Infof("Saved new client config to: %s", saveTo)
+	tc.log().Info(fmt.Sprintf("Saved new client config to: %s", saveTo))
 
 	return nil
 }
@@ -201,7 +201,7 @@ func (tc *Client) SelectConfig() *Config {
 
 	err := survey.Ask(qs, &answer)
 	if err != nil {
-		tc.log().Errorf("config prompt failed: %s", err)
+		tc.log().Error(fmt.Sprintf("config prompt failed: %s", err))
 		return nil
 	}
 

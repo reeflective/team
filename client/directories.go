@@ -19,6 +19,7 @@ package client
 */
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -43,7 +44,7 @@ func (tc *Client) HomeDir() string {
 
 	err := tc.fs.MkdirAll(dir, assets.DirPerm)
 	if err != nil {
-		tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
+		tc.log().Error(fmt.Sprintf("cannot write to %s root dir: %s", dir, err))
 	}
 
 	return dir
@@ -57,7 +58,7 @@ func (tc *Client) TeamDir() string {
 
 	err := tc.fs.MkdirAll(dir, assets.DirPerm)
 	if err != nil {
-		tc.log().Errorf("cannot write to %s root dir: %s", dir, err)
+		tc.log().Error(fmt.Sprintf("cannot write to %s root dir: %s", dir, err))
 	}
 
 	return dir
@@ -70,7 +71,7 @@ func (tc *Client) LogsDir() string {
 
 	err := tc.fs.MkdirAll(logsDir, assets.DirPerm)
 	if err != nil {
-		tc.log().Errorf("cannot write to %s root dir: %s", logsDir, err)
+		tc.log().Error(fmt.Sprintf("cannot write to %s root dir: %s", logsDir, err))
 	}
 
 	return logsDir
@@ -87,7 +88,7 @@ func (tc *Client) ConfigsDir() string {
 
 	err := os.MkdirAll(dir, assets.DirPerm)
 	if err != nil {
-		tc.log().Errorf("cannot write to %s configs dir: %s", dir, err)
+		tc.log().Error(fmt.Sprintf("cannot write to %s configs dir: %s", dir, err))
 	}
 
 	return dir

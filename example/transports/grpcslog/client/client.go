@@ -29,7 +29,7 @@ import (
 
 	"github.com/reeflective/team"
 	"github.com/reeflective/team/client"
-	"github.com/reeflective/team/example/transports/grpc/proto"
+	"github.com/reeflective/team/example/transports/grpcslog/proto"
 )
 
 const (
@@ -96,7 +96,7 @@ func (h *Teamclient) Init(cli *client.Client) error {
 	h.Client = cli
 	config := cli.Config()
 
-	options := LogMiddlewareOptions()
+	options := LogMiddlewareOptions(cli)
 
 	// If the configuration has no credentials, we are most probably
 	// an in-memory dialer, don't authenticate and encrypt the conn.

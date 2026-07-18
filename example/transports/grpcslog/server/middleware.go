@@ -21,13 +21,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
+	"time"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_tags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	"github.com/reeflective/team/example/transports/grpc/common"
+	"github.com/reeflective/team/example/transports/grpcslog/common"
 	"github.com/reeflective/team/server"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -55,9 +55,14 @@ func LogMiddlewareOptions(serv *server.Server) ([]grpc.ServerOption, error) {
 
 	cfg := serv.GetConfig()
 
-	// Audit-log all requests through this transport's own logrus logger,
-	// independently of the slog-based core teamserver loggers.
-	requestOpts = append(requestOpts, auditLogUnaryServerInterceptor(common.Logrus()))
+	// Audit-log all requests. Any failure to audit-log the requests
+	// of this server will themselves be logged to the root teamserver log.
+	auditLog, err := serv.AuditLogger()
+	if err != nil {
+		return nil, err
+	}
+
+	requestOpts = append(requestOpts, auditLogUnaryServerInterceptor(serv, auditLog))
 
 	requestOpts = append(requestOpts,
 		grpc_tags.UnaryServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
@@ -67,26 +72,16 @@ func LogMiddlewareOptions(serv *server.Server) ([]grpc.ServerOption, error) {
 		grpc_tags.StreamServerInterceptor(grpc_tags.WithFieldExtractor(grpc_tags.CodeGenRequestFieldExtractor)),
 	)
 
-	// Logging interceptors (this transport's own logrus backend).
-	logrusEntry := common.LogEntry("transport", "grpc")
-	logrusOpts := []grpc_logrus.Option{
-		grpc_logrus.WithLevels(common.CodeToLevel),
-	}
-
-	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
+	// Logging interceptors: log the outcome of every call at a level derived
+	// from its gRPC code, optionally dumping payloads when configured.
+	logger := serv.NamedLogger("transport", "grpc")
 
 	requestOpts = append(requestOpts,
-		grpc_logrus.UnaryServerInterceptor(logrusEntry, logrusOpts...),
-		grpc_logrus.PayloadUnaryServerInterceptor(logrusEntry, func(ctx context.Context, fullMethodName string, servingObject interface{}) bool {
-			return cfg.Log.GRPCUnaryPayloads
-		}),
+		logUnaryServerInterceptor(logger, cfg.Log.GRPCUnaryPayloads),
 	)
 
 	streamOpts = append(streamOpts,
-		grpc_logrus.StreamServerInterceptor(logrusEntry, logrusOpts...),
-		grpc_logrus.PayloadStreamServerInterceptor(logrusEntry, func(ctx context.Context, fullMethodName string, servingObject interface{}) bool {
-			return cfg.Log.GRPCStreamPayloads
-		}),
+		logStreamServerInterceptor(logger, cfg.Log.GRPCStreamPayloads),
 	)
 
 	return []grpc.ServerOption{
@@ -163,11 +158,11 @@ func serverAuthFunc(ctx context.Context) (context.Context, error) {
 
 // tokenAuthFunc uses the core reeflective/team/server to authenticate user requests.
 func (ts *Teamserver) tokenAuthFunc(ctx context.Context) (context.Context, error) {
-	log := common.LogEntry("transport", "grpc")
+	log := ts.NamedLogger("transport", "grpc")
 
 	rawToken, err := grpc_auth.AuthFromMD(ctx, "Bearer")
 	if err != nil {
-		log.Errorf("Authentication failure: %s", err)
+		log.Error("Authentication failure", "error", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
@@ -176,7 +171,7 @@ func (ts *Teamserver) tokenAuthFunc(ctx context.Context) (context.Context, error
 	// it carries no permissions/roles.
 	user, err := ts.Authenticate(rawToken)
 	if err != nil || user.Name == "" {
-		log.Errorf("Authentication failure: %s", err)
+		log.Error("Authentication failure", "error", err)
 		return nil, status.Error(codes.Unauthenticated, "Authentication failure")
 	}
 
@@ -195,21 +190,17 @@ type auditUnaryLogMsg struct {
 	Method  string `json:"method"`
 }
 
-func auditLogUnaryServerInterceptor(auditLog *logrus.Logger) grpc.UnaryServerInterceptor {
-	log := common.LogEntry("grpc", "audit")
+func auditLogUnaryServerInterceptor(ts *server.Server, auditLog *slog.Logger) grpc.UnaryServerInterceptor {
+	log := ts.NamedLogger("grpc", "audit")
 
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (_ interface{}, err error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		rawRequest, err := json.Marshal(req)
 		if err != nil {
-			log.Errorf("Failed to serialize %s", err)
-			return
+			log.Error("Failed to serialize request", "error", err)
+			return handler(ctx, req)
 		}
 
-		log.Debugf("Raw request: %s", string(rawRequest))
-
-		if err != nil {
-			log.Errorf("Middleware failed to insert details: %s", err)
-		}
+		log.Debug("Raw request", "payload", string(rawRequest))
 
 		// Construct Log Message
 		msg := &auditUnaryLogMsg{
@@ -220,8 +211,40 @@ func auditLogUnaryServerInterceptor(auditLog *logrus.Logger) grpc.UnaryServerInt
 		msgData, _ := json.Marshal(msg)
 		auditLog.Info(string(msgData))
 
+		return handler(ctx, req)
+	}
+}
+
+// logUnaryServerInterceptor logs the outcome of each unary call at a level
+// derived from its gRPC status code, optionally dumping the request payload.
+func logUnaryServerInterceptor(logger *slog.Logger, logPayloads bool) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if logPayloads {
+			if raw, err := json.Marshal(req); err == nil {
+				logger.Debug("Received payload", "method", info.FullMethod, "payload", string(raw))
+			}
+		}
+
+		start := time.Now()
 		resp, err := handler(ctx, req)
 
+		logger.Log(ctx, common.CodeToLevel(status.Code(err)), "unary call",
+			"method", info.FullMethod, "duration", time.Since(start).String(), "error", err)
+
 		return resp, err
+	}
+}
+
+// logStreamServerInterceptor logs the outcome of each streaming call at a level
+// derived from its gRPC status code.
+func logStreamServerInterceptor(logger *slog.Logger, logPayloads bool) grpc.StreamServerInterceptor {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		start := time.Now()
+		err := handler(srv, stream)
+
+		logger.Log(stream.Context(), common.CodeToLevel(status.Code(err)), "stream call",
+			"method", info.FullMethod, "duration", time.Since(start).String(), "error", err)
+
+		return err
 	}
 }

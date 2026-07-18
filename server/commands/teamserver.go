@@ -20,18 +20,18 @@ package commands
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/reeflective/team/internal/command"
-	"github.com/reeflective/team/internal/log"
 	"github.com/reeflective/team/internal/systemd"
+	"github.com/reeflective/team/log"
 	"github.com/reeflective/team/server"
 )
 
@@ -40,7 +40,7 @@ func daemoncmd(serv *server.Server) func(cmd *cobra.Command, args []string) erro
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 
@@ -82,7 +82,7 @@ func startListenerCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 
@@ -111,7 +111,7 @@ func closeCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 
@@ -158,7 +158,7 @@ func systemdConfigCmd(serv *server.Server) func(cmd *cobra.Command, args []strin
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 
@@ -217,7 +217,7 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("verbosity") {
 			logLevel, err := cmd.Flags().GetCount("verbosity")
 			if err == nil {
-				serv.SetLogLevel(logLevel + int(logrus.WarnLevel))
+				serv.SetLogLevel(int(slog.LevelWarn) - logLevel*4)
 			}
 		}
 
@@ -237,11 +237,10 @@ func statusCmd(serv *server.Server) func(cmd *cobra.Command, args []string) {
 		}))
 
 		// Logging files/level/status
-		fakeLog := serv.NamedLogger("", "")
 
 		fmt.Fprintln(cmd.OutOrStdout(), formatSection("Logging"))
 		fmt.Fprint(cmd.OutOrStdout(), displayGroup([]string{
-			"Level", fakeLog.Logger.Level.String(),
+			"Level", slog.Level(cfg.Log.Level).String(),
 			"Root", log.FileName(filepath.Join(serv.LogsDir(), serv.Name()), true),
 			"Audit", filepath.Join(serv.LogsDir(), "audit.json"),
 		}))

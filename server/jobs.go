@@ -178,7 +178,7 @@ func (ts *Server) ListenerStartPersistents() error {
 			continue
 		}
 
-		log.Errorf("Failed to start %s listener (%s:%d): %s", ln.Name, ln.Host, ln.Port, err)
+		log.Error(fmt.Sprintf("Failed to start %s listener (%s:%d): %s", ln.Name, ln.Host, ln.Port, err))
 
 		if !ts.opts.continueOnError {
 			return err
@@ -217,7 +217,7 @@ func (ts *Server) addListenerJob(listenerID, name, host string, port int, ln net
 		<-listener.kill
 
 		// Kills listener goroutines but NOT connections.
-		log.Infof("Stopping teamserver %s listener (%s)", name, listener.ID)
+		log.Info(fmt.Sprintf("Stopping teamserver %s listener (%s)", name, listener.ID))
 		ln.Close()
 
 		ts.jobs.active.LoadAndDelete(listener.ID)

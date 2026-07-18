@@ -39,21 +39,22 @@ type Client interface {
 	VersionServer() (Version, error)
 }
 
-// User represents a teamserver user.
-// This user shall be registered to a teamserver (ie. the teamserver should
-// be in possession of the user cryptographic materials required to serve him)
+// User represents a teamserver user: a registered identity for which the
+// teamserver holds the cryptographic materials (token + client certificate)
+// required to authenticate its connecting teamclients.
 // This type is returned by both team/clients and team/servers.
+//
+// Note on authorization: the teamserver is deliberately an AUTHENTICATION-only
+// authority. It proves who a caller is (this identity), and does not carry,
+// store, or interpret any permission/role model. Applications embedding the
+// teamserver own their authorization entirely: resolve this user's Name against
+// your own model and inject whatever identity object you want into the request
+// context from your own transport middleware.
 type User struct {
 	Name     string    // Name of the user
 	Online   bool      // Are one or more of the user's clients connected.
 	LastSeen time.Time // Last time the user made an RPC call or something.
 	Clients  int       // Number of clients connected.
-
-	// Permissions is a list of arbitrary strings that clients/servers
-	// might want to use for permissions: domain names, tools, tokens...
-	// These permissions can be specified with --permissions on the CLI,
-	// and will be always stored along with the user in the database.
-	Permissions []string
 }
 
 // Version returns complete version/compilation information for a given binary.

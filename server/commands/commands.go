@@ -196,7 +196,6 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 	userFlags.StringP("save", "s", "", "directory/file in which to save config")
 	userFlags.StringP("name", "n", "", "user name")
 	userFlags.BoolP("system", "U", false, "Use the current OS user, and save its configuration directly in client dir")
-	userFlags.StringSliceP("permissions", "P", []string{}, "list of permission strings for custom RPC auth")
 	userCmd.Flags().AddFlagSet(userFlags)
 
 	userComps := make(carapace.ActionMap)

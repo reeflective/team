@@ -117,22 +117,22 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) (err er
 	// cli args take president over config
 	if host == blankHost {
 		host = ts.opts.config.DaemonMode.Host
-		log.Debugf("No host specified, using config file default: %s", host)
+		log.Debug(fmt.Sprintf("No host specified, using config file default: %s", host))
 	}
 
 	if port == blankPort {
 		port = uint16(ts.opts.config.DaemonMode.Port)
-		log.Debugf("No port specified, using config file default: %d", port)
+		log.Debug(fmt.Sprintf("No port specified, using config file default: %d", port))
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("panic:\n%s", debug.Stack())
+			log.Error(fmt.Sprintf("panic:\n%s", debug.Stack()))
 		}
 	}()
 
 	// Start the listener.
-	log.Infof("Starting %s teamserver daemon on %s:%d ...", ts.Name(), host, port)
+	log.Info(fmt.Sprintf("Starting %s teamserver daemon on %s:%d ...", ts.Name(), host, port))
 
 	listenerID, err := ts.ServeAddr(ts.self.Name(), host, port, opts...)
 	if err != nil {
@@ -147,7 +147,7 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) (err er
 
 	err = ts.ListenerStartPersistents()
 	if err != nil && hostPort.MatchString(err.Error()) {
-		log.Errorf("Error starting persistent listeners: %s\n", err)
+		log.Error(fmt.Sprintf("Error starting persistent listeners: %s\n", err))
 	}
 
 	done := make(chan bool)
@@ -156,11 +156,11 @@ func (ts *Server) ServeDaemon(host string, port uint16, opts ...Options) (err er
 
 	go func() {
 		<-signals
-		log.Infof("Received SIGTERM, exiting ...")
+		log.Info("Received SIGTERM, exiting ...")
 
 		err = ts.ListenerClose(listenerID)
 		if err != nil {
-			log.Errorf("%s: %s", ErrListener, err)
+			log.Error(fmt.Sprintf("%s: %s", ErrListener, err))
 		}
 		done <- true
 	}()

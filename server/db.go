@@ -66,7 +66,7 @@ func (ts *Server) dbConfigPath() string {
 	log := ts.NamedLogger("config", "database")
 	dbFileName := fmt.Sprintf("%s.%s", ts.Name()+"_database", command.ServerConfigExt)
 	databaseConfigPath := filepath.Join(appDir, dbFileName)
-	log.Debugf("Loading config from %s", databaseConfigPath)
+	log.Debug(fmt.Sprintf("Loading config from %s", databaseConfigPath))
 
 	return databaseConfigPath
 }
@@ -80,7 +80,7 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 	configDir := path.Dir(configPath)
 
 	if _, err := ts.fs.Stat(configDir); os.IsNotExist(err) {
-		dblog.Debugf("Creating config dir %s", configDir)
+		dblog.Debug(fmt.Sprintf("Creating config dir %s", configDir))
 
 		err := ts.fs.MkdirAll(configDir, assets.DirPerm)
 		if err != nil {
@@ -93,7 +93,7 @@ func (ts *Server) saveDatabaseConfig(cfg *db.Config) error {
 		return err
 	}
 
-	dblog.Debugf("Saving config to %s", configPath)
+	dblog.Debug(fmt.Sprintf("Saving config to %s", configPath))
 
 	return ts.fs.WriteFile(configPath, data, assets.FileReadPerm)
 }
@@ -123,7 +123,7 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 			return nil, fmt.Errorf("Failed to parse config file %w", err)
 		}
 	} else {
-		log.Warnf("Database: no config file found, using and saving defaults")
+		log.Warn("Database: no config file found, using and saving defaults")
 	}
 
 	if config.MaxIdleConns < 1 {
@@ -138,7 +138,7 @@ func (ts *Server) getDatabaseConfig() (*db.Config, error) {
 	// failing to save is not critical for operation.
 	err := ts.saveDatabaseConfig(config)
 	if err != nil {
-		log.Errorf("Failed to save default config %s", err)
+		log.Error(fmt.Sprintf("Failed to save default config %s", err))
 	}
 
 	return config, nil
