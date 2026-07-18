@@ -45,7 +45,7 @@ import (
 //   - Listen is the transport-SPECIFIC binding phase.
 //
 // Keeping them separate lets implementations compose by embedding a base handler
-// and overriding only Listen() (see the Tailscale variant in the example transports).
+// and overriding only Listen() (see the gRPC handler under example/transports/grpc).
 //
 // Errors: all errors returned by the handler interface methods are considered
 // critical, and thus will stop the handler start/serve process when raised. Thus,
