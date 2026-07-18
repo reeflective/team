@@ -50,6 +50,7 @@ type opts struct {
 	config       *Config
 	logger       slog.Handler
 	consoleStyle func(*log.ConsoleOptions)
+	logFormat    log.Format
 	dialer       Dialer
 	client       team.Client
 }
@@ -223,6 +224,18 @@ func WithDialer(dialer Dialer) Options {
 func WithConsoleOptions(style func(*log.ConsoleOptions)) Options {
 	return func(opts *opts) {
 		opts.consoleStyle = style
+	}
+}
+
+// WithLogFormat selects how the teamclient console/stdout stream is rendered:
+// log.FormatConsole (default, aligned+colored), log.FormatText (logfmt) or
+// log.FormatJSON (structured). The file logger always stays plain text. This is
+// the programmatic equivalent of the teamclient `--log-format` CLI flag.
+//
+// This option can only be used once, and should be passed client.New().
+func WithLogFormat(format log.Format) Options {
+	return func(opts *opts) {
+		opts.logFormat = format
 	}
 }
 

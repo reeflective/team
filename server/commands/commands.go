@@ -28,6 +28,7 @@ import (
 	"github.com/reeflective/team/client"
 	cli "github.com/reeflective/team/client/commands"
 	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/log"
 	"github.com/reeflective/team/server"
 )
 
@@ -79,7 +80,21 @@ func serverCommands(server *server.Server, client *client.Client) *cobra.Command
 
 	teamFlags := pflag.NewFlagSet("teamserver", pflag.ContinueOnError)
 	teamFlags.CountP("verbosity", "v", "Counter flag (-vvv) to increase log verbosity on stdout (1:info-> 3:trace)")
+	teamFlags.String("log-format", "", "console log format (console, text, json)")
 	teamCmd.PersistentFlags().AddFlagSet(teamFlags)
+
+	// Apply the chosen console log format (console/text/json) before running.
+	teamCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		if format, _ := cmd.Flags().GetString("log-format"); format != "" {
+			server.SetLogFormat(log.Format(format))
+		}
+
+		return nil
+	}
+
+	carapace.Gen(teamCmd).FlagCompletion(carapace.ActionMap{
+		"log-format": command.LogFormatCompleter(),
+	})
 
 	// [ Listeners and servers control commands ] ------------------------------------------
 

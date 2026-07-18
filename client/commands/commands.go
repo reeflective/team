@@ -32,6 +32,7 @@ import (
 
 	"github.com/reeflective/team/client"
 	"github.com/reeflective/team/internal/command"
+	"github.com/reeflective/team/log"
 )
 
 // Generate returns a command tree to embed in client applications connecting
@@ -96,7 +97,21 @@ func clientCommands(cli *client.Client) *cobra.Command {
 
 	teamFlags := pflag.NewFlagSet("teamserver", pflag.ContinueOnError)
 	teamFlags.CountP("verbosity", "v", "Counter flag (-vvv) to increase log verbosity on stdout (1:panic -> 7:debug)")
+	teamFlags.String("log-format", "", "console log format (console, text, json)")
 	teamCmd.PersistentFlags().AddFlagSet(teamFlags)
+
+	// Apply the chosen console log format (console/text/json) before running.
+	teamCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		if format, _ := cmd.Flags().GetString("log-format"); format != "" {
+			cli.SetLogFormat(log.Format(format))
+		}
+
+		return nil
+	}
+
+	carapace.Gen(teamCmd).FlagCompletion(carapace.ActionMap{
+		"log-format": command.LogFormatCompleter(),
+	})
 
 	versionCmd := &cobra.Command{
 		Use:   "version",

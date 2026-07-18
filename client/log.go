@@ -92,5 +92,21 @@ func (tc *Client) initLogging() (err error) {
 	// the console can be restyled via WithConsoleOptions.
 	tc.logger = log.New(logfile, slog.LevelWarn, slog.LevelInfo, tc.opts.consoleStyle)
 
+	// Apply the configured console format (console/text/json), if any.
+	if tc.opts.logFormat != "" {
+		tc.logger.SetLogFormat(tc.opts.logFormat)
+	}
+
 	return nil
+}
+
+// SetLogFormat rebuilds the teamclient console stream in the given format
+// (log.FormatConsole/Text/JSON). The file logger stays plain text. Intended for
+// use at startup (eg. from the teamclient `--log-format` flag).
+func (tc *Client) SetLogFormat(format log.Format) {
+	if tc.logger == nil {
+		return
+	}
+
+	tc.logger.SetLogFormat(format)
 }

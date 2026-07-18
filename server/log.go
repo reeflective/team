@@ -90,7 +90,23 @@ func (ts *Server) initLogging() (err error) {
 	// configured level; the console can be restyled via WithConsoleOptions.
 	ts.logger = log.New(logfile, slog.LevelWarn, fileLevel, ts.opts.consoleStyle)
 
+	// Apply the configured console format (console/text/json), if any.
+	if ts.opts.logFormat != "" {
+		ts.logger.SetLogFormat(ts.opts.logFormat)
+	}
+
 	return nil
+}
+
+// SetLogFormat rebuilds the teamserver console stream in the given format
+// (log.FormatConsole/Text/JSON). The file logger stays plain text. Intended for
+// use at startup (eg. from the teamserver `--log-format` flag).
+func (ts *Server) SetLogFormat(format log.Format) {
+	if ts.logger == nil {
+		return
+	}
+
+	ts.logger.SetLogFormat(format)
 }
 
 // log returns the underlying, non-nil *slog.Logger for the server.

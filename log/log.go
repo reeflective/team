@@ -51,6 +51,11 @@ type Logger struct {
 	file   *slog.LevelVar // file level (nil when a custom handler is used)
 	out    *swapWriter    // console stdout (nil when a custom handler is used)
 	err    *swapWriter    // console stderr (nil when a custom handler is used)
+
+	// Retained so the stdio format can be (re)built, eg. by SetLogFormat.
+	logFile io.Writer
+	style   func(*ConsoleOptions)
+	format  Format
 }
 
 // swapWriter is an io.Writer whose destination can be swapped at runtime and is
@@ -98,45 +103,84 @@ func New(logFile io.Writer, stdioLevel, fileLevel slog.Level, style func(*Consol
 	stdioVar := &slog.LevelVar{}
 	stdioVar.Set(stdioLevel)
 
-	out := newSwapWriter(os.Stdout)
-	errOut := newSwapWriter(os.Stderr)
-
-	// Styling template: library default (timestamps on) + optional consumer restyle.
-	tmpl := ConsoleOptions{ShowTimestamp: true}
-	if style != nil {
-		style(&tmpl)
+	logger := &Logger{
+		stdio:   stdioVar,
+		out:     newSwapWriter(os.Stdout),
+		err:     newSwapWriter(os.Stderr),
+		logFile: logFile,
+		style:   style,
+		format:  FormatConsole,
 	}
 
-	// Console handler: restyled template + library-controlled level/streams.
-	consoleOpts := tmpl
-	consoleOpts.Level = stdioVar
-	consoleOpts.Stdout = out
-	consoleOpts.Stderr = errOut
-	console := NewConsoleHandler(consoleOpts)
-
-	logger := &Logger{stdio: stdioVar, out: out, err: errOut}
-
-	if logFile == nil {
-		logger.logger = slog.New(console)
-		return logger
+	if logFile != nil {
+		fileVar := &slog.LevelVar{}
+		fileVar.Set(fileLevel)
+		logger.file = fileVar
 	}
 
-	// File handler: same styling, but writes plain (uncolored) text with the
-	// source caller to the log file, at its own level.
-	fileVar := &slog.LevelVar{}
-	fileVar.Set(fileLevel)
-
-	fileOpts := tmpl
-	fileOpts.Level = fileVar
-	fileOpts.Writer = logFile
-	fileOpts.DisableColors = true
-	fileOpts.AddSource = true
-	fileHandler := NewConsoleHandler(fileOpts)
-
-	logger.file = fileVar
-	logger.logger = slog.New(newTee(console, fileHandler))
+	logger.build()
 
 	return logger
+}
+
+// build (re)creates the underlying slog.Logger from the retained inputs: the
+// stdio handler for the current format, tee'd with the plain-text file handler
+// when a log file is set. It reuses the level vars and swap writers, so SetLevel
+// and SetOutput keep working across rebuilds.
+func (l *Logger) build() {
+	stdio := l.stdioHandler()
+
+	if l.logFile == nil || l.file == nil {
+		l.logger = slog.New(stdio)
+		return
+	}
+
+	tmpl := ConsoleOptions{ShowTimestamp: true}
+	if l.style != nil {
+		l.style(&tmpl)
+	}
+
+	tmpl.Level = l.file
+	tmpl.Writer = l.logFile
+	tmpl.DisableColors = true
+	tmpl.AddSource = true
+
+	l.logger = slog.New(newTee(stdio, NewConsoleHandler(tmpl)))
+}
+
+// stdioHandler builds the console/stdout+stderr handler for the current format.
+func (l *Logger) stdioHandler() slog.Handler {
+	switch l.format {
+	case FormatText:
+		return slog.NewTextHandler(l.out, &slog.HandlerOptions{Level: l.stdio})
+	case FormatJSON:
+		return slog.NewJSONHandler(l.out, &slog.HandlerOptions{Level: l.stdio})
+	default:
+		tmpl := ConsoleOptions{ShowTimestamp: true}
+		if l.style != nil {
+			l.style(&tmpl)
+		}
+
+		tmpl.Level = l.stdio
+		tmpl.Stdout = l.out
+		tmpl.Stderr = l.err
+
+		return NewConsoleHandler(tmpl)
+	}
+}
+
+// SetLogFormat rebuilds the console/stdio stream in the given format (console,
+// text or json). The file logger always stays plain text. It is meant to be set
+// once at startup (eg. from a --log-format CLI flag); loggers already obtained
+// via Named keep their previous format, so apply it before heavy logging. It is
+// a no-op for a custom-handler logger (NewFromHandler) or an invalid format.
+func (l *Logger) SetLogFormat(format Format) {
+	if l.stdio == nil || !format.Valid() {
+		return
+	}
+
+	l.format = format
+	l.build()
 }
 
 // NewStdio returns a console-only logger (no log file):
