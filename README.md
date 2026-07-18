@@ -388,5 +388,5 @@ library aims to stay small, with a precise role; contributions ideally strengthe
 code or widen interoperability with other Go programs.
 
 - [ ] Add support for encrypted sqlite by default.
-- [ ] Finish replacing logrus with the standard-library `slog`, behind a single package shared by client and server.
-- [ ] Add tests for the most sensitive paths (certificate management, database, etc.).
+- [x] Finish replacing logrus with the standard-library `slog`, behind a single package shared by client and server. _(Core is now `slog`-only, behind the public `team/log` package; logrus remains only in one example transport to demonstrate a self-owned backend.)_
+- [ ] Add tests for the most sensitive paths (certificate management, database, etc.). _(Started: the `log` package and the version/transport paths are now unit-tested; certificate and database coverage still to do.)_
