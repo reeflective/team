@@ -1,2 +1,6 @@
 # Local working copy of the GitHub wiki (its own git repo: team.wiki.git)
 team.wiki/
+
+# Compiled example binaries
+/teamserver
+/teamclient
