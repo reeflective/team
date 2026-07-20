@@ -59,10 +59,15 @@ func usersCmd(cli *client.Client) func(cmd *cobra.Command, args []string) error 
 		})
 
 		for _, user := range users {
-			lastSeen := user.LastSeen.Format(time.RFC1123)
+			// A zero LastSeen means the user has never authenticated: render it as
+			// "never" instead of the raw zero time.Time, which formats to a confusing
+			// "Mon, 01 Jan 0001 ..." date. Otherwise show how long ago it was seen
+			// ("... ago"), so a freshly-seen user reads as "0s ago" rather than a bare
+			// "0s" that looks like it was never seen.
+			lastSeen := "never"
 
 			if !user.LastSeen.IsZero() {
-				lastSeen = time.Since(user.LastSeen).Round(1 * time.Second).String()
+				lastSeen = time.Since(user.LastSeen).Round(1*time.Second).String() + " ago"
 			}
 
 			var status string

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+// Package teamgrpc is the core RPC service of the reeflective/team gRPC
+// transport: the minimal Users/Version methods a teamclient needs from a remote
+// teamserver. It is deliberately a distinct proto package (and file name) from
+// the example transport's, so both can coexist in one binary without colliding
+// in the global protobuf registry.
+package teamgrpc;
+
+option go_package = "github.com/reeflective/team/transports/grpc/proto";
+
+// Empty is the no-argument request type.
+message Empty {}
+
+// Version is a teamserver/teamclient binary version.
+message Version {
+  int32 Major = 1;
+  int32 Minor = 2;
+  int32 Patch = 3;
+
+  string Commit = 4;
+  bool Dirty = 5;
+  int64 CompiledAt = 6;
+
+  string OS = 7;
+  string Arch = 8;
+}
+
+// User is a registered teamserver user and its status.
+message User {
+  string Name = 1;
+  bool Online = 2;
+  int64 LastSeen = 3;
+  int32 Clients = 4;
+}
+
+// Users is a list of teamserver users.
+message Users { repeated User Users = 1; }
+
+// Team is the core teamserver RPC: it lets a connected teamclient query the
+// server version and the list of registered users. Applications register their
+// own services alongside it (via the transport's PostServe hook).
+service Team {
+  rpc GetVersion(Empty) returns (Version);
+  rpc GetUsers(Empty) returns (Users);
+}
