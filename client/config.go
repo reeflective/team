@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	osuser "os/user"
 	"path/filepath"
 	"sort"
 
@@ -206,6 +207,40 @@ func (tc *Client) SelectConfig() *Config {
 	}
 
 	return configs[answer.Config]
+}
+
+// SystemConfig returns the "system" teamclient configuration for the current OS
+// user, if one exists. This is the config written by the teamserver
+// `user --system` command: a per-machine default remote-server config saved as
+// <app>_<user>_default.teamclient.cfg in the teamclient configs directory.
+//
+// It is the artifact an application can use to decide, at startup, whether to
+// behave as a thin CLIENT of a remote teamserver (config present) instead of
+// embedding and serving its own in-process teamserver (config absent). The
+// boolean reports whether such a config was found and successfully read; the
+// config is not otherwise selected/applied — the caller decides what to do with
+// it (typically pass it to Connect via WithConfig).
+//
+// This uses the on-disk filesystem even if the teamclient is in memory mode.
+func (tc *Client) SystemConfig() (*Config, bool) {
+	osUser, err := osuser.Current()
+	if err != nil || osUser.Username == "" {
+		return nil, false
+	}
+
+	filename := fmt.Sprintf("%s_%s_default.%s", tc.Name(), filepath.Base(osUser.Username), command.ClientConfigExt)
+	path := filepath.Join(tc.ConfigsDir(), filename)
+
+	if _, err := os.Stat(path); err != nil {
+		return nil, false
+	}
+
+	config, err := tc.ReadConfig(path)
+	if err != nil || config == nil {
+		return nil, false
+	}
+
+	return config, true
 }
 
 // Config returns the currently used teamclient server configuration.
